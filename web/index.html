@@ -1,0 +1,2348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>QQ农场 Bot · 前端原型</title>
+<style>
+/* ============================================================
+   QQ农场Bot · 鸿蒙沉浸光感风格 · 深/浅双主题原型
+   基于 frontend-design (SuperDesign) 设计规范
+   ============================================================ */
+
+/* ---------- 主题变量（语义化） ---------- */
+:root{
+  --font-sans: "HarmonyOS Sans", "PingFang SC", -apple-system, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+  --radius-sm: 0.625rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+
+/* 浅色主题（默认） */
+[data-theme="light"]{
+  --bg-o: 3%;                              /* 背景光晕透明度 */
+  --bg-hi: oklch(1 0 0);                   /* 高光 */
+  --bg-lo: oklch(0.965 0.005 240);         /* 底色 */
+  --foreground: oklch(0.22 0.02 250);
+  --muted: oklch(0.55 0.012 250);
+  --muted-2: oklch(0.65 0.012 250);
+  --card: oklch(1 0 0 / 0.62);             /* 毛玻璃卡 */
+  --card-strong: oklch(1 0 0 / 0.85);
+  --border: oklch(0.86 0.01 250 / 0.7);
+  --primary: oklch(0.60 0.17 265);         /* 主色：静谧蓝紫 */
+  --primary-2: oklch(0.55 0.19 285);
+  --primary-soft: oklch(0.92 0.05 265 / 0.55);
+  --on-primary: oklch(1 0 0);
+  --good: oklch(0.58 0.14 155);            /* 可收获/成功 */
+  --grow: oklch(0.62 0.13 130);            /* 生长中 */
+  --warn: oklch(0.66 0.16 70);             /* 提示/虫害 */
+  --danger: oklch(0.60 0.20 25);           /* 待处理 */
+  --shadow: 0 8px 30px oklch(0.3 0.04 260 / 0.10), 0 2px 8px oklch(0.3 0.04 260 / 0.06);
+  --shadow-sm: 0 2px 10px oklch(0.3 0.04 260 / 0.07);
+  --glow: oklch(0.62 0.19 275 / 0.18);
+}
+
+/* 深色主题 */
+[data-theme="dark"]{
+  --bg-o: 8%;
+  --bg-hi: oklch(0.24 0.03 265);
+  --bg-lo: oklch(0.13 0.02 265);
+  --foreground: oklch(0.97 0.005 250);
+  --muted: oklch(0.84 0.02 250);
+  --muted-2: oklch(0.77 0.015 250);
+  --card: oklch(0.22 0.03 265 / 0.66);
+  --card-strong: oklch(0.27 0.03 265 / 0.86);
+  --border: oklch(0.90 0.015 250 / 0.24);
+  --primary: oklch(0.72 0.14 265);
+  --primary-2: oklch(0.68 0.16 285);
+  --primary-soft: oklch(0.72 0.14 265 / 0.16);
+  --on-primary: oklch(0.12 0.02 265);
+  --good: oklch(0.72 0.14 155);
+  --grow: oklch(0.74 0.13 130);
+  --warn: oklch(0.78 0.13 70);
+  --danger: oklch(0.72 0.16 25);
+  --shadow: 0 10px 34px oklch(0 0 0 / 0.45), 0 2px 10px oklch(0 0 0 / 0.35);
+  --shadow-sm: 0 2px 12px oklch(0 0 0 / 0.35);
+  --glow: oklch(0.66 0.18 285 / 0.35);
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  font-family:var(--font-sans);
+  color:var(--foreground);
+  background: linear-gradient(160deg, var(--bg-hi), var(--bg-lo) 55%);
+  background-attachment: fixed;
+  transition: background .5s var(--ease), color .5s var(--ease);
+  min-height:100%;
+}
+
+/* 顶部氛围光晕 */
+.aura{
+  position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(55% 38% at 15% 0%, var(--glow), transparent 70%),
+    radial-gradient(45% 34% at 100% 6%, oklch(0.5 0.12 200 / 0.12), transparent 70%);
+  transition: background .5s var(--ease);
+}
+
+/* 手机视窗容器 */
+.app{
+  position:relative; z-index:1;
+  max-width:430px; margin:0 auto;
+  min-height:100%;
+  display:flex; flex-direction:column;
+  padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 96px);
+}
+
+/* 顶栏 */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px;
+}
+.brand{
+  display:flex; align-items:center; gap:10px;
+  font-weight:700; letter-spacing:.3px; font-size:17px;
+}
+.brand .logo{
+  width:34px; height:34px; border-radius:11px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  display:grid; place-items:center; color:var(--on-primary);
+  box-shadow: var(--shadow-sm);
+}
+.brand small{ display:block; font-weight:500; font-size:11px; color:var(--muted); }
+.icon-btn{
+  width:38px; height:38px; border-radius:12px;
+  border:1px solid var(--border);
+  background:var(--card);
+  backdrop-filter: blur(12px);
+  display:grid; place-items:center; cursor:pointer;
+  color:var(--foreground); transition: transform .15s var(--ease), background .3s;
+}
+.icon-btn:active{ transform:scale(.92); }
+
+/* 用户资产卡 */
+.profile{
+  background:var(--card);
+  backdrop-filter: blur(20px) saturate(1.3);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:18px;
+  box-shadow:var(--shadow);
+  display:flex; align-items:center; gap:14px;
+  margin-bottom:16px;
+}
+.avatar{
+  position:relative;
+}
+.avatar .ring{
+  width:56px; height:56px; border-radius:20px;
+  background: linear-gradient(140deg, var(--primary), var(--primary-2));
+  display:grid; place-items:center;
+  box-shadow: 0 0 0 3px var(--card), 0 0 22px var(--glow);
+}
+.avatar .ring .face{
+  width:46px;height:46px;border-radius:16px;
+  background:var(--card-strong);
+  display:grid;place-items:center;font-size:22px;overflow:hidden;
+}
+.avatar .ring .face img{ width:100%;height:100%;object-fit:cover;display:block; }
+.avatar .lvl{
+  position:absolute; right:-6px; bottom:-6px;
+  background:var(--primary); color:var(--on-primary);
+  font-size:10px; font-weight:700; line-height:1;
+  padding:4px 6px; border-radius:999px;
+  box-shadow:var(--shadow-sm);
+}
+.pinfo{ flex:1; min-width:0; }
+.pinfo h2{ font-size:17px; font-weight:700; }
+.pinfo .uid{ font-size:12px; color:var(--muted); margin-top:2px; }
+.stats{ display:flex; gap:16px; margin-top:12px; }
+.stat strong{ font-size:15px; font-weight:700; display:flex; align-items:center; gap:4px; }
+.stat span{ display:block; font-size:11px; color:var(--muted); margin-top:1px; }
+.exp{ margin-top:12px; }
+.exp .bar{ height:6px; border-radius:999px; background:var(--border); overflow:hidden; }
+.exp .fill{
+  height:100%; width:68%; border-radius:999px;
+  background:linear-gradient(90deg,var(--primary),var(--primary-2));
+  box-shadow:0 0 10px var(--glow);
+}
+.exp small{ display:block; margin-top:5px; font-size:10.5px; color:var(--muted); }
+
+/* 段标题 */
+.sec-title{
+  display:flex; align-items:center; justify-content:space-between;
+  margin:20px 2px 10px; font-size:13px; font-weight:600; color:var(--muted);
+  letter-spacing:.3px;
+}
+.sec-title .link{ color:var(--primary); font-weight:600; cursor:pointer; }
+
+/* 巡查间隔卡片区 */
+.patrol{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.patrol .cell{
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:13px 12px;
+  box-shadow:var(--shadow-sm);
+  transition: transform .2s var(--ease), box-shadow .3s;
+}
+.patrol .cell:active{ transform:scale(.96); }
+.patrol .ic{ width:34px;height:34px;border-radius:11px;display:grid;place-items:center;margin-bottom:9px;font-size:16px; }
+.ic-steal{ background:var(--primary-soft); color:var(--primary); }
+.ic-help{ background:oklch(0.6 0.12 130 / .16); color:var(--grow); }
+.ic-harvest{ background:oklch(0.6 0.14 70 / .16); color:var(--warn); }
+.patrol .cell h4{ font-size:13px; font-weight:600; }
+.patrol .cell .timer{ font-size:12px; font-weight:700; margin-top:3px; }
+.switch{
+  margin-top:9px; width:38px; height:22px; border-radius:999px;
+  background:var(--border); position:relative; cursor:pointer; transition:background .3s;
+}
+.switch::after{
+  content:""; position:absolute; top:3px; left:3px; width:16px;height:16px;
+  border-radius:50%; background:#fff; transition:transform .25s var(--ease);
+  box-shadow:0 1px 3px oklch(0 0 0 / .3);
+}
+.switch.on{ background:linear-gradient(90deg,var(--primary),var(--primary-2)); }
+.switch.on::after{ transform:translateX(16px); }
+
+/* 操作日志 */
+.logs{
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:6px 14px; box-shadow:var(--shadow-sm);
+  max-height:280px; overflow-y:auto;
+}
+.logs::-webkit-scrollbar{ width:0; }
+.log{ display:flex; gap:11px; padding:11px 2px; border-bottom:1px solid var(--border); }
+.log:last-child{ border-bottom:none; }
+.log .dot{ width:9px;height:9px;border-radius:50%;margin-top:5px; flex:none; box-shadow:0 0 8px currentColor; }
+.log .l-time{ font-size:11px; color:var(--muted-2); font-variant-numeric:tabular-nums; margin-top:1px; }
+.log p{ font-size:13px; line-height:1.45; }
+.log .tag{ display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; margin-left:6px; vertical-align:1px; }
+.log small{ font-size:11.5px; color:var(--muted); }
+
+/* ============ 页面切换 ============ */
+.page{ display:none; animation:fadeUp .35s var(--ease); }
+.page.active{ display:block; }
+@keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:none;} }
+
+/* 农场：24块地 */
+.grid-title{ display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
+.grid-title h3{ font-size:16px; font-weight:700; }
+.legend{ display:flex; gap:10px; font-size:11px; color:var(--muted); }
+.legend i{ display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:3px;vertical-align:1px; }
+.land{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.land .plot{
+  aspect-ratio:.72; border-radius:calc(var(--radius-md) + 2px);
+  border:1px solid var(--border); background:linear-gradient(165deg,var(--card-strong),var(--card));
+  backdrop-filter:blur(14px); position:relative;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  padding:12px 5px 9px; overflow:hidden; transition:transform .2s var(--ease);
+  box-shadow:var(--shadow-sm); min-height:132px;
+}
+.land .plot:active{ transform:scale(.94); }
+.land .plot .state{ font-size:23px; filter:drop-shadow(0 2px 6px oklch(0 0 0/.18)); }
+.land .plot .no{ position:absolute; top:7px; left:8px; font-size:8.5px; color:var(--muted-2); font-variant-numeric:tabular-nums; }
+.land .plot .name{ font-size:11px; font-weight:600; color:var(--foreground); text-align:center; padding:0 2px; line-height:1.2; max-width:100%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.land .bar{ width:100%; height:4px; border-radius:99px; background:var(--border); overflow:hidden; margin-top:3px; }
+.land .bar i{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--grow),var(--good)); }
+.land .meta{ font-size:8px; color:var(--muted-2); margin-top:2px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.land .ptime{ font-size:9px; color:var(--warn); font-weight:600; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.land .plot-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; width:100%; margin-top:5px; }
+.land .plot-btns button{ padding:4px 0; border-radius:7px; border:1px solid var(--border); background:transparent; font-size:9px; font-weight:600; cursor:pointer; font-family:var(--font-sans); }
+.p-cuisi{ color:var(--grow); border-color:color-mix(in oklch,var(--grow) 50%,var(--border)) !important; }
+.p-chan{ color:var(--danger); border-color:color-mix(in oklch,var(--danger) 50%,var(--border)) !important; }
+
+/* 好友列表 */
+.friends{ display:flex; flex-direction:column; gap:10px; }
+.friend{
+  display:flex;align-items:center;gap:12px; padding:12px 14px;
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);
+  transition:transform .2s var(--ease);
+}
+.friend:active{ transform:scale(.98); }
+.friend .f-av{ width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft); }
+.friend .f-info{ flex:1; min-width:0; }
+.friend .f-info h4{ font-size:14px; font-weight:600; }
+.friend .f-info p{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.ripeness{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; flex:none; }
+
+/* 占位页 */
+.placeholder{
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px dashed var(--border); border-radius:var(--radius-xl);
+  padding:52px 20px; text-align:center; box-shadow:var(--shadow-sm);
+}
+.placeholder .big{ font-size:42px; margin-bottom:12px; filter:drop-shadow(0 6px 16px var(--glow)); }
+.placeholder h3{ font-size:16px; font-weight:700; }
+.placeholder p{ font-size:12.5px; color:var(--muted); margin-top:6px; line-height:1.6; }
+.placeholder .badge{
+  display:inline-block; margin-top:14px; font-size:11px; font-weight:600;
+  padding:5px 12px; border-radius:999px; background:var(--primary-soft); color:var(--primary);
+}
+
+/* 底部悬浮导航 */
+.dock{
+  position:fixed; bottom:calc(env(safe-area-inset-bottom) + 12px);
+  left:50%; transform:translateX(-50%);
+  width:max-content; max-width:calc(100% - 28px);
+  display:flex; align-items:center; gap:2px;
+  padding:8px;
+  background:var(--card-strong);
+  backdrop-filter: blur(28px) saturate(1.5);
+  border:1px solid var(--border);
+  border-radius:28px;
+  box-shadow:var(--shadow);
+  z-index:20;
+}
+.dock button{
+  position:relative; flex:0 0 auto;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  background:none; border:none; cursor:pointer;
+  color:var(--muted); font-size:10.5px; font-weight:500;
+  font-family:var(--font-sans);
+  padding:8px 12px; border-radius:18px; min-width:52px;
+  transition:color .25s var(--ease), transform .15s;
+}
+.dock button:active{ transform:scale(.9); }
+.dock button .di{ font-size:20px; line-height:1; transition:transform .25s var(--ease); }
+.dock button.active{ color:var(--primary); font-weight:600; }
+.dock button.active .di{ transform:translateY(-1px); }
+.dock button.active::before{
+  content:""; position:absolute; left:6px; right:6px; top:4px; bottom:4px;
+  border-radius:16px; background:var(--primary-soft);
+  box-shadow:0 2px 14px var(--glow); z-index:-1;
+}
+.dock button.active::after{
+  content:""; position:absolute; top:4px; left:50%; transform:translateX(-50%);
+  width:16px; height:3px; border-radius:999px; background:var(--primary);
+  box-shadow:0 0 8px var(--glow);
+}
+
+/* 顶栏图标组 */
+.icon-group{ display:flex; gap:10px; align-items:center; }
+
+/* 账号切换 bottom sheet */
+.sheet-mask{
+  position:fixed; inset:0; background:oklch(0 0 0 / .42); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transition:opacity .3s var(--ease); z-index:30;
+}
+.sheet-mask.show{ opacity:1; pointer-events:auto; }
+.sheet{
+  position:fixed; left:50%; bottom:0; transform:translate(-50%,110%);
+  width:min(430px,100%); padding:18px 18px calc(env(safe-area-inset-bottom) + 16px);
+  background:var(--card-strong); backdrop-filter:blur(30px) saturate(1.5);
+  border-top:1px solid var(--border); border-radius:30px 30px 0 0;
+  box-shadow:var(--shadow); z-index:31; transition:transform .38s var(--ease);
+}
+.sheet.show{ transform:translate(-50%,0); }
+.sheet .handle{ width:42px; height:5px; border-radius:999px; background:var(--border); margin:0 auto 18px; }
+.sheet h3{ font-size:17px; font-weight:700; }
+.sheet .sub{ font-size:12.5px; color:var(--muted); margin:4px 0 14px; }
+.sheet .acc{
+  display:flex; align-items:center; gap:12px; width:100%; padding:11px;
+  border:none; background:transparent; border-radius:16px; color:var(--foreground);
+  font-family:var(--font-sans); text-align:left; cursor:pointer; transition:background .2s;
+}
+.sheet .acc:active{ background:var(--primary-soft); }
+.sheet .acc.active{ background:var(--primary-soft); }
+.sheet .a-av{ width:42px; height:42px; border-radius:14px; display:grid; place-items:center; background:var(--card-strong); border:1px solid var(--border); font-size:19px; }
+.sheet .a-info{ flex:1; min-width:0; }
+.sheet .a-info b{ font-size:14.5px; }
+.sheet .a-info span{ display:block; font-size:11.5px; color:var(--muted); margin-top:2px; }
+.sheet .check{ color:var(--primary); font-weight:700; font-size:16px; }
+.sheet .close{
+  margin-top:8px; width:100%; padding:13px; border-radius:16px;
+  border:none; background:var(--card); color:var(--foreground);
+  font-family:var(--font-sans); font-weight:600; font-size:14px; cursor:pointer;
+}
+
+/* ===== 生涯统计弹窗 ===== */
+.career-head{ display:flex; align-items:center; gap:13px; padding:14px; border-radius:var(--radius-lg); background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow-sm); }
+.career-head .c-av{ width:50px;height:50px;border-radius:16px; background:var(--card-strong); border:1px solid var(--border); display:grid;place-items:center; font-size:24px; overflow:hidden; }
+.career-head .c-av img{ width:100%;height:100%;object-fit:cover; display:block; }
+.career-head .c-info{ flex:1; min-width:0; }
+.career-head .c-info .c-name{ display:flex; align-items:center; gap:8px; }
+.career-head .c-info .c-name b{ font-size:16px; font-weight:700; }
+.career-head .c-lv{ font-size:10.5px; flex:none; background:var(--primary); color:var(--on-primary); padding:3px 8px; border-radius:999px; font-weight:700; box-shadow:var(--shadow-sm); }
+.career-head .c-open{ font-size:11px; color:var(--muted); margin-top:3px; word-break:break-all; }
+.career-exp{ margin:12px 2px 0; }
+.career-exp .bar{ height:8px; border-radius:999px; background:var(--border); overflow:hidden; }
+.career-exp .fill{ height:100%; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--primary-2)); box-shadow:0 0 10px var(--glow); }
+.career-exp small{ display:block; margin-top:6px; font-size:11px; color:var(--muted); }
+.career-exp small b{ color:var(--primary); }
+.career-sec{ margin-top:16px; }
+.career-sec h4{ font-size:13px; color:var(--muted); margin:0 2px 8px; font-weight:600; letter-spacing:.3px; display:flex; align-items:center; justify-content:space-between; }
+.career-sec h4 .sub{ font-size:11px; font-weight:400; }
+.career-list{ display:flex; flex-direction:column; gap:8px; }
+.career-row{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
+.career-row .im{ width:34px;height:34px;border-radius:10px; background:var(--card-strong); border:1px solid var(--border); display:grid;place-items:center; font-size:17px; flex:none; }
+.career-row .nm{ flex:1; min-width:0; font-size:13.5px; font-weight:600; }
+.career-row .cnt{ font-size:12.5px; color:var(--muted); flex:none; }
+.career-row .cnt b{ color:var(--primary); }
+.career-empty{ padding:20px; text-align:center; font-size:12.5px; color:var(--muted); border-radius:var(--radius-lg); background:var(--card); border:1px solid var(--border); }
+
+/* 子页返回条 + 更多/账号页 */
+.subbar{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.subbar h3{ font-size:17px; font-weight:700; margin-right:auto; }
+.menu-title{ font-size:13px; color:var(--muted); margin:20px 2px 10px; font-weight:600; letter-spacing:.3px; }
+.menu{ display:flex; flex-direction:column; gap:10px; }
+.sub-item{
+  display:flex; align-items:center; gap:13px; width:100%; text-align:left;
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:15px 16px; cursor:pointer; color:var(--foreground); font-family:var(--font-sans);
+  font-size:14px; font-weight:600; box-shadow:var(--shadow-sm); transition:transform .2s var(--ease);
+}
+.sub-item:active{ transform:scale(.98); }
+.sub-item .mi{ font-size:20px; }
+.sub-item .arr{ margin-left:auto; color:var(--muted); }
+.row{ display:flex; align-items:center; justify-content:space-between; padding:13px 0; font-size:13.5px; border-bottom:1px dashed var(--border); }
+.row:last-child{ border-bottom:none; }
+.row span:last-child{ color:var(--muted); font-size:12.5px; }
+.qr-card{ text-align:center; padding:22px 16px; background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); margin-top:14px; }
+.qr-box{ width:138px; height:138px; margin:0 auto; border-radius:18px; border:1px solid var(--border); background:var(--card-strong); display:grid; place-items:center; font-size:13px; color:var(--muted); }
+.qr-card p{ margin-top:12px; font-size:12px; color:var(--muted); }
+/* 掉线自动重连设置（扫码弹窗内） */
+.rc-panel{ background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:12px 13px; }
+.rc-head{ display:flex; flex-direction:column; gap:3px; font-size:13px; font-weight:700; margin-bottom:11px; }
+.rc-head small{ color:var(--muted); font-weight:500; font-size:11px; }
+.rc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0 11px; border-bottom:1px solid var(--border); }
+.rc-row span{ font-size:12.5px; font-weight:600; }
+.rc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:11px; }
+.rc-col{ display:flex; flex-direction:column; gap:7px; background:var(--card-strong); border:1px solid var(--border); border-radius:var(--radius); padding:9px 11px; }
+.rc-label{ font-size:11.5px; color:var(--muted); font-weight:600; }
+.rc-col .sec-field .field{ padding:8px 10px; font-size:13px; width:100%; }
+.rc-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+.rc-state{ font-size:11px; color:var(--muted); font-weight:600; flex:1; min-width:0; }
+.rc-btns{ display:flex; gap:8px; flex:none; }
+.logout{
+  margin-top:20px; width:100%; padding:14px; border-radius:var(--radius-lg);
+  background:var(--card); border:1px solid var(--danger); color:var(--danger);
+  font-family:var(--font-sans); font-size:14px; font-weight:600; cursor:pointer;
+  transition:background .3s, transform .15s;
+}
+.logout:active{ background:oklch(.6 .2 25 / .14); transform:scale(.98); }
+
+/* 二级子 tab（Segment） */
+.seg{ display:flex; gap:5px; padding:5px; background:var(--card-strong); border:1px solid var(--border); border-radius:var(--radius-lg); backdrop-filter:blur(16px); box-shadow:var(--shadow-sm); }
+.seg-btn{ flex:1; padding:9px 4px; border:none; border-radius:12px; background:transparent; color:var(--muted); font-family:var(--font-sans); font-size:13px; font-weight:600; cursor:pointer; transition:color .25s, background .3s; }
+.seg-btn.active{ background:var(--card-strong); color:var(--primary); box-shadow:var(--shadow-sm); font-weight:700; }
+.seg-4 .seg-btn{ font-size:12px; padding:9px 2px; }
+.seg-5 .seg-btn{ font-size:11.5px; padding:8px 2px; white-space:nowrap; }
+.seg-pane{ display:none; }
+.seg-pane.active{ display:block; animation:fadeUp .3s var(--ease); }
+/* 好友 5 子tab 容器显隐 */
+.f-sub{ display:none; }
+.f-sub.active{ display:block; animation:fadeUp .3s var(--ease); }
+
+/* 今日收益卡 */
+.income{ background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:16px; }
+.inc-top{ display:flex; align-items:center; }
+.inc-cell{ flex:1; min-width:0; }
+.inc-cell .inc-l{ display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; }
+.inc-cell strong{ font-size:21px; font-weight:800; letter-spacing:.2px; }
+.inc-cell em{ font-style:normal; font-size:11px; color:var(--muted); margin-left:2px; }
+.inc-div{ width:1px; height:36px; background:var(--border); margin:0 14px; }
+.inc-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border); text-align:center; }
+.inc-grid b{ font-size:16px; font-weight:700; display:block; }
+.inc-grid span{ font-size:11px; color:var(--muted); margin-top:2px; display:block; }
+
+/* 账号管理页账号列表 */
+.acc-list{ display:flex; flex-direction:column; gap:10px; }
+.acc-list .acc-row{
+  display:flex; align-items:center; gap:12px; width:100%; padding:13px 14px;
+  background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border);
+  border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); cursor:pointer;
+  color:var(--foreground); font-family:var(--font-sans); text-align:left;
+  transition:transform .2s var(--ease), background .2s, border-color .2s;
+}
+.acc-list .acc-row:active{ transform:scale(.98); }
+.acc-list .acc-row.active{ background:var(--primary-soft); border-color:var(--primary); }
+.acc-row .a-av{ width:42px; height:42px; border-radius:14px; display:grid; place-items:center; background:var(--card-strong); border:1px solid var(--border); font-size:19px; flex:none; }
+.acc-row .a-info{ flex:1; min-width:0; }
+.acc-row .a-info b{ font-size:14.5px; }
+.acc-row .a-info span{ display:block; font-size:11.5px; color:var(--muted); margin-top:2px; }
+.acc-row .check{ color:var(--primary); font-weight:700; font-size:16px; }
+
+/* 自动控制设置 */
+.sub-head{ display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:700; margin:22px 2px 10px; }
+.sub-head small{ color:var(--muted); font-weight:500; font-size:11px; }
+.auto-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+.auto-grid > .auto-item{ min-width:0; }
+.auto-item{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:var(--card); backdrop-filter:blur(16px);
+  border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:11px 12px; box-shadow:var(--shadow-sm);
+}
+.auto-item span{ font-size:12px; font-weight:600; line-height:1.3; }
+.auto-grid .auto-item > span{ flex:1; min-width:0; line-height:1.35; white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
+.auto-grid .auto-item .switch{ flex:none; }
+.auto-item.col{ display:block; }
+.panel{ display:flex; flex-direction:column; gap:12px; }
+.f-label{ font-size:13px; font-weight:600; margin-bottom:9px; }
+.f-label small{ display:block; color:var(--muted); font-weight:400; font-size:11px; margin-top:3px; line-height:1.4; }
+.field{
+  width:100%; background:var(--card-strong); border:1px solid var(--border);
+  border-radius:12px; padding:11px 13px; color:var(--foreground);
+  font-family:var(--font-sans); font-size:14px; outline:none; appearance:none;
+}
+.field:focus{ border-color:var(--primary); }
+.field.w-90{ width:90px; flex:none; }
+.field.grow{ flex:1; }
+.strategy-row{ display:flex; align-items:center; gap:8px; }
+.sel-wrap{ position:relative; flex:1; }
+.sel-wrap select{ width:100%; }
+.sel-wrap::after{
+  content:""; position:absolute; right:14px; top:50%; width:7px; height:7px;
+  transform:translateY(-70%) rotate(45deg); border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); pointer-events:none;
+}
+.sec-field{ display:flex; align-items:center; gap:10px; }
+.sec-field .unit{ font-size:12px; color:var(--muted); }
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{
+  background:var(--card-strong); color:var(--muted);
+  border-radius:999px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;
+  font-family:var(--font-sans); transition:all .2s; border:1px solid var(--border);
+}
+.chip.on{ background:var(--primary-soft); border-color:var(--primary); color:var(--primary); box-shadow:0 0 10px var(--glow); }
+.chip:active{ transform:scale(.94); }
+.mini-toggle{ display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:8px 11px; box-shadow:var(--shadow-sm); }
+.mini-toggle span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; font-weight:600; }
+.mini-toggle .switch{ flex:none; }
+
+/* ── 响应式混搭导航：桌面侧边栏 / 手机 dock ── */
+.sidebar{ display:none; }
+@media (min-width: 920px){
+  .sidebar{
+    display:flex; flex-direction:column; position:fixed; left:0; top:0; bottom:0;
+    width:216px; padding:20px 14px; gap:10px;
+    background:var(--card-strong); backdrop-filter:blur(28px) saturate(1.4);
+    border-right:1px solid var(--border); box-shadow:var(--shadow); z-index:30;
+    overflow-y:auto;
+  }
+  .sb-brand{ font-size:16px; font-weight:800; padding:8px 12px 18px; display:flex; align-items:center; gap:8px; }
+  .sb-nav{ display:flex; flex-direction:column; gap:4px; }
+  .nav-btn{
+    display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px;
+    border:none; border-radius:12px; background:transparent; color:var(--muted);
+    font-family:var(--font-sans); font-size:14px; font-weight:600; cursor:pointer;
+    transition:all .2s;
+  }
+  .nav-btn:hover{ background:var(--card); color:var(--foreground); }
+  .nav-btn.active{ background:var(--primary-soft); color:var(--primary); font-weight:700; box-shadow:inset 0 0 0 1px var(--primary); }
+  .nav-btn .di{ font-size:18px; }
+  .dock{ display:none; }
+  .app{ max-width:1180px; margin-left:230px; margin-right:auto; }
+  .app > section{ max-width:780px; margin:0 auto; }
+}
+
+/* 今日收益：详情展开的统计 */
+.income-stats{ display:none; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px; }
+.income.open .income-stats{ display:grid; }
+.st{ display:flex; align-items:center; gap:8px; background:var(--card-strong); border:1px solid var(--border); border-radius:11px; padding:8px 10px; }
+.st i{ font-size:16px; flex:none; }
+.st span{ flex:1; font-size:12px; color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.st b{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
+#incomeToggle{ cursor:pointer; }
+
+/* 默认方案：子 tab */
+.dtab-bar{ display:flex; gap:6px; margin-top:12px; background:var(--card); padding:4px; border-radius:12px; border:1px solid var(--border); }
+.dtab{ flex:1; padding:9px 2px; border:none; border-radius:9px; background:transparent; color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--font-sans); transition:all .2s; white-space:nowrap; }
+.dtab.active{ background:var(--card-strong); color:var(--primary); font-weight:700; box-shadow:inset 0 0 0 1px var(--primary); }
+.dpane{ display:none; }
+.dpane.active{ display:block; }
+
+/* ── 农场操作按钮 ── */
+.farm-actions{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+.fa-btn{ padding:11px 6px; border-radius:12px; border:1px solid var(--border); background:var(--card-strong); font-size:12.5px; font-weight:600; cursor:pointer; color:var(--foreground); font-family:var(--font-sans); transition:all .2s; }
+.fa-btn:active{ transform:scale(.95); }
+.fa-harvest{ color:var(--warn); } .fa-work{ color:var(--grow); } .fa-plant{ color:var(--good); }
+.fa-upgrade{ color:var(--primary); } .fa-full{ color:var(--warn); } .fa-clear{ color:var(--danger); }
+
+/* ── 背包 ── */
+.bag-cats{ margin-bottom:12px; }
+.bag-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.bag-item{ position:relative; padding:14px 10px; border-radius:16px; background:var(--card); border:1px solid var(--border); display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:var(--shadow-sm); }
+.bi-id{ position:absolute; top:7px; left:9px; font-size:9px; color:var(--muted-2); }
+.bi-icon{ font-size:30px; }
+.bi-name{ font-size:12.5px; font-weight:600; text-align:center; }
+.bi-meta{ font-size:10px; color:var(--muted); }
+
+/* ── 好友 ── */
+.friend-filter{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.friend-card{ border-radius:16px; background:var(--card); border:1px solid var(--border); padding:14px; margin-bottom:10px; box-shadow:var(--shadow-sm); cursor:pointer; }
+.fc-head{ display:flex; align-items:center; gap:10px; }
+.fc-id{ font-weight:400; }
+.fc-dog{ background:color-mix(in oklch,var(--danger) 16%,transparent); color:var(--danger); }
+.fc-coin{ color:var(--warn); }
+.fc-arrow{ margin-left:auto; color:var(--muted); transition:transform .25s var(--ease); flex:none; }
+.fc-tip{ font-size:11px; color:var(--muted); margin:8px 0; line-height:1.4; }
+.fc-actions{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.fa-mini{ padding:7px 4px; border-radius:10px; border:1px solid var(--border); background:var(--card-strong); font-size:11px; font-weight:600; cursor:pointer; font-family:var(--font-sans); }
+.fs1{ color:var(--grow); } .fs2{ color:var(--primary); } .fs3{ color:var(--good); } .fs4{ color:var(--warn); }
+.fc-lands{ display:none; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+.friend-card.open .fc-lands{ display:grid; }
+.friend-card.open .fc-arrow{ transform:rotate(180deg); }
+.f-land{ background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:6px; text-align:center; }
+.f-land .f-l-icon{ height:34px; display:flex; align-items:center; justify-content:center; }
+.f-land .f-l-icon img{ max-width:34px; max-height:34px; object-fit:contain; }
+.f-land .f-l-name{ font-size:10px; color:var(--text); margin-top:3px; line-height:1.2; }
+.f-land .f-l-name em{ display:block; font-style:normal; font-size:9px; color:var(--muted); }
+.f-land .bar{ height:3px; background:var(--line); border-radius:2px; margin-top:4px; overflow:hidden; }
+.f-land .bar i{ display:block; height:100%; background:var(--accent,#4caf50); }
+.f-land-empty{ grid-column:1/-1; text-align:center; color:var(--muted); font-size:11px; padding:8px 0; }
+.fa-mini{ font-size:11px; padding:5px 0; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; }
+.fa-mini.fs1{ color:#e91e63; }
+.fa-mini.fs2{ color:#2196f3; }
+.fa-mini.fs3{ color:#4caf50; }
+.fa-mini.fs4{ color:#ff9800; }
+.fa-mini.fs5{ color:#9c27b0; }
+.fa-mini.fs6{ color:#f44336; }
+.fa-mini.fs7{ color:#f44336; }
+.fc-land{ aspect-ratio:1; border-radius:12px; background:var(--card-strong); border:1px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+.fc-land i{ font-size:24px; }
+.fc-land b{ font-size:11px; }
+.fc-land small{ font-size:9px; color:var(--muted); }
+
+.fc-more-actions{ display:none; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:7px; }
+.friend-card.open .fc-more-actions{ display:grid; }
+.fs5{ color:var(--grow); } .fs6{ color:var(--muted); } .fs7{ color:var(--danger); border-color:color-mix(in oklch,var(--danger) 55%,var(--border)) !important; background:color-mix(in oklch,var(--danger) 12%,transparent); }
+
+.nb{ display:inline-block; margin-left:3px; font-size:9px; background:var(--danger); color:#fff; border-radius:999px; padding:0 5px; line-height:14px; }
+</style>
+</head>
+<body data-theme="dark">
+<div class="aura"></div>
+
+<!-- 桌面侧边栏（≥920px 显示；手机端隐藏，用底部 dock） -->
+<aside class="sidebar">
+  <div class="sb-brand"><span class="logo">🌾</span> QQ农场 Bot</div>
+  <nav class="sb-nav">
+    <button class="nav-btn active" data-tab="page-home"><span class="di">🏠</span>首页</button>
+    <button class="nav-btn" data-tab="page-profile"><span class="di">🧑🌾</span>个人</button>
+    <button class="nav-btn" data-tab="page-account"><span class="di">👤</span>账号</button>
+    <button class="nav-btn" data-tab="page-event"><span class="di">🎁</span>活动</button>
+    <button class="nav-btn" data-tab="page-more"><span class="di">☰</span>更多</button>
+  </nav>
+</aside>
+
+<div class="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🌾</span>
+      <span>QQ农场 Bot<small>鸿蒙光感 · 原型</small></span>
+    </div>
+    <div class="icon-group">
+      <button class="icon-btn" id="themeToggle" title="切换主题">🌙</button>
+      <button class="icon-btn" id="switchAccBtn" title="切换账号">🪪</button>
+    </div>
+  </header>
+
+  <!-- ============ 首页 ============ -->
+  <section class="page active" id="page-home">
+    <div class="profile">
+      <div class="avatar">
+        <div class="ring"><div class="face">🐰</div></div>
+        <span class="lvl">Lv.—</span>
+      </div>
+      <div class="pinfo">
+        <h2>未登录</h2>
+        <span class="uid">UID · —</span>
+        <div class="stats">
+          <div class="stat"><strong>🪙 0</strong><span>金币</span></div>
+          <div class="stat"><strong>🎟️ 0</strong><span>点券</span></div>
+          <div class="stat"><strong>🫘 0</strong><span>金豆</span></div>
+        </div>
+        <div class="exp">
+          <div class="bar"><div class="fill"></div></div>
+          <small>经验 -- / --</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-title"><span>今日收益</span><span class="link" id="incomeToggle">详情 ›</span></div>
+    <div class="income">
+      <div class="inc-top">
+        <div class="inc-cell">
+          <span class="inc-l">💰 收益</span>
+          <strong>--</strong><em>金币</em>
+        </div>
+        <div class="inc-div"></div>
+        <div class="inc-cell">
+          <span class="inc-l">🎁 同气礼包</span>
+          <strong>0</strong><em>个</em>
+        </div>
+      </div>
+      <!-- 展开的完整分类统计（对齐全量 16 项） -->
+      <div class="income-stats" id="incomeStats">
+        <div class="st"><i>🌾</i><span>收获</span><b>--</b></div>
+        <div class="st"><i>🕵️</i><span>偷菜</span><b>--</b></div>
+        <div class="st"><i>🌱</i><span>种植</span><b>--</b></div>
+        <div class="st"><i>🧴</i><span>施肥</span><b>--</b></div>
+        <div class="st"><i>🚿</i><span>浇水</span><b>--</b></div>
+        <div class="st"><i>🌿</i><span>除草</span><b>--</b></div>
+        <div class="st"><i>🐛</i><span>除虫</span><b>--</b></div>
+        <div class="st"><i>⚙️</i><span>一键务农</span><b>--</b></div>
+        <div class="st"><i>🤝</i><span>帮浇水</span><b>--</b></div>
+        <div class="st"><i>🧹</i><span>帮除草</span><b>--</b></div>
+        <div class="st"><i>🪲</i><span>帮除虫</span><b>--</b></div>
+        <div class="st"><i>🟡</i><span>清黄金虫</span><b>--</b></div>
+        <div class="st"><i>🐞</i><span>放黄金虫</span><b>--</b></div>
+        <div class="st"><i>📋</i><span>任务</span><b>--</b></div>
+      </div>
+    </div>
+
+    <div class="sec-title"><span>巡查间隔</span><span class="link" id="allOn">全部开启</span></div>
+    <div class="patrol">
+      <div class="cell">
+        <div class="ic ic-steal">🕵️</div>
+        <h4>偷菜</h4>
+        <div class="timer" id="tSteal">随机 3~10 秒</div>
+        <div class="switch on" data-who="偷菜"></div>
+      </div>
+      <div class="cell">
+        <div class="ic ic-help">🤝</div>
+        <h4>帮忙</h4>
+        <div class="timer" id="tHelp">随机 3~5 秒</div>
+        <div class="switch on" data-who="帮忙"></div>
+      </div>
+      <div class="cell">
+        <div class="ic ic-harvest">🧺</div>
+        <h4>收菜</h4>
+        <div class="timer" id="tHarvest">随机 5~10 秒</div>
+        <div class="switch on" data-who="收菜"></div>
+      </div>
+    </div>
+
+    <div class="sec-title"><span>操作日志</span><span class="link" id="clearLogs">清空</span></div>
+    <div class="logs" id="logBox">
+      <!-- 运行日志由 /api/home/logs 动态渲染（loadLogs） -->
+    </div>
+  </section>
+
+  <!-- ============ 账号 ============ -->
+  <section class="page" id="page-account">
+    <h3 style="font-size:20px;font-weight:700;margin:2px 2px 0">账号</h3>
+
+    <div class="sec-title"><span>已登录账号</span><span class="link">管理</span></div>
+    <div class="acc-list" id="accManage">
+                      </div>
+
+    <div class="sec-title"><span>添加账号</span></div>
+    <div class="menu">
+      <button class="sub-item acc-method" data-name="手动添加 code"><span class="mi">🔑</span>手动添加 code<span class="arr">›</span></button>
+      <button class="sub-item acc-method" data-name="扫码登录"><span class="mi">📱</span>扫码登录<span class="arr">›</span></button>
+      <button class="sub-item acc-method" data-name="第三方登录"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
+    </div>
+
+    <button class="logout">退出登录</button>
+  </section>
+
+  <!-- ============ 更多（自动控制/种植策略/图鉴/分析） ============ -->
+  <section class="page" id="page-more">
+    <h3 style="font-size:20px;font-weight:700;margin:2px 2px 14px">更多</h3>
+    <div class="seg seg-5">
+      <button class="seg-btn active" data-seg="m-auto">自动控制</button>
+      <button class="seg-btn" data-seg="m-strategy">种植策略</button>
+      <button class="seg-btn" data-seg="m-default">默认方案</button>
+      <button class="seg-btn" data-seg="m-codex">图鉴</button>
+      <button class="seg-btn" data-seg="m-analysis">分析</button>
+    </div>
+
+    <div class="seg-pane active" id="m-auto">
+      <div class="sub-head">🎛️ 自动控制 <small>核心自动化开关</small></div>
+      <div class="auto-grid" style="margin-top:0">
+        <div class="auto-item"><span>自动种植收获</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动做任务</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动卖果实</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动好友互动</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>推送触发巡田</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动升级土地</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动填充化肥</span><div class="switch"></div></div>
+        <div class="auto-item"><span>自动购买无机化肥</span><div class="switch"></div></div>
+        <div class="auto-item"><span>自动购买有机化肥</span><div class="switch"></div></div>
+        <div class="auto-item"><span>不除自己草虫</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on"></div></div>
+      </div>
+
+      <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
+      <div class="auto-grid">
+        <div class="auto-item"><span>自动偷菜</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动帮忙</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动捣乱</span><div class="switch"></div></div>
+        <div class="auto-item"><span>自动放黄金虫</span><div class="switch"></div></div>
+        <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch"></div></div>
+      </div>
+
+      <div class="sub-head">💊 施肥策略 <small>按地块与阶段自动施肥</small></div>
+      <div class="panel">
+        <div class="auto-item col">
+          <div class="f-label">自动通过好友最低等级<small>设为 0 表示不限制等级；启用好友相关自动化后，系统会按这里的最低等级自动通过好友申请</small></div>
+          <input type="number" class="field w-90" value="0">
+        </div>
+        <div class="auto-item col">
+          <div class="f-label">施肥范围<small>施肥前会优先按土地类型过滤，仅对命中范围的地块执行施肥策略</small></div>
+          <div class="chips">
+            <button class="chip on">紫土地</button>
+            <button class="chip on">金土地</button>
+            <button class="chip on">黑土地</button>
+            <button class="chip on">红土地</button>
+            <button class="chip on">普通土地</button>
+          </div>
+        </div>
+        <div class="auto-item col">
+          <div class="f-label">施肥策略</div>
+          <div class="strategy-row">
+            <div class="sel-wrap">
+              <select class="field">
+                <option>普通 + 有机</option>
+                <option>普通 + 快成熟有机</option>
+                <option>快成熟有机</option>
+                <option selected>快成熟普通</option>
+                <option>最终阶段普通肥</option>
+                <option>最终阶段有机肥</option>
+                <option>仅普通化肥</option>
+                <option>仅有机化肥</option>
+                <option>不施肥</option>
+              </select>
+            </div>
+            <div class="mini-toggle">
+              <span>多季补肥</span>
+              <div class="switch on"></div>
+            </div>
+          </div>
+        </div>
+        <div class="auto-item col">
+          <div class="f-label">快成熟判定秒数</div>
+          <div class="sec-field">
+            <input type="number" class="field w-90" value="300">
+            <span class="unit">秒数</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="m-strategy">
+      <div class="sec-title" style="margin-top:18px"><span>种植策略</span></div>
+
+      <!-- 种植策略选择 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px">
+        <div class="f-label">种植策略</div>
+        <div class="strategy-row">
+          <div class="sel-wrap">
+            <select class="field">
+              <option>优先种植种子</option>
+              <option>最高等级作物</option>
+              <option>最大经验/时</option>
+              <option>最大普通肥经验/时</option>
+              <option>最大净利润/时</option>
+              <option>最大普通肥净利润/时</option>
+              <option selected>背包种子优先</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第二优先策略 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px">
+        <div class="f-label">第二优先策略</div>
+        <div class="strategy-row">
+          <div class="sel-wrap">
+            <select class="field">
+              <option>优先种植种子</option>
+              <option>最高等级作物</option>
+              <option selected>最大经验/时</option>
+              <option>最大普通肥经验/时</option>
+              <option>最大净利润/时</option>
+              <option>最大普通肥净利润/时</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 背包种子优先地块 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px">
+        <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
+        <div class="chips">
+          <button class="chip on">紫土地</button>
+          <button class="chip on">金土地</button>
+          <button class="chip">黑土地</button>
+          <button class="chip">红土地</button>
+          <button class="chip">普通地</button>
+        </div>
+      </div>
+
+      <!-- 2x2 作物优先 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px">
+        <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch"></div></div>
+      </div>
+
+      <!-- 背包种子优先顺序 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+        <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <button class="chip">↺ 重置顺序</button>
+        </div>
+        <div class="menu">
+          <!-- 背包种子优先顺序由配置接口动态加载，待接入 -->
+          <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">种子优先顺序接口待接入</p>
+        </div>
+      </div>
+
+      <!-- ⏱️ 巡查与延迟设置（对齐截图1） -->
+      <div class="sub-head" style="margin-top:22px">⏱️ 巡查与延迟</div>
+      <div class="panel">
+        <div class="auto-item col" style="border:none;padding:12px 9px">
+          <div class="f-label">巡查时间 <small>为各巡查动作设置随机秒数范围</small></div>
+          <div class="strategy-row" style="margin-bottom:8px">
+            <span style="flex:1;font-size:13px">🕵️ 农场巡查</span>
+            <input type="number" class="field w-90" id="fMin" value="5">
+            <span style="color:var(--muted)">~</span>
+            <input type="number" class="field w-90" id="fMax" value="10">
+          </div>
+          <div class="strategy-row" style="margin-bottom:8px">
+            <span style="flex:1;font-size:13px">🤝 帮助巡查</span>
+            <input type="number" class="field w-90" id="hMin" value="3">
+            <span style="color:var(--muted)">~</span>
+            <input type="number" class="field w-90" id="hMax" value="5">
+          </div>
+          <div class="strategy-row">
+            <span style="flex:1;font-size:13px">🕵️ 偷菜巡查</span>
+            <input type="number" class="field w-90" id="sMin" value="3">
+            <span style="color:var(--muted)">~</span>
+            <input type="number" class="field w-90" id="sMax" value="10">
+          </div>
+        </div>
+
+        <div class="auto-item col" style="border:none;padding:12px 9px">
+          <div class="f-label">静默时段</div>
+          <div class="strategy-row" style="margin-bottom:10px">
+            <span style="flex:1;font-size:13px">🔕 启用静默时段</span>
+            <div class="switch"></div>
+          </div>
+          <div class="strategy-row">
+            <div class="sel-wrap"><select class="field"><option>01:00</option></select></div>
+            <span style="color:var(--muted)">起</span>
+            <div class="sel-wrap"><select class="field"><option>07:30</option></select></div>
+            <span style="color:var(--muted)">止</span>
+          </div>
+        </div>
+
+        <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+          <div class="f-label">种植与偷菜延迟</div>
+          <div class="strategy-row" style="margin-bottom:8px">
+            <span style="flex:1;font-size:13px">🔀 种植顺序随机</span>
+            <div class="switch on"></div>
+          </div>
+          <div class="strategy-row" style="margin-bottom:8px">
+            <span style="flex:1;font-size:13px">种植延迟</span>
+            <input type="number" class="field w-90" value="2"><span class="unit">秒</span>
+          </div>
+          <div class="strategy-row">
+            <span style="flex:1;font-size:13px">偷菜延迟</span>
+            <input type="number" class="field w-90" value="1"><span class="unit">秒</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 默认方案（新账号快速套用） -->
+    <div class="seg-pane default-page" id="m-default">
+      <div class="sec-title" style="margin-top:16px">
+        <span><span style="font-size:15px">🎛️</span> 默认方案</span>
+        <span class="chip on" style="background:color-mix(in oklch,var(--good) 15%,transparent);color:var(--good)">新账号自动应用</span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:2px 2px 4px">最后保存：2026/8/5 22:03:21</p>
+      <div style="display:flex;gap:8px;margin:8px 0 2px">
+        <button class="fa-btn" style="flex:1">📥 从当前账号导入</button>
+        <button class="fa-btn" style="flex:1">🔄 恢复系统默认</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:6px 2px">为<b>新账号</b>一键套用此方案，快速完成种植策略与自动控制参数。</p>
+
+      <!-- 子 tab：策略设置 / 自动控制 -->
+      <div class="dtab-bar">
+        <button class="dtab active" data-dpane="d-strategy">⚙️ 策略设置</button>
+        <button class="dtab" data-dpane="d-auto">🔁 自动控制</button>
+      </div>
+
+      <div class="dpane active" id="d-strategy">
+        <div class="sub-head" style="margin-top:16px">⚙️ 默认策略 <small>Agoni</small></div>
+        <div class="panel">
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">种植策略</div>
+            <div class="strategy-row">
+              <div class="sel-wrap"><select class="field">
+                <option>优先种植种子</option><option>最高等级作物</option><option>最大经验/时</option>
+                <option>最大普通肥经验/时</option><option>最大净利润/时</option><option>最大普通肥净利润/时</option>
+                <option selected>背包种子优先</option>
+              </select></div>
+            </div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">第二优先策略</div>
+            <div class="strategy-row">
+              <div class="sel-wrap"><select class="field">
+                <option>优先种植种子</option><option>最高等级作物</option><option>最大经验/时</option>
+                <option>最大普通肥经验/时</option><option selected>最大净利润/时</option><option>最大普通肥净利润/时</option>
+              </select></div>
+            </div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
+            <div class="chips">
+              <button class="chip on">紫土地</button><button class="chip on">金土地</button>
+              <button class="chip">黑土地</button><button class="chip">红土地</button><button class="chip">普通地</button>
+            </div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch"></div></div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+            <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+              <button class="chip">↺ 重置顺序</button>
+            </div>
+            <div class="menu">
+              <!-- 背包种子优先顺序由配置接口动态加载，待接入 -->
+              <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">种子优先顺序接口待接入</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 巡查与延迟 -->
+        <div class="sub-head" style="margin-top:6px">⏱️ 巡查与延迟</div>
+        <div class="panel">
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">巡查时间 <small>为各巡查动作设置随机秒数范围</small></div>
+            <div class="strategy-row" style="margin-bottom:8px">
+              <span style="flex:1;font-size:13px">🕵️ 农场巡查</span>
+              <input type="number" class="field w-90" id="dfMin" value="5">
+              <span style="color:var(--muted)">~</span>
+              <input type="number" class="field w-90" id="dfMax" value="10">
+            </div>
+            <div class="strategy-row" style="margin-bottom:8px">
+              <span style="flex:1;font-size:13px">🤝 帮助巡查</span>
+              <input type="number" class="field w-90" id="dhMin" value="3">
+              <span style="color:var(--muted)">~</span>
+              <input type="number" class="field w-90" id="dhMax" value="5">
+            </div>
+            <div class="strategy-row">
+              <span style="flex:1;font-size:13px">🕵️ 偷菜巡查</span>
+              <input type="number" class="field w-90" id="dsMin" value="3">
+              <span style="color:var(--muted)">~</span>
+              <input type="number" class="field w-90" id="dsMax" value="10">
+            </div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div class="f-label">静默时段</div>
+            <div class="strategy-row" style="margin-bottom:10px">
+              <span style="flex:1;font-size:13px">🔕 启用静默时段</span>
+              <div class="switch"></div>
+            </div>
+            <div class="strategy-row">
+              <div class="sel-wrap"><select class="field"><option>01:00</option></select></div>
+              <span style="color:var(--muted)">起</span>
+              <div class="sel-wrap"><select class="field"><option>07:30</option></select></div>
+              <span style="color:var(--muted)">止</span>
+            </div>
+          </div>
+          <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+            <div class="f-label">种植与偷菜延迟</div>
+            <div class="strategy-row" style="margin-bottom:8px">
+              <span style="flex:1;font-size:13px">🔀 种植顺序随机</span>
+              <div class="switch on"></div>
+            </div>
+            <div class="strategy-row" style="margin-bottom:8px">
+              <span style="flex:1;font-size:13px">种植延迟</span>
+              <input type="number" class="field w-90" value="2"><span class="unit">秒</span>
+            </div>
+            <div class="strategy-row">
+              <span style="flex:1;font-size:13px">偷菜延迟</span>
+              <input type="number" class="field w-90" value="1"><span class="unit">秒</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dpane" id="d-auto">
+        <div class="sub-head" style="margin-top:16px">🎛️ 自动控制 <small>核心自动化开关</small></div>
+        <div class="auto-grid">
+          <div class="auto-item"><span>自动种植收获</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动做任务</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动卖果实</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动好友互动</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>推送触发巡田</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动升级土地</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动填充化肥</span><div class="switch"></div></div>
+          <div class="auto-item"><span>自动购买无机化肥</span><div class="switch"></div></div>
+          <div class="auto-item"><span>自动购买有机化肥</span><div class="switch"></div></div>
+          <div class="auto-item"><span>不除自己草虫</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on"></div></div>
+        </div>
+        <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
+        <div class="auto-grid">
+          <div class="auto-item"><span>自动偷菜</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动帮忙</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动捣乱</span><div class="switch"></div></div>
+          <div class="auto-item"><span>自动放黄金虫</span><div class="switch"></div></div>
+          <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch"></div></div>
+        </div>
+        <div class="sub-head">💊 施肥策略 <small>按地块与阶段自动施肥</small></div>
+        <div class="panel">
+          <div class="auto-item col">
+            <div class="f-label">自动通过好友最低等级<small>设为 0 表示不限制等级；启用好友相关自动化后，系统会按这里的最低等级自动通过好友申请</small></div>
+            <input type="number" class="field w-90" value="0">
+          </div>
+          <div class="auto-item col">
+            <div class="f-label">施肥范围<small>施肥前会优先按土地类型过滤，仅对命中范围的地块执行施肥策略</small></div>
+            <div class="chips">
+              <button class="chip on">紫土地</button><button class="chip on">金土地</button>
+              <button class="chip on">黑土地</button><button class="chip on">红土地</button><button class="chip on">普通土地</button>
+            </div>
+          </div>
+          <div class="auto-item col">
+            <div class="f-label">施肥策略</div>
+            <div class="strategy-row">
+              <div class="sel-wrap"><select class="field">
+                <option>普通 + 有机</option><option>普通 + 快成熟有机</option><option>快成熟有机</option>
+                <option selected>快成熟普通</option><option>最终阶段普通肥</option><option>最终阶段有机肥</option>
+                <option>仅普通化肥</option><option>仅有机化肥</option><option>不施肥</option>
+              </select></div>
+              <div class="mini-toggle"><span>多季补肥</span><div class="switch on"></div></div>
+            </div>
+          </div>
+          <div class="auto-item col">
+            <div class="f-label">快成熟判定秒数</div>
+            <div class="sec-field">
+              <input type="number" class="field w-90" value="300">
+              <span class="unit">秒数</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="m-codex">
+      <div class="sec-title" style="margin-top:18px"><span>作物图鉴</span></div>
+      <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:16px">作物图鉴数据待接口接入</p>
+    </div>
+
+    <div class="seg-pane" id="m-analysis">
+      <div class="sec-title" style="margin-top:18px"><span>数据统计</span></div>
+      <div class="profile" style="padding:16px;display:block">
+        <div class="stats" style="flex-wrap:wrap;gap:16px">
+          <div class="stat"><strong>--</strong><span>今日收菜</span></div>
+          <div class="stat"><strong>--</strong><span>今日偷菜</span></div>
+          <div class="stat"><strong>--</strong><span>今日帮忙</span></div>
+          <div class="stat"><strong>--</strong><span>本周收益</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="m-backend">
+      <div class="sec-title" style="margin-top:18px"><span>后台</span></div>
+      <div class="placeholder">
+        <div class="big">🖥️</div>
+        <h3>后台管理</h3>
+        <p>服务器运行状态 · 账号管理 · 数据监控<br>待补充内容</p>
+        <span class="badge">占位</span>
+      </div>
+    </div>
+
+    <!-- 通用入口 -->
+    <div class="menu-title">通用</div>
+    <div class="menu">
+      <button class="sub-item" data-page="page-shop"><span class="mi">🛒</span>商城<span class="arr">›</span></button>
+      <button class="sub-item" data-page="page-settings"><span class="mi">⚙️</span>设置<span class="arr">›</span></button>
+      <button class="sub-item" data-page="page-backend"><span class="mi">🖥️</span>后台<span class="arr">›</span></button>
+    </div>
+    <p style="margin-top:20px;text-align:center;font-size:11.5px;color:var(--muted-2)">QQ农场 Bot · 前端原型 v0.3</p>
+  </section>
+
+  <!-- ============ 个人（农场/背包/好友） ============ -->
+  <section class="page" id="page-profile">
+    <div class="seg">
+      <button class="seg-btn active" data-seg="p-farm">🌾 农场</button>
+      <button class="seg-btn" data-seg="p-bag">🎒 背包</button>
+      <button class="seg-btn" data-seg="p-friends">👥 好友</button>
+    </div>
+
+    <!-- 农场子页 -->
+    <div class="seg-pane active" id="p-farm">
+      <div class="farm-actions">
+        <button class="fa-btn fa-harvest">🌾 收获</button>
+        <button class="fa-btn fa-work">🚿 一键务农</button>
+        <button class="fa-btn fa-plant">🌱 种植</button>
+        <button class="fa-btn fa-upgrade">🏠 升级土地</button>
+        <button class="fa-btn fa-full">⚡ 一键全收</button>
+        <button class="fa-btn fa-clear">🗑️ 一键铲除</button>
+      </div>
+      <div class="grid-title" style="margin-top:14px">
+        <h3>我的农场 · 24 块地</h3>
+        <div class="legend">
+          <span><i style="background:var(--grow)"></i>生长</span>
+          <span><i style="background:var(--good)"></i>可收</span>
+          <span><i style="background:var(--warn)"></i>虫害</span>
+        </div>
+      </div>
+      <div class="land" id="land"></div>
+    </div>
+
+    <!-- 背包子页 -->
+    <div class="seg-pane" id="p-bag">
+      <div class="sec-title" style="margin-top:16px"><span>🎒 背包</span><span class="link" id="batchSell">🗑️ 批量出售</span></div>
+      <div class="seg seg-5 bag-cats" style="margin-bottom:12px">
+        <button class="seg-btn active" data-bagcat="">全部 (0)</button>
+        <button class="seg-btn" data-bagcat="fruit">果实 (0)</button>
+        <button class="seg-btn" data-bagcat="seed">种子 (0)</button>
+        <button class="seg-btn" data-bagcat="props">道具 (0)</button>
+        <button class="seg-btn" data-bagcat="other">其他 (0)</button>
+      </div>
+      <div class="bag-grid">
+        <!-- 背包物品由 /api/bag/items 动态渲染（renderBag） -->
+      </div>
+    </div>
+
+    <!-- 好友子页 -->
+<div class="seg-pane" id="p-friends">
+      <div class="seg seg-5" style="margin-bottom:10px">
+        <button class="seg-btn friend-subtab active" data-segf="list">好友列表</button>
+        <button class="seg-btn friend-subtab" data-segf="add">加好友</button>
+        <button class="seg-btn friend-subtab" data-segf="blacklist">黑名单<span class="nb" id="blkCount">0</span></button>
+        <button class="seg-btn friend-subtab" data-segf="visitors">访客</button>
+        <button class="seg-btn friend-subtab" data-segf="del">删除</button>
+      </div>
+
+      <div class="f-sub active" data-pane="list">
+        <input class="field" id="frSearch" placeholder="🔍 搜索好友…" style="margin-top:16px">
+        <p id="frTotal" style="font-size:11px;color:var(--muted);margin:6px 2px 10px">共 0 名好友</p>
+        <div class="friend-filter">
+          <button class="chip on">全部</button>
+          <button class="chip">无护主犬</button>
+          <button class="chip">有护主犬</button>
+          <button class="chip" style="margin-left:auto" id="frRefresh">🔄 刷新</button>
+        </div>
+        <div id="friendList"></div>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">点开好友卡片可查看/操作地块</p>
+      </div>
+
+      <div class="f-sub" data-pane="blacklist">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">以下好友已被加入黑名单</p>
+        <div id="blackList"></div>
+      </div>
+
+      <div class="f-sub" data-pane="visitors">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">最近来过你农场的玩家</p>
+        <div id="visitorList"></div>
+      </div>
+
+      <div class="f-sub" data-pane="add">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">粘贴游戏分享链接，自动解析后发送好友申请（对齐 Node ReportArkClick）</p>
+        <textarea class="field" id="addFrLink" rows="2" placeholder="粘贴分享链接，如 ?uid=xxx&openid=xxx&share_key=32hex" style="margin-top:8px;min-height:52px;resize:vertical"></textarea>
+        <div id="addFrPreview" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+        <button class="close" id="addFrBtn" style="margin-top:12px">发送好友申请</button>
+        <p id="addFrMsg" style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px"></p>
+      </div>
+
+      <div class="f-sub" data-pane="del">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">选择要删除的好友（点 🗑️）</p>
+        <div id="delList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 商城占位 ============ -->
+  <section class="page" id="page-shop">
+    <div class="placeholder">
+      <div class="big">🛒</div>
+      <h3>商城</h3>
+      <p>种子商店 · 道具 · 装扮<br>接入数据源后开放</p>
+      <span class="badge">占位</span>
+    </div>
+  </section>
+
+  <!-- ============ 活动占位 ============ -->
+  <section class="page" id="page-event">
+    <h3 style="font-size:20px;font-weight:700;margin:2px 2px 14px">活动中心</h3>
+    <div class="seg seg-4">
+      <button class="seg-btn active" data-seg="e-story">千星游记</button>
+      <button class="seg-btn" data-seg="e-shop">星沙商店</button>
+      <button class="seg-btn" data-seg="e-gift">观星礼录</button>
+      <button class="seg-btn" data-seg="e-solar">节气小扎</button>
+    </div>
+
+    <div class="seg-pane active" id="e-story">
+      <div class="placeholder">
+        <div class="big">🌟</div>
+        <h3>千星游记</h3>
+        <p>活动进度与任务<br>接入数据源后开放</p>
+        <span class="badge">占位</span>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="e-shop">
+      <div class="placeholder">
+        <div class="big">🛍️</div>
+        <h3>星沙商店</h3>
+        <p>活动兑换商店<br>待接入数据源</p>
+        <span class="badge">占位</span>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="e-gift">
+      <div class="placeholder">
+        <div class="big">🎁</div>
+        <h3>观星礼录</h3>
+        <p>活动奖励记录</p>
+        <span class="badge">占位</span>
+      </div>
+    </div>
+
+    <div class="seg-pane" id="e-solar">
+      <div class="placeholder">
+        <div class="big">🌿</div>
+        <h3>节气小扎</h3>
+        <p>节气活动与任务</p>
+        <span class="badge">占位</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 设置占位 ============ -->
+  <section class="page" id="page-settings">
+    <div class="subbar"><button class="icon-btn" data-back>‹</button><h3>设置</h3></div>
+    <div class="placeholder">
+      <div class="big">⚙️</div>
+      <h3>设置</h3>
+      <p>主题 · 通知 · 账号与云备份</p>
+      <span class="badge">占位</span>
+    </div>
+  </section>
+
+  <section class="page" id="page-backend">
+    <div class="subbar"><button class="icon-btn" data-back>‹</button><h3>后台</h3></div>
+    <div class="placeholder">
+      <div class="big">🖥️</div>
+      <h3>后台管理</h3>
+      <p>服务器运行状态 · 账号管理 · 数据监控<br>待补充内容</p>
+      <span class="badge">占位</span>
+    </div>
+  </section>
+
+</div>
+
+<!-- 底部悬浮导航 -->
+<nav class="dock">
+  <button data-tab="page-home" class="active"><span class="di">🏠</span>首页</button>
+  <button data-tab="page-profile"><span class="di">🧑‍🌾</span>个人</button>
+  <button data-tab="page-account"><span class="di">👤</span>账号</button>
+  <button data-tab="page-event"><span class="di">🎁</span>活动</button>
+  <button data-tab="page-more"><span class="di">☰</span>更多</button>
+</nav>
+
+<!-- 账号切换 bottom sheet -->
+<div class="sheet-mask" id="sheetMask"></div>
+<div class="sheet" id="sheet">
+  <div class="handle"></div>
+  <h3>切换账号</h3>
+  <p class="sub">选择要登录的农场账号</p>
+        <button class="close" id="sheetClose">关闭</button>
+</div>
+
+<!-- 生涯统计弹窗 -->
+<div class="sheet-mask" id="careerMask"></div>
+<div class="sheet" id="careerSheet">
+  <div class="handle"></div>
+  <h3>🧑‍🌾 生涯统计</h3>
+  <p class="sub" id="careerStatus" style="margin-bottom:10px">加载中…</p>
+  <div id="careerBody" style="max-height:62vh;overflow:auto;"></div>
+  <button class="close" id="careerClose" style="margin-top:16px">关闭</button>
+</div>
+
+<!-- 扫码登录 bottom sheet -->
+<div class="sheet-mask" id="qrSheetMask"></div>
+<div class="sheet" id="qrSheet">
+  <div class="handle"></div>
+  <h3>扫码登录</h3>
+  <p class="sub" id="qrStatus">正在获取二维码…</p>
+  <div class="qr-card" style="margin-top:6px">
+    <div class="qr-box" id="qrBox">加载中</div>
+    <p id="qrTip">请使用手机 QQ / 应用宝扫描</p>
+  </div>
+
+  <div class="rc-panel" style="margin-top:14px">
+    <div class="rc-head">📡 掉线自动重连 <small>断线后延迟换 code 自动重连</small></div>
+    <div class="rc-row">
+      <span>开启自动重连</span>
+      <div class="switch on" id="rcEnabled"></div>
+    </div>
+    <div class="rc-grid">
+      <div class="rc-col">
+        <label class="rc-label">离线多久重连</label>
+        <div class="sec-field">
+          <input type="number" class="field" id="rcDelay" min="1" value="3">
+          <span class="unit">分钟</span>
+        </div>
+      </div>
+      <div class="rc-col">
+        <label class="rc-label">失败几次停止</label>
+        <div class="sec-field">
+          <input type="number" class="field" id="rcMax" min="1" value="3">
+          <span class="unit">次</span>
+        </div>
+      </div>
+    </div>
+    <div class="rc-foot">
+      <span class="rc-state" id="rcState">连接状态：-</span>
+      <div class="rc-btns">
+        <button class="chip" id="rcRetry">🔁 立即重连</button>
+        <button class="chip" id="rcSave">💾 保存</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="close" id="qrClose" style="margin-top:16px">关闭</button>
+</div>
+
+<!-- 手动添加 code bottom sheet -->
+<div class="sheet-mask" id="addMask"></div>
+<div class="sheet" id="addSheet">
+  <div class="handle"></div>
+  <h3>手动添加 code</h3>
+  <p class="sub">选择渠道并粘贴登录 code</p>
+  <div class="chips" style="margin-bottom:12px">
+    <button class="chip on" data-ch="qq">QQ</button>
+    <button class="chip" data-ch="wx">微信</button>
+  </div>
+  <input class="field" id="addCodeInput" placeholder="粘贴 code…" style="margin-bottom:10px">
+  <input class="field" id="addNameInput" placeholder="备注名称（可留空）" style="margin-bottom:16px">
+  <button class="close" id="addSubmit" style="margin-bottom:8px">添加</button>
+  <button class="close" id="addClose" style="background:transparent">取消</button>
+</div>
+
+<script>
+/* ---------- 主题切换 ---------- */
+const root = document.documentElement.closest('body') || document.body;
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', () => {
+  const dark = document.body.dataset.theme === 'dark';
+  document.body.dataset.theme = dark ? 'light' : 'dark';
+  toggle.textContent = dark ? '☀️' : '🌙';
+});
+
+/* ---------- Tab 切换 ---------- */
+const pages = document.querySelectorAll('.page');
+const dockBtns = document.querySelectorAll('.dock button, .sidebar .nav-btn');
+function go(tabId, btn){
+  pages.forEach(p => p.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  if(btn){ dockBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+}
+dockBtns.forEach(btn => btn.addEventListener('click', () => go(btn.dataset.tab, btn)));
+const moreBtn = document.querySelector('.dock button[data-tab="page-more"]');
+/* 更多页 → 子页入口 */
+document.querySelectorAll('.sub-item[data-page]').forEach(it => it.addEventListener('click', () => go(it.dataset.page, moreBtn)));
+/* 子页 → 返回更多 */
+document.querySelectorAll('[data-back]').forEach(btn => btn.addEventListener('click', () => go('page-more', moreBtn)));
+/* 二级子 tab 切换 */
+document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => {
+  if(!b.dataset.seg) return; // 无 data-seg（好友页子tab）由独立逻辑处理
+  const page = b.closest('.page');
+  page.querySelectorAll('.seg-btn').forEach(x => x.classList.remove('active'));
+  page.querySelectorAll('.seg-pane').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  const pane = document.getElementById(b.dataset.seg);
+  if(pane) pane.classList.add('active');
+}));
+
+/* 好友页 5 子tab 切换（独立 .f-sub 容器） */
+document.querySelectorAll('.friend-subtab').forEach(btn => btn.addEventListener('click', function(){
+  const wrap = document.getElementById('p-friends');
+  wrap.querySelectorAll('.friend-subtab').forEach(x => x.classList.remove('active'));
+  wrap.querySelectorAll('.f-sub').forEach(x => x.classList.remove('active'));
+  this.classList.add('active');
+  const pane = wrap.querySelector('.f-sub[data-pane="' + this.dataset.segf + '"]');
+  if(pane) pane.classList.add('active');
+  if(this.dataset.segf) loadFriendSub(this.dataset.segf);
+}));
+
+/* 切换账号 bottom sheet */
+const sheet = document.getElementById('sheet');
+const mask = document.getElementById('sheetMask');
+document.getElementById('switchAccBtn').addEventListener('click', () => { sheet.classList.add('show'); mask.classList.add('show'); });
+function closeSheet(){ sheet.classList.remove('show'); mask.classList.remove('show'); }
+document.getElementById('sheetClose').addEventListener('click', closeSheet);
+mask.addEventListener('click', closeSheet);
+
+/* ---------- 登录方式：扫码登录 + 手动添加 code ---------- */
+const qrMask = document.getElementById('qrSheetMask');
+const qrSheet = document.getElementById('qrSheet');
+const addMask = document.getElementById('addMask');
+const addSheet = document.getElementById('addSheet');
+
+function openSheet(sheet, mask){
+  mask.classList.add('show');
+  sheet.classList.add('show');
+}
+function closeSheetQ(sheet, mask){
+  mask.classList.remove('show');
+  sheet.classList.remove('show');
+}
+
+// 手动添加 code：渠道切换
+const addChannel = 'qq';
+document.querySelectorAll('#addSheet .chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('#addSheet .chip').forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+  window._addCh = c.dataset.ch;
+}));
+window._addCh = 'qq';
+
+/* ---------- 扫码登录：轮询确认 + 换 code 自动登录 ---------- */
+let _qrPolling = false;
+let _qrPollTimer = null;
+function stopQrPoll(){
+  _qrPolling = false;
+  if(_qrPollTimer){ clearTimeout(_qrPollTimer); _qrPollTimer = null; }
+}
+function _sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function _qrUI(statusEl, boxEl, text, boxText){
+  if(statusEl){ statusEl.textContent = text; }
+  if(boxEl && boxText !== undefined){ boxEl.innerHTML=''; boxEl.textContent = boxText; }
+}
+function _renderQrImg(boxEl, src){
+  if(!boxEl || !src) return;
+  const s = /^data:/i.test(src) ? src : (/^https?:/i.test(src) ? src : 'data:image/png;base64,'+src);
+  boxEl.innerHTML = `<img src="${s}" style="width:100%;height:100%;border-radius:16px">`;
+}
+async function _pollQrOnce(sessionId, statusEl){
+  try{
+    const resp = await fetch('/api/yyb/qr/poll', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId})});
+    const d = await resp.json();
+    if(!(d.ok && d.data)) return {terminal:false, ready:false}; // 会话不存在/超时等，继续重试
+    const st = d.data.status;
+    if(st === 'authorized' || st === 'confirmed') return {terminal:false, ready:true}; // 手机已确认 → 可进行 confirm
+    if(st === 'pending'){ if(statusEl) statusEl.textContent='等待手机扫码…'; return {terminal:false, ready:false}; }
+    if(st === 'scanned'){ if(statusEl) statusEl.textContent='已扫描，请在手机上确认…'; return {terminal:false, ready:false}; }
+    if(st === 'cancelled') return {terminal:true, msg:'已取消扫码'};
+    if(st === 'expired') return {terminal:true, msg:'二维码已失效'};
+    return {terminal:false, ready:false}; // unknown 等其他状态，继续重试
+  }catch(e){ return {terminal:false, ready:false}; }
+}
+async function startQrLogin(){
+  stopQrPoll();
+  const box = document.getElementById('qrBox');
+  const status = document.getElementById('qrStatus');
+  _qrUI(status, box, '正在获取二维码…', '加载中');
+  let sessionId = null;
+  try{
+    // 1. 拉二维码
+    const resp = await fetch('/api/yyb/qr/create', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const data = await resp.json();
+    if(!(data.ok && data.data)){ _qrUI(status, box, '获取二维码失败', data.error || '应用宝接口未配置'); return; }
+    const d = data.data;
+    sessionId = d.session_id;
+    if(!sessionId){ _qrUI(status, box, '获取二维码失败', '后端未返回 session_id'); return; }
+    if(d.image_base64){ _renderQrImg(box, d.image_base64); }
+    else if(d.image_url){ _renderQrImg(box, d.image_url); }
+    else { _qrUI(status, null, '二维码已生成，请刷新页面'); }
+    if(status) status.textContent = '请使用手机 QQ / 应用宝扫描';
+
+    // 2. 轮询（顺序请求避免并发；上限 3 分钟）
+    _qrPolling = true;
+    const deadline = Date.now() + 180000;
+    let ready = false, terminalMsg = null;
+    while(_qrPolling && Date.now() < deadline){
+      const pr = await _pollQrOnce(sessionId, status);
+      if(pr.terminal){ terminalMsg = pr.msg; break; }
+      if(pr.ready){ ready = true; break; }
+      await _sleep(2500);
+    }
+    if(!_qrPolling) return; // 用户已关闭
+    if(terminalMsg){ _qrUI(status, box, terminalMsg, '请关闭后重新获取二维码'); return; }
+    if(!ready){ _qrUI(status, box, '登录超时', '请重新获取二维码'); return; }
+
+    // 3. 确认 → 拿到扫码账号 openid
+    _qrUI(status, null, '手机已确认，正在登录…');
+    const cfResp = await fetch('/api/yyb/qr/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sessionId})});
+    const cf = await cfResp.json();
+    if(!(cf.ok && cf.data)){ _qrUI(status, box, '确认失败', cf.error || '登录确认未完成，请重试'); return; }
+    const cfa = cf.data;
+    const openid = cfa && (cfa.openid || cfa.ref);
+    if(!openid){ _qrUI(status, box, '确认失败', '未获取到 openid'); return; }
+
+    // 4. 用 openid 换 code
+    const gcResp = await fetch('/api/yyb/getcode', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({openid})});
+    const gc = await gcResp.json();
+    if(!(gc.ok && gc.data && gc.data.code)){ _qrUI(status, box, '获取 code 失败', gc.error || '请重试'); return; }
+    const code = gc.data.code;
+
+    // 5. 添加/登录账号
+    const platform = (cfa && cfa.platform) || '扫码登录';
+    const name = (cfa && (cfa.nickname || cfa.alias || cfa.name)) || '新账号';
+    const addResp = await fetch('/api/accounts', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, code, platform, openId: openid})});
+    const add = await addResp.json();
+    if(add.ok){
+      stopQrPoll();
+      closeSheetQ(qrSheet, qrMask);
+      alert('扫码登录成功');
+      if(window.loadRealAccounts) window.loadRealAccounts();
+      if(window.refreshAccount) window.refreshAccount();
+      if(window.loadLands) window.loadLands();
+      if(window.refreshMngList) window.refreshMngList();
+    } else {
+      _qrUI(status, box, '添加账号失败', add.error || '未知错误');
+      console.log('自动添加账号失败，可手动粘贴 code:', code);
+    }
+  }catch(e){
+    _qrUI(status, box, '扫码登录失败', e.message);
+    console.error(e);
+  }
+}
+
+document.getElementById('addClose').addEventListener('click', () => closeSheetQ(addSheet, addMask));
+addMask.addEventListener('click', () => closeSheetQ(addSheet, addMask));
+document.getElementById('qrClose').addEventListener('click', () => { stopQrPoll(); closeSheetQ(qrSheet, qrMask); });
+qrMask.addEventListener('click', () => { stopQrPoll(); closeSheetQ(qrSheet, qrMask); });
+
+document.getElementById('addSubmit').addEventListener('click', async () => {
+  const code = document.getElementById('addCodeInput').value.trim();
+  if(!code){ alert('请输入 code'); return; }
+  const name = document.getElementById('addNameInput').value.trim();
+  const platform = window._addCh || 'qq';
+  try{
+    const resp = await fetch('/api/accounts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name: name||'新账号', code, platform })
+    });
+    const data = await resp.json();
+    if(data.ok){ alert(`添加成功（${platform}）`); closeSheetQ(addSheet, addMask); location.reload(); }
+    else alert('添加失败: ' + (data.error||'未知'));
+  }catch(e){ alert('请求失败: ' + e.message); }
+});
+
+// 扫码登录 → 拉二维码（经后端代理）
+document.querySelectorAll('.acc-method').forEach(m => m.addEventListener('click', async () => {
+  const name = m.dataset.name;
+  if(name === '手动添加 code'){
+    openSheet(addSheet, addMask);
+    return;
+  }
+  if(name === '扫码登录'){
+    openSheet(qrSheet, qrMask);
+    if(window.reloadRCConfig) window.reloadRCConfig();
+    await startQrLogin();
+    return;
+  }
+  // 第三方登录
+  alert(`「${name}」请在源码中配置 YYB 服务后接入`);
+}));
+
+/* 施肥范围城市块 多选切换 */
+document.querySelectorAll('.chip:not(#addSheet .chip)').forEach(c => c.addEventListener('click', () => c.classList.toggle('on')));
+
+/* ---------- 巡查开关 ---------- */
+document.querySelectorAll('.switch').forEach(s => s.addEventListener('click', () => {
+  if(s.dataset.who) return; // 首页巡查开关由专门逻辑处理，避免双重 toggle
+  if(s.id === 'rcEnabled') return; // 自动重连开关由专门逻辑处理
+  s.classList.toggle('on');
+  const who = s.dataset.who;
+  const dot = document.createElement('div');
+  dot.className = 'log';
+  dot.innerHTML = `<span class="dot" style="background:var(--muted);color:var(--muted)"></span>
+    <div><p><b>${who}</b> 已${s.classList.contains('on')?'开启':'暂停'}</p>
+    <div class="l-time">${new Date().toTimeString().slice(0,8)}</div></div>`;
+  document.getElementById('logBox').prepend(dot);
+  while(document.getElementById('logBox').children.length > 30)
+    document.getElementById('logBox').lastChild.remove();
+  // 新日志闪烁提示
+  document.getElementById('logBox').scrollTop = 0;
+}));
+
+/* ---------- 我的农场 24 块地：由 loadLands() 从 /api/farm/lands 动态渲染 ---------- */
+/* 好友地块展开：见 loadFriendSub('list') → fcLandFill（真实数据驱动） */
+
+/* 好友卡点击展开地块 */
+document.querySelectorAll('.friend-card').forEach(c => c.addEventListener('click', () => c.classList.toggle('open')));
+
+/* 默认方案：策略设置/自动控制 子 tab */
+document.querySelectorAll('.default-page').forEach(pg => {
+  pg.querySelectorAll('.dtab').forEach(btn => btn.addEventListener('click', () => {
+    pg.querySelectorAll('.dtab').forEach(b => b.classList.remove('active'));
+    pg.querySelectorAll('.dpane').forEach(d => d.classList.remove('active'));
+    btn.classList.add('active');
+    const p = document.getElementById(btn.dataset.dpane); if(p) p.classList.add('active');
+  }));
+});
+
+/* 今日收益：详情展开 */
+(function(){
+  const iTog=document.getElementById('incomeToggle'), iStats=document.getElementById('incomeStats');
+  if(!iTog||!iStats) return;
+  iTog.addEventListener('click', () => {
+    const inc=iStats.closest('.income');
+    inc.classList.toggle('open');
+    iTog.textContent = inc.classList.contains('open') ? '收起 ▲' : '详情 ›';
+  });
+})();
+(function(){
+  const g = id => document.getElementById(id);
+  const fMin=g('fMin'), fMax=g('fMax'), hMin=g('hMin'), hMax=g('hMax'), sMin=g('sMin'), sMax=g('sMax');
+  const tSteal=g('tSteal'), tHelp=g('tHelp'), tHarvest=g('tHarvest');
+  if(!fMin || !tSteal) return;
+  function sync(){
+    tSteal.textContent   = `随机 ${sMin.value}~${sMax.value} 秒`;
+    tHelp.textContent    = `随机 ${hMin.value}~${hMax.value} 秒`;
+    tHarvest.textContent = `随机 ${fMin.value}~${fMax.value} 秒`;
+  }
+  [fMin,fMax,hMin,hMax,sMin,sMax].forEach(i => i.addEventListener('input', sync));
+  sync();
+})();
+
+/* ==================== 后端数据绑定层 ==================== */
+/* ==================== 好友 5 子tab：数据渲染 ==================== */
+const friendAccId = () => new URLSearchParams(location.search).get('accountId') || '';
+
+function fcLandFill(container){
+  if(!container) return;
+  const card = container.closest('.friend-card');
+  const gid = card ? card.dataset.uid : '';
+  if(!gid){ container.innerHTML = '<p class="f-land-empty">缺少好友ID</p>'; return; }
+  container.innerHTML = '<p class="f-land-empty">地块加载中…</p>';
+  const acc = new URLSearchParams(location.search).get('accountId') || '';
+  fetch('/api/friends/lands?gid='+encodeURIComponent(gid)+'&accountId='+acc)
+    .then(r=>r.json()).then(d=>{
+      if(!(d.ok && Array.isArray(d.data))){ container.innerHTML = '<p class="f-land-empty">地块加载失败'+(d.error?'：'+d.error:'')+'</p>'; return; }
+      if(!d.data.length){ container.innerHTML = '<p class="f-land-empty">暂无地块</p>'; return; }
+      const statusMeta = { ready:'可收获', growing:'生长中', dry:'干旱', idle:'空地', dead:'枯萎', locked:'未解锁', stealable:'可收获', empty:'空地' };
+      container.innerHTML = d.data.map(l=>{
+        const lab = statusMeta[l.status] || l.status || '';
+        const isLocked = l.status==='locked';
+        const icon = l.img ? `<img src="${l.img}" alt="">` : (l.name ? (isLocked?'🔒':'🌱') : '⬛');
+        const bar = (l.progress!=null && !isLocked) ? `<div class="bar"><i style="width:${l.progress}%"></i></div>` : '';
+        return `<div class="f-land"><div class="f-l-icon">${icon}</div><div class="f-l-name">${l.name||'空地'}${lab?`<em>${lab}</em>`:''}</div>${bar}</div>`;
+      }).join('');
+    }).catch(()=>{ container.innerHTML = '<p class="f-land-empty">地块加载失败</p>'; });
+}
+
+function loadFriendSub(sub){
+  const acc = friendAccId();
+  if(sub==='list'){
+    fetch('/api/friends/list?accountId='+acc).then(r=>r.json()).then(d=>{
+      if(!(d.ok&&d.data)) return;
+      const list=d.data.friends||[];
+      const tot=document.getElementById('frTotal'); if(tot) tot.textContent=`共 ${list.length} 名好友`;
+      const box=document.getElementById('friendList'); if(!box) return;
+      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>'; return; }
+      box.innerHTML = list.map(f=>{
+        const dog = f.hasDog ? `<span class="ripeness fc-dog">护主犬</span>` : '';
+        let acts = '';
+        if(f.canSteal) acts += `<button class="fa-mini fs1" data-act="steal">🥷 偷取</button>`;
+        if(f.canHelp) acts += `<button class="fa-mini fs2" data-act="water">💧 浇水</button><button class="fa-mini fs3" data-act="weed">🌿 除草</button><button class="fa-mini fs4" data-act="bug">🐛 除虫</button>`;
+        return `<div class="friend-card" data-uid="${f.uid}"><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div>`+
+          `<div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small> ${dog}</h4>`+
+          `<p>Lv.${f.level||'-'} · 金币 ${(f.coins||0).toLocaleString()}${f.ripeLands?' · 可收 '+f.ripeLands+' 块':''}</p></div><span class="fc-arrow">▾</span></div>`+
+          `<p class="fc-tip">${f.tip||''}</p>`+
+          `<div class="fc-actions">${acts}</div>`+
+          `<div class="fc-more-actions"><button class="fa-mini fs5" data-act="bad">🎭 捣乱</button><button class="fa-mini fs6" data-act="black">🚫 拉黑</button><button class="fa-mini fs7" data-act="del">🗑️ 删除</button></div>`+
+          `<div class="fc-lands"></div></div>`;
+      }).join('');
+      box.querySelectorAll('.friend-card').forEach(c=>c.addEventListener('click',e=>{
+        if(e.target.closest('button')) return;
+        c.classList.toggle('open');
+        const lands=c.querySelector('.fc-lands');
+        if(c.classList.contains('open') && lands && !lands.children.length) fcLandFill(lands);
+      }));
+    }).catch(()=>{});
+  }
+  else if(sub==='blacklist'){
+    fetch('/api/friends/blacklist?accountId='+acc).then(r=>r.json()).then(d=>{
+      if(!(d.ok&&d.data)) return;
+      const list=d.data;
+      const cnt=document.getElementById('blkCount'); if(cnt) cnt.textContent=list.length;
+      const box=document.getElementById('blackList'); if(!box) return;
+      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">黑名单为空</p>'; return; }
+      box.innerHTML=list.map(b=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${b.avatar||'🤖'}</div><div class="f-info"><h4>${b.name||''} <small class="fc-id">(${b.uid})</small></h4><p>${b.reason||'无记录'} · ${b.addedAt||''}</p></div></div></div>`).join('');
+    }).catch(()=>{});
+  }
+  else if(sub==='visitors'){
+    fetch('/api/friends/visitors?accountId='+acc).then(r=>r.json()).then(d=>{
+      if(!(d.ok&&d.data)) return;
+      const list=d.data;
+      const box=document.getElementById('visitorList'); if(!box) return;
+      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无访客记录</p>'; return; }
+      box.innerHTML=list.map(v=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${v.avatar||'🚶'}</div><div class="f-info"><h4>${v.name||''}</h4><p>${v.action||''} · ${v.time||''}</p></div></div></div>`).join('');
+    }).catch(()=>{});
+  }
+  else if(sub==='del'){
+    fetch('/api/friends/list?accountId='+acc).then(r=>r.json()).then(d=>{
+      if(!(d.ok&&d.data)) return;
+      const list=d.data.friends||[];
+      const box=document.getElementById('delList'); if(!box) return;
+      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>'; return; }
+      box.innerHTML=list.map(f=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div><div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small></h4></div><button class="fa-mini fs7" data-act="del" style="align-self:center">🗑️</button></div></div>`).join('');
+    }).catch(()=>{});
+  }
+}
+
+/* 加好友提交：粘贴分享链接自动解析，对齐 Node parseShareLink + /api/friend/apply */
+(function(){
+  const txt=document.getElementById('addFrLink'), preview=document.getElementById('addFrPreview'),
+        btn=document.getElementById('addFrBtn'), msg=document.getElementById('addFrMsg');
+  if(!btn) return;
+  function parse(raw){
+    const q=(raw||'').indexOf('?')>=0? raw.slice(raw.indexOf('?')+1) : raw;
+    const s=new URLSearchParams(q);
+    return { uid:s.get('uid'), openid:s.get('openid'), shareKey:s.get('share_key') };
+  }
+  function refresh(){
+    const d=parse(txt.value);
+    if(d.uid||d.openid||d.shareKey) preview.textContent='解析：uid='+(d.uid||'?')+' openid='+(d.openid||'?')+' share_key='+((d.shareKey||'?').slice(0,8))+'…';
+    else preview.textContent='';
+  }
+  txt.addEventListener('input', refresh);
+  btn.addEventListener('click', async ()=>{
+    const d=parse(txt.value);
+    const uid=(d.uid||'').trim();
+    const openid=(d.openid||'').trim();
+    const share=((d.shareKey||'').trim()).toLowerCase();
+    if(!/^\d+$/.test(uid) || !openid || !/^[0-9a-f]{32}$/.test(share)){
+      msg.textContent='分享链接缺少有效 uid / openid / share_key（32位十六进制）'; return;
+    }
+    msg.textContent='发送中…';
+    const acc = new URLSearchParams(location.search).get('accountId') || '';
+    try{
+      const r=await fetch('/api/friend/apply?accountId='+acc,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gid:Number(uid),openid,shareKey:share})});
+      const d2=await r.json();
+      msg.textContent = d2.ok ? ('已发送好友申请：uid='+uid) : ('失败：'+(d2.error||d2.rawError||'未知'));
+    }catch(e){ msg.textContent='请求失败: '+e.message; }
+  });
+})();
+/* 刷新好友列表 */
+(function(){ const b=document.getElementById('frRefresh'); if(b) b.addEventListener('click', ()=>loadFriendSub('list')); })();
+/* 进入好友子tab默认渲染 */
+loadFriendSub('list');
+
+function refreshAccount(){
+  if(window.loadIncome) setTimeout(loadIncome, 60);
+  const qs = s => document.querySelector(s);
+  const qsa = s => Array.from(document.querySelectorAll(s));
+  const accountId = new URLSearchParams(location.search).get('accountId') || '';
+  const j = (url, opts) => fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts)).then(r=>r.json());
+
+  // ---- 首页用户资产卡 ----
+  const esc_attr = s => String(s==null?'':s).replace(/"/g,'&quot;');
+  j('/api/home/profile?accountId='+accountId).then(d => {
+    if(!d.ok) return;
+    const p = d.data;
+    const face = qs('#page-home .profile .face');
+    if(face){
+      if(/^(https?:)?\/\//i.test(p.avatar||'')) face.innerHTML = '<img src="'+esc_attr(p.avatar)+'" alt="">';
+      else face.textContent = p.avatar||'🐰';
+    }
+    const lvl = qs('#page-home .profile .lvl'); if(lvl) lvl.textContent = 'Lv.'+(p.level||'-');
+    const h2 = qs('#page-home .pinfo h2'); if(h2) h2.textContent = p.name||'未登录';
+    const uid = qs('#page-home .uid'); if(uid) uid.textContent = 'UID · '+(p.uid||'-');
+    const strs = qsa('#page-home .stat strong');
+    if(strs.length>=3){
+      strs[0].textContent = '🪙 '+p.gold;
+      strs[1].textContent = '🎟️ '+p.coupons;
+      strs[2].textContent = '🫘 '+p.goldenBeans||'0';
+    }
+    const fill = qs('.exp .fill'); if(fill) fill.style.width = (p.expPercent||0)+'%';
+    const expT = qs('.exp small'); if(expT) expT.textContent = `经验 ${p.exp} / ${p.expMax}`;
+  }).catch(()=>{});
+
+  // ---- 首页今日收益（16项）----
+  j('/api/home/income/today?accountId='+accountId).then(d => {
+    if(!d.ok) return;
+    const x = d.data;
+    const inc = qs('.income .inc-cell strong'); if(inc) inc.textContent = x.totalGold;
+    const map = {
+      '收获':'harvest','偷菜':'steal','种植':'plant','施肥':'fertilize','浇水':'water','除草':'weed','除虫':'insecticide','一键务农':'oneKeyFarm','帮浇水':'helpWater','帮除草':'helpWeed','帮除虫':'helpInsect','清黄金虫':'clearGolden','放黄金虫':'putGolden','任务':'task'
+    };
+    qsa('.income-stats .st').forEach(st => {
+      const label = st.querySelector('span').textContent;
+      const key = map[label];
+      if(key && x[key]!==undefined) st.querySelector('b').textContent = x[key].toLocaleString();
+    });
+  }).catch(()=>{});
+
+  // ---- 首页巡查间隔 ----
+  j('/api/home/patrol?accountId='+accountId).then(d => {
+    if(!d.ok) return;
+    const p = d.data;
+    const setTimer = (id, o) => { const el = document.getElementById(id); if(el) el.textContent = `随机 ${o.min}~${o.max} 秒`; };
+    setTimer('tSteal', p.steal); setTimer('tHelp', p.help); setTimer('tHarvest', p.harvest);
+  }).catch(()=>{});
+
+  // ---- 账号列表 ----
+  j('/api/accounts').then(d => {
+    if(!(d.ok && d.data && d.data.length)) return;
+    const accList = document.getElementById('accManage');
+    if(!accList) return;
+    accList.innerHTML = d.data.map((a,i) =>
+      `<button class="acc-row ${i===0?'active':''}"><div class="a-av">🐰</div><div class="a-info"><b>${a.name||'未命名'}</b><span>${a.platform||'qq'} · ${a.status||'offline'}</span></div><span class="check">${i===0?'✓':''}</span></button>`
+    ).join('');
+  }).catch(()=>{});
+};
+refreshAccount();/* ===== 全局：农场加载 + 背包渲染 ===== */
+function loadLands(force){
+  const accountId = new URLSearchParams(location.search).get('accountId') || '';
+  fetch('/api/farm/lands?accountId='+accountId+(force?'&refresh=1':'')).then(r=>r.json()).then(d => {
+    if(!(d.ok && d.data)) return;
+    const land = document.getElementById('land'); if(!land) return;
+    const statusMeta = { ready:'可收获', growing:'生长中', dry:'干旱', pest:'虫害' };
+    land.innerHTML = d.data.map(p => {
+      const pstat = statusMeta[p.status]||p.status||'';
+      const ready = p.status==='ready';
+      const nm = (p.name||'') + (ready?' 已成熟':'');
+      const pt = ready ? '已可收获' : (p.timeLeft||'预计成熟');
+      return `<div class="plot"><span class="no">#${p.id}</span><div class="state">${p.img?`<img src="${p.img}" alt="" style="width:42px;height:42px;object-fit:contain">`:(p.state||'🌱')}</div>`+
+        `<div class="name">${nm}</div>`+
+        `<div class="bar"><i style="width:${p.progress||0}%"></i></div>`+
+        `<div class="meta">${pstat}</div>`+
+        `<div class="ptime">${pt}</div>`+
+        `<div class="plot-btns"><button class="p-cuisi">催熟</button><button class="p-chan">铲除</button></div></div>`;
+    }).join('');
+  }).catch(()=>{});
+}
+let BAG_ALL = [];
+function renderBag(cat){
+  const container = document.querySelector('#p-bag .bag-grid');
+  if(!container) return;
+  let list = BAG_ALL;
+  if(cat==='props') list = BAG_ALL.filter(it => it.category==='props'||it.category==='fertilizer');
+  else if(cat) list = BAG_ALL.filter(it => it.category===cat);
+  container.innerHTML = list.length ? list.map(it =>
+    `<div class="bag-item"><span class="bi-id">${it.id}</span><div class="bi-icon">${it.img ? `<img src="${it.img}" style="width:34px;height:34px;object-fit:contain;border-radius:8px">` : `<span style="font-size:20px">${it.icon||'📦'}</span>`}</div><div class="bi-name">${it.name||''}</div><div class="bi-meta">数量 ×${it.count}</div></div>`
+  ).join('') : '<p style="text-align:center;color:var(--muted);margin-top:24px">该分类暂无物品</p>';
+}
+
+/* ===== 首页日志 + 巡查开关 + 农场操作 + 背包分类 ===== */
+(function(){
+  const accId = () => new URLSearchParams(location.search).get('accountId') || '';
+
+  // 首页运行日志
+  fetch('/api/home/logs?accountId='+accId()).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    const box=document.getElementById('logBox'); if(!box) return;
+    box.innerHTML = d.data.map(l=>`<div class="log-row"><i style="color:${l.color||'var(--muted)'}">●</i><span>${l.message||''}</span><em>${l.tag||''}</em><small>${l.time||''}</small></div>`).join('');
+  }).catch(()=>{});
+
+  // 巡查开关：点击持久化
+  const switchMap={'偷菜':'steal','帮忙':'help','收菜':'farm'};
+  document.querySelectorAll('#page-home .switch[data-who]').forEach(sw=>{
+    const key=switchMap[sw.dataset.who];
+    sw.addEventListener('click',()=>{
+      sw.classList.toggle('on');
+      fetch('/api/home/patrol?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,enabled:sw.classList.contains('on')})}).catch(()=>{});
+    });
+  });
+  // 巡查间隔 + 开关初始状态
+  fetch('/api/home/patrol?accountId='+accId()).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    const p=d.data;
+    const timers={'偷菜':'tSteal','帮忙':'tHelp','收菜':'tHarvest'};
+    [['偷菜','steal'],['帮忙','help'],['收菜','farm']].forEach(([label,key])=>{
+      const t=document.getElementById(timers[label]); if(t) t.textContent=`随机 ${p[key].min}~${p[key].max} 秒`;
+      const sw=document.querySelector(`#page-home .switch[data-who="${label}"]`); if(sw) sw.classList.toggle('on', !!p[key].enabled);
+    });
+  }).catch(()=>{});
+
+  // 农场操作按钮
+  const actMap={'fa-harvest':'harvest','fa-work':'work','fa-plant':'plant','fa-upgrade':'upgrade','fa-full':'full','fa-clear':'clear'};
+  document.querySelectorAll('#p-farm .fa-btn').forEach(btn=>{
+    const cls=[...btn.classList].find(c=>actMap[c]); if(!cls) return;
+    btn.addEventListener('click', async ()=>{
+      const old=btn.textContent; btn.disabled=true; btn.textContent='处理中…';
+      try{
+        const body={action:actMap[cls]};
+        if(actMap[cls]==='plant'){ body.landId='1'; body.seedId='200001'; }
+        const resp=await fetch('/api/farm/action?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const data=await resp.json();
+        alert(data.ok ? ('操作完成：'+actMap[cls]) : ('失败：'+(data.error||'未知')));
+        if(data.ok){ loadLands(true); if(window.loadLogs)loadLogs(); }
+      }catch(e){ alert('请求失败: '+e.message); }
+      btn.disabled=false; btn.textContent=old;
+    });
+  });
+
+  // 背包数据 + 分类
+  fetch('/api/bag/items?accountId='+accId()).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    BAG_ALL=d.data;
+    renderBag('');
+    const pane=document.querySelector('#p-bag');
+    if(!pane) return;
+    const catMap=[['','全部'],['fruit','果实'],['seed','种子'],['props','道具'],['other','其他']];
+    const btns=pane.querySelectorAll('.seg > button');
+    const countFor=(k)=>{ if(!k) return BAG_ALL.length; if(k==='props') return BAG_ALL.filter(it=>it.category==='props'||it.category==='fertilizer').length; return BAG_ALL.filter(it=>it.category===k).length; };
+    btns.forEach((b,idx)=>{
+      const key=catMap[idx][0]; const label=catMap[idx][1];
+      b.textContent = label + ' (' + countFor(key) + ')';
+      const cfg=b.dataset.bagcat; // 记录点击目标分类
+      b.addEventListener('click',()=>{
+        btns.forEach(x=>x.classList.remove('active')); b.classList.add('active');
+        renderBag(b.dataset.bagcat || '');
+      });
+    });
+  }).catch(()=>{});
+})();
+loadLands();
+
+/* ===== 地块 + 好友 操作按钮：事件委托 ===== */
+const accIdQ = () => new URLSearchParams(location.search).get('accountId') || '';
+async function postJSON(url, body){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  return r.json();
+}
+document.addEventListener('click', async (e)=>{
+  const ab = e.target.closest('[data-act]');
+  if(ab){
+    const card = ab.closest('.friend-card');
+    const gid = card ? card.dataset.uid : '';
+    const act = ab.dataset.act;
+    try{
+      let d;
+      if(act==='black') d=await postJSON('/api/friend-blacklist/toggle?accountId='+accIdQ(),{gid});
+      else if(act==='del'){ d=await postJSON('/api/friend/'+gid+'/delete?accountId='+accIdQ(),{}); loadFriendSub('list'); }
+      else d=await postJSON('/api/friend/'+gid+'/op?accountId='+accIdQ(),{opType:act});
+      alert(d.ok ? ((act==='black'?'已切换黑名单':act)+' 完成') : ('操作失败：'+(d.error||'未知')));
+    }catch(err){ alert('请求失败：'+err.message); }
+    return;
+  }
+  const pb = e.target.closest('.plot-btns button');
+  if(pb){
+    const plot = pb.closest('.plot');
+    const no = plot ? ((plot.querySelector('.no').textContent||'')).replace('#','') : '';
+    try{
+      if(pb.classList.contains('p-cuisi')){ const d=await postJSON('/api/land/fertilize?accountId='+accIdQ(),{landId:no}); alert(d.ok?'催熟完成':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
+      else if(pb.classList.contains('p-chan')){ const d=await postJSON('/api/farm/operate?accountId='+accIdQ(),{opType:'clear',landId:no}); alert(d.ok?'已铲除':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
+    }catch(err){ alert('请求失败：'+err.message); }
+    return;
+  }
+});
+/* ===== 补充交互：巡查全开 / 清空日志 / 批量出售 / 好友搜索 / 好友筛选 ===== */
+(function(){
+  const accIdQ = () => new URLSearchParams(location.search).get('accountId') || '';
+
+  // 巡查全部开启
+  const allOn = document.getElementById('allOn');
+  if(allOn) allOn.addEventListener('click', ()=>{
+    const sm = {'偷菜':'steal','帮忙':'help','收菜':'farm'};
+    document.querySelectorAll('#page-home .switch[data-who]').forEach(sw=>{
+      sw.classList.add('on');
+      fetch('/api/home/patrol?accountId='+accIdQ(), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key:sm[sw.dataset.who], enabled:true})});
+    });
+    alert('已全部开启');
+  });
+
+  // 清空日志
+  const clearLogs = document.getElementById('clearLogs');
+  if(clearLogs) clearLogs.addEventListener('click', async ()=>{
+    try{ await fetch('/api/logs', {method:'DELETE'}); }catch(e){}
+    const box=document.getElementById('logBox'); if(box) box.innerHTML='';
+    alert('日志已清空');
+  });
+
+  // 背包批量出售
+  const batchSell = document.getElementById('batchSell');
+  if(batchSell) batchSell.addEventListener('click', ()=> alert('请在具体物品上操作（后端批量出售接口待接入）'));
+
+  // 好友搜索框实时过滤
+  const search = document.getElementById('frSearch');
+  if(search) search.addEventListener('input', ()=>{
+    const kw = search.value.trim().toLowerCase();
+    document.querySelectorAll('#friendList .friend-card').forEach(c=>{
+      c.style.display = (!kw || (c.textContent||'').toLowerCase().includes(kw)) ? '' : 'none';
+    });
+  });
+
+  // 好友筛选：无护主犬 / 有护主犬
+  const frFilter = document.querySelector('#p-friends .friend-filter');
+  if(frFilter){
+    frFilter.querySelectorAll('.chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        frFilter.querySelectorAll('.chip').forEach(x=>x.classList.remove('on')); btn.classList.add('on');
+        const label = btn.textContent.trim();
+        document.querySelectorAll('#friendList .friend-card').forEach(c=>{
+          const hasDog = (c.textContent||'').includes('护主犬');
+          let show = true;
+          if(label==='无护主犬') show = !hasDog;
+          else if(label==='有护主犬') show = hasDog;
+          c.style.display = show ? '' : 'none';
+        });
+      });
+    });
+  }
+})();
+</script>
+
+<script>
+/* ===== 真实账号系统：账号列表 + 切换（覆盖下方硬编码假账号逻辑） ===== */
+(function(){
+  function _esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function switchTo(id){
+    fetch('/api/accounts/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})
+      .then(r=>r.json()).then(d=>{ if(d.ok){
+        var u=new URL(location.href); u.searchParams.set('accountId',id); history.replaceState(null,'',u);
+        if(window.refreshAccount) window.refreshAccount();
+        if(window.loadLands) window.loadLands();
+        if(window.loadRealAccounts) window.loadRealAccounts();
+        var sh=document.getElementById('sheet'); if(sh) sh.classList.remove('show');
+        var mask=document.getElementById('sheetMask'); if(mask) mask.classList.remove('show');
+      } else alert('切换失败: '+(d.error||'?')); })
+      .catch(()=>alert('切换请求失败'));
+  }
+  function renderRow(a,cur){
+    const act=a.id===cur;
+    return `<div class="acc-row ${act?'active':''}" data-id="${a.id}"><div class="a-av">🐰</div><div class="a-info"><b>${_esc(a.name)||'未命名'}</b><span>${a.platform||'qq'} · ${a.status||'offline'}</span></div><span class="check">${act?'✓':''}</span></div>`;
+  }
+  function editAccount(id){
+    const newName=(prompt('修改备注名称（留空不变）：')||'').trim();
+    const newCode=(prompt('若 code 已过期，粘贴新的登录 code（留空不变）：')||'').trim();
+    if(!newName&&!newCode){ alert('未做修改'); return; }
+    fetch('/api/accounts/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName,code:newCode,platform:''})})
+      .then(r=>r.json()).then(d=>{ if(d.ok){ alert(d.relinked?'已保存并刷新登录凭证':'已保存'); window.loadRealAccounts(); if(window.refreshAccount)window.refreshAccount(); if(window.loadLands)loadLands(); if(window.refreshMngList) window.refreshMngList(); } else alert('保存失败: '+(d.error||'?')); });
+  }
+  function delAccount(id){
+    if(!confirm('确定删除该账号？此操作不可恢复，删除后需重新添加 code 才能登录。')) return;
+    fetch('/api/accounts/'+encodeURIComponent(id),{method:'DELETE'})
+      .then(r=>r.json()).then(d=>{ if(d.ok){ alert('已删除'); window.loadRealAccounts(); if(window.refreshMngList) window.refreshMngList(); } else alert('删除失败: '+(d.error||'?')); });
+  }
+  window.loadRealAccounts = function(){
+    Promise.all([
+      fetch('/api/accounts').then(r=>r.json()),
+      fetch('/api/accounts/active').then(r=>r.json())
+    ]).then(([ad,av])=>{
+      if(!(ad&&ad.ok)) return;
+      var list=(Array.isArray(ad.data))?ad.data:[];
+      var cur=(av&&av.data&&av.data.accountId)||new URLSearchParams(location.search).get('accountId')||'';
+      // 账号管理页列表
+      var am=document.getElementById('accManage');
+      if(am){
+        if(list.length===0){
+          am.innerHTML='<div class="acc-empty" style="padding:16px;text-align:center;color:var(--muted)">暂无已登录账号，请扫描或手动添加 code</div>';
+        } else {
+          am.innerHTML=list.map(a=>renderRow(a,cur)).join('');
+          am.querySelectorAll('.acc-row').forEach(row=>row.addEventListener('click',()=>switchTo(row.dataset.id)));
+        }
+      }
+      // 顶部/首页切换 sheet
+      var sh=document.getElementById('sheet');
+      if(sh){
+        var closeBtn=sh.querySelector('#sheetClose, .close');
+        sh.querySelectorAll('.acc').forEach(o=>o.remove());
+        list.forEach(a=>{
+          var b=document.createElement('button');
+          b.className='acc'+(a.id===cur?' active':'');
+          b.dataset.id=a.id;
+          b.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(a.status||'offline')+'</span></div><span class="check">'+(a.id===cur?'✓':'')+'</span>';
+          b.addEventListener('click',()=>switchTo(a.id));
+          if(closeBtn) sh.insertBefore(b,closeBtn); else sh.appendChild(b);
+        });
+      }
+    }).catch(()=>{});
+  }
+  // ===== 账号管理弹窗（管理 tab） =====
+  function buildMngSheet(){
+    var mask=document.createElement('div'); mask.className='sheet-mask'; mask.id='mngMask';
+    var sheet=document.createElement('div'); sheet.className='sheet'; sheet.id='mngSheet';
+    sheet.innerHTML='<div class="handle"></div><h3>账号管理</h3><p class="sub" style="margin:2px 0 10px">编辑备注 / 刷新 code / 删除账号</p><div id="mngList" style="max-height:52vh;overflow:auto"></div><button class="close" id="mngClose">关闭</button>';
+    document.body.appendChild(mask); document.body.appendChild(sheet);
+    window.refreshMngList = render;
+    function open(){ mask.classList.add('show'); sheet.classList.add('show'); render(); }
+    function close(){ mask.classList.remove('show'); sheet.classList.remove('show'); }
+    mask.addEventListener('click',close);
+    sheet.querySelector('#mngClose').addEventListener('click',close);
+    function render(){
+      var L=document.getElementById('mngList'); if(!L) return;
+      L.innerHTML='';
+      fetch('/api/accounts').then(function(r){return r.json();}).then(function(ad){
+        if(!(ad&&ad.ok&&ad.data)) return;
+        ad.data.forEach(function(a){
+          var row=document.createElement('div'); row.className='acc-row';
+          row.style.cssText='position:relative;padding-right:70px;margin-bottom:8px';
+          row.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(a.status||'offline')+' · '+(a.code?('code '+a.code.slice(0,6)+'…'):'无 code')+'</span></div><span class="check"></span>';
+          var eb=document.createElement('button'); eb.textContent='✏️'; eb.title='编辑/刷新code'; eb.style.cssText='position:absolute;right:36px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer'; eb.addEventListener('click',function(ev){ev.stopPropagation();editAccount(a.id);});
+          var db=document.createElement('button'); db.textContent='🗑️'; db.title='删除账号'; db.style.cssText='position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer'; db.addEventListener('click',function(ev){ev.stopPropagation();delAccount(a.id);});
+          row.appendChild(eb); row.appendChild(db);
+          L.appendChild(row);
+        });
+      }).catch(function(){});
+    }
+    var links=[].slice.call(document.querySelectorAll('.link'));
+    var mgmtLink=links.filter(function(el){return (el.textContent||'').trim()==='管理';})[0];
+    if(mgmtLink) mgmtLink.addEventListener('click',open);
+  }
+  function boot(){ if(window.loadRealAccounts) window.loadRealAccounts(); buildMngSheet(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
+
+
+
+<script>
+/* 今日收益接真实接口（替换写死数据） */
+function loadIncome(){
+  const accId = new URLSearchParams(location.search).get('accountId') || '';
+  fetch('/api/home/income/today?accountId='+accId).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    const m=d.data;
+    const cells=document.querySelectorAll('.income .inc-cell');
+    if(cells.length>0){ const c1=cells[0].querySelector('strong'); if(c1) c1.textContent=(m.totalGold||0).toLocaleString(); }
+    if(cells.length>1){ const c2=cells[1].querySelector('strong'); if(c2) c2.textContent=(m.dogGifts||0); }
+    const kmap={'🌾':'harvest','🕵️':'steal','🌱':'plant','🧴':'fertilize','🚿':'water','🌿':'weed','🐛':'insecticide','⚙️':'oneKeyFarm','🤝':'helpWater','🧹':'helpWeed','🪲':'helpInsect','🟡':'clearGolden','🐞':'putGolden','📋':'task'};
+    document.querySelectorAll('#incomeStats .st').forEach(st=>{
+      const i=st.querySelector('i'), b=st.querySelector('b');
+      if(!i||!b) return;
+      const k=kmap[i.textContent];
+      if(k && m[k]!=null) b.textContent=(m[k]||0).toLocaleString();
+    });
+  }).catch(()=>{});
+}
+function __incomeBoot(){ loadIncome(); }
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',__incomeBoot); else __incomeBoot();
+</script>
+
+<script>
+/* 操作日志区刷新（读后端真实日志文件） */
+window.loadLogs=function(){
+  const acc=new URLSearchParams(location.search).get('accountId')||'';
+  fetch('/api/home/logs?accountId='+acc).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    const box=document.getElementById('logBox'); if(!box) return;
+    box.innerHTML=d.data.map(l=>`<div class="log-row"><i style="color:${l.color||'var(--muted)'}">●</i><span>${l.message||''}</span><em>${l.tag||''}</em><small>${l.time||''}</small></div>`).join('');
+  }).catch(()=>{});
+};
+</script>
+
+<script>
+/* 生涯统计弹窗：点击首页资产卡头像打开，拉取 /api/career */
+(function(){
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  var mask=document.getElementById('careerMask');
+  var sheet=document.getElementById('careerSheet');
+  var body=document.getElementById('careerBody');
+  var status=document.getElementById('careerStatus');
+  if(!mask||!sheet||!body) return;
+  function open(){ mask.classList.add('show'); sheet.classList.add('show'); load(); }
+  function close(){ mask.classList.remove('show'); sheet.classList.remove('show'); }
+  mask.addEventListener('click',close);
+  var cbtn=document.getElementById('careerClose'); if(cbtn) cbtn.addEventListener('click',close);
+  function load(){
+    var acc=new URLSearchParams(location.search).get('accountId')||'';
+    if(status) status.textContent='加载中…';
+    body.innerHTML='';
+    fetch('/api/career?accountId='+acc).then(function(r){return r.json();}).then(function(d){
+      if(!(d&&d.ok&&d.data)){ throw new Error((d&&d.error)||'获取失败'); }
+      if(status) status.textContent='';
+      render(d.data);
+    }).catch(function(e){
+      if(status) status.textContent='';
+      body.innerHTML='<div class="career-empty">😵 生涯统计暂不可用<br><span style="font-size:11px;color:var(--muted)">'+esc(e&&e.message||'请稍后重试')+'</span></div>';
+    });
+  }
+  function render(d){
+    var p=d.player||{}, meta=d.meta||{};
+    var items=(d.items||[]).slice();
+    items.sort(function(a,b){return (b.count||0)-(a.count||0);});
+    var lvlStats=d.level_stats||[];
+    var av=p.avatar||'';
+    var isUrl = av.indexOf('http')===0 || av.indexOf('//')===0;
+    var avHtml = isUrl ? '<img src="'+esc(av)+'" alt="">' : (esc(av)||'🐰');
+    var head='<div class="career-head">'+
+      '<div class="c-av">'+avHtml+'</div>'+
+      '<div class="c-info"><div class="c-name"><b>'+esc(p.name||'未知玩家')+'</b><span class="c-lv">Lv.'+esc(p.level||0)+'</span></div>'+
+      '<div class="c-open">UID '+esc(p.gid||'-')+'</div></div></div>';
+    var exp=(p.exp||0), expMax=(p.expMax||0), pct=(p.expPercent!=null?p.expPercent:0);
+    var expBar='<div class="career-exp"><div class="bar"><div class="fill" style="width:'+Math.max(0,Math.min(100,pct))+'%"></div></div>'+
+      '<small>经验 <b>'+exp.toLocaleString()+'</b> / '+expMax.toLocaleString()+'</small></div>';
+    var listHtml=items.length?
+      items.slice(0,30).map(function(it){
+        return '<div class="career-row"><span class="im">'+esc(it.image||'🌾')+'</span><span class="nm">'+esc(it.name)+'</span><span class="cnt">× <b>'+Number(it.count||0).toLocaleString()+'</b></span></div>';
+      }).join(''):'<div class="career-empty">暂无收获记录</div>';
+    var lvHtml=lvlStats.length?
+      lvlStats.slice(0,30).map(function(it){
+        return '<div class="career-row"><span class="im">'+esc(it.image||'🌟')+'</span><span class="nm">'+esc(it.name)+'</span><span class="cnt">Lv.'+esc(it.level||0)+' × '+Number(it.count||0).toLocaleString()+'</span></div>';
+      }).join(''):'<div class="career-empty">暂无作物等级数据</div>';
+    body.innerHTML=head+expBar+
+      '<div class="career-sec"><h4>🌾 收获排行<span class="sub">共 '+items.length+' 种</span></h4><div class="career-list">'+listHtml+'</div></div>'+
+      '<div class="career-sec"><h4>📈 作物等级<span class="sub">共 '+lvlStats.length+' 种</span></h4><div class="career-list">'+lvHtml+'</div></div>';
+  }
+  var face=document.querySelector('#page-home .profile .face');
+  if(!face){
+    // 首页渲染可能延迟加载 DOM，兜底监听
+    var t=setInterval(function(){
+      var f=document.querySelector('#page-home .profile .face');
+      if(f){ clearInterval(t); f.style.cursor='pointer'; f.addEventListener('click',open); }
+    },300);
+    setTimeout(function(){ clearInterval(t); },8000);
+  } else {
+    face.style.cursor='pointer';
+    face.addEventListener('click',open);
+  }
+})();
+
+/* ===== 掉线自动重连设置（更多→自动控制） ===== */
+(function(){
+  const accIdR = () => new URLSearchParams(location.search).get('accountId') || '';
+  const sw = document.getElementById('rcEnabled');
+  const delay = document.getElementById('rcDelay');
+  const max = document.getElementById('rcMax');
+  const stateEl = document.getElementById('rcState');
+  if(!sw) return;
+  const fmt = (st) => {
+    const s = st.state||'-';
+    let t = '连接：' + s;
+    if(st.stopped) t += '（已停止）';
+    if(st.attempts) t += ' · 已重连' + st.attempts + '次';
+    return t;
+  };
+  const load = () => {
+    fetch('/api/reconnect/config?accountId='+encodeURIComponent(accIdR())).then(r=>r.json()).then(d=>{
+      if(!(d.ok && d.data)) return;
+      sw.classList.toggle('on', !!d.data.enabled);
+      if(delay) delay.value = d.data.reconnectDelayMin;
+      if(max) max.value = d.data.reconnectMaxAttempts;
+      if(stateEl && d.data.state) stateEl.textContent = fmt(d.data.state);
+    }).catch(()=>{});
+  };
+  const post = (url, body) => fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(r=>r.json());
+  if(sw) sw.addEventListener('click', ()=> sw.classList.toggle('on'));
+  const saveBtn = document.getElementById('rcSave');
+  if(saveBtn) saveBtn.addEventListener('click', ()=>{
+    post('/api/reconnect/config?accountId='+encodeURIComponent(accIdR()), {
+      enabled: sw.classList.contains('on'),
+      reconnectDelayMin: parseInt(delay ? delay.value : '3', 10) || 3,
+      reconnectMaxAttempts: parseInt(max ? max.value : '3', 10) || 3
+    }).then(d => { if(d.ok){ alert('设置已保存'); load(); } else alert('保存失败：'+(d.error||'未知')); }).catch(()=>alert('保存失败'));
+  });
+  const retryBtn = document.getElementById('rcRetry');
+  if(retryBtn) retryBtn.addEventListener('click', async ()=>{
+    retryBtn.disabled = true; retryBtn.textContent = '重连中…';
+    const d = await post('/api/reconnect/retry?accountId='+encodeURIComponent(accIdR()), {}).catch(()=>null);
+    retryBtn.disabled = false; retryBtn.textContent = '🔁 立即重连';
+    if(!d || !d.ok){ alert('触发失败'+(d&&d.error?'：'+d.error:'')); return; }
+    alert('已触发重连，将在后台执行');
+    setTimeout(load, 2000);
+  });
+  load();
+  window.reloadRCConfig = load;
+})();
+</script>
+</body>
+</html>

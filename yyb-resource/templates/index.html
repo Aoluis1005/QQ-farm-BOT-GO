@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YYB Go 控制台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: oklch(1 0 0);
+      --bg-soft: oklch(0.974 0.004 250);
+      --surface: oklch(0.986 0.004 250);
+      --surface-strong: oklch(0.948 0.009 250);
+      --ink: oklch(0.19 0.025 252);
+      --muted: oklch(0.43 0.025 252);
+      --faint: oklch(0.58 0.018 252);
+      --line: oklch(0.885 0.012 250);
+      --primary: oklch(0.54 0.205 3);
+      --primary-hover: oklch(0.48 0.195 3);
+      --accent: oklch(0.44 0.112 190);
+      --accent-soft: oklch(0.94 0.027 190);
+      --success: oklch(0.55 0.135 145);
+      --success-soft: oklch(0.94 0.035 145);
+      --warning: oklch(0.68 0.135 78);
+      --warning-soft: oklch(0.955 0.04 78);
+      --danger: oklch(0.55 0.18 25);
+      --danger-soft: oklch(0.955 0.032 25);
+      --code-bg: oklch(0.16 0.022 252);
+      --code-ink: oklch(0.96 0.006 250);
+      --radius: 8px;
+      --topbar-h: 68px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      height: 100%;
+    }
+
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--bg-soft);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 0 28px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: var(--bg);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.1;
+    }
+
+    .brand-subtitle {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .top-actions,
+    .panel-actions,
+    .inline-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      min-height: 36px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      background: var(--bg);
+      color: var(--ink);
+      text-decoration: none;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .btn:hover {
+      background: var(--surface-strong);
+    }
+
+    .btn:focus-visible,
+    .account-card:focus-visible,
+    .quick-link:focus-visible {
+      outline: 3px solid oklch(0.82 0.08 190);
+      outline-offset: 2px;
+    }
+
+    .btn.primary {
+      background: var(--primary);
+      color: var(--bg);
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+
+    .btn.primary:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .btn.secondary {
+      border-color: var(--line);
+    }
+
+    .btn.danger {
+      color: var(--danger);
+      border-color: var(--danger-soft);
+      background: var(--danger-soft);
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
+    }
+
+    .status-pill {
+      min-height: 30px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: var(--surface);
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--faint);
+      flex: 0 0 auto;
+    }
+
+    .status-pill.ok .status-dot,
+    .account-status.alive .status-dot {
+      background: var(--success);
+    }
+
+    .status-pill.bad .status-dot,
+    .account-status.expired .status-dot {
+      background: var(--danger);
+    }
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 22px 28px 32px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .summary {
+      min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .summary h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 760;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    .summary-copy {
+      margin: 0;
+      max-width: 72ch;
+      color: var(--muted);
+    }
+
+    .stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .stat-chip {
+      min-height: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .stat-chip strong {
+      color: var(--ink);
+      font-weight: 760;
+    }
+
+    .quick-actions {
+      min-width: 260px;
+      background: var(--ink);
+      color: var(--bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: grid;
+      align-content: space-between;
+      gap: 14px;
+    }
+
+    .quick-actions p {
+      margin: 0;
+      color: oklch(0.86 0.012 250);
+      font-size: 13px;
+    }
+
+    .quick-actions .btn {
+      background: oklch(0.25 0.028 252);
+      color: var(--bg);
+      border-color: oklch(0.34 0.028 252);
+    }
+
+    .quick-actions .btn:hover {
+      background: oklch(0.31 0.032 252);
+    }
+
+    .account-band,
+    .panel {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .section-head {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .section-title h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-strip {
+      padding: 12px;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(300px, 340px);
+      gap: 10px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      min-height: 126px;
+    }
+
+    .account-card {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      text-align: left;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+
+    .account-card:hover {
+      background: var(--bg);
+      border-color: oklch(0.78 0.035 190);
+    }
+
+    .account-card.selected {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-weight: 760;
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .account-main {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    .account-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 760;
+    }
+
+    .account-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .account-meta {
+      color: var(--faint);
+      font-size: 12px;
+      overflow: hidden;
+    }
+    .account-openid {
+      color: var(--accent);
+      font-size: 11px;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+      user-select: all;
+    }
+    .account-openid:hover {
+      color: oklch(0.48 0.195 3);
+      text-decoration: underline;
+    }
+
+    .empty-state {
+      min-height: 100px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 18px;
+      text-align: center;
+    }
+
+    .work-grid {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.15fr) minmax(260px, 0.65fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel-body {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--ink);
+      padding: 10px 11px;
+      outline: none;
+      transition: border-color 160ms ease, background 160ms ease;
+    }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+
+    .textarea {
+      min-height: 164px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .selected-account {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 10px 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .selected-account strong {
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-panel .panel-body {
+      gap: 10px;
+    }
+
+    .result-box {
+      min-height: 360px;
+      max-height: 560px;
+      margin: 0;
+      overflow: auto;
+      border-radius: var(--radius);
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .result-box.error {
+      color: oklch(0.86 0.075 25);
+    }
+
+    .quick-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .quick-link {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 11px;
+      background: var(--surface);
+      color: var(--ink);
+      text-decoration: none;
+      display: grid;
+      gap: 2px;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+
+    .quick-link:hover {
+      background: var(--bg);
+      border-color: oklch(0.78 0.035 190);
+    }
+
+    .quick-link span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .log-line {
+      padding: 10px 11px;
+      border-radius: var(--radius);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1120px) {
+      .overview,
+      .work-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-actions {
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        height: auto;
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 16px;
+      }
+
+      .top-actions {
+        width: 100%;
+      }
+
+      .top-actions .btn,
+      .top-actions .status-pill {
+        flex: 1;
+      }
+
+      .shell {
+        padding: 16px;
+      }
+
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .panel-actions,
+      .inline-actions {
+        width: 100%;
+      }
+
+      .panel-actions .btn,
+      .inline-actions .btn {
+        flex: 1;
+      }
+
+      .account-strip {
+        grid-auto-columns: minmax(280px, 92vw);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+        animation-duration: 1ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">Y</div>
+        <div>
+          <h1 class="brand-title">YYB Go 控制台</h1>
+          <div class="brand-subtitle">账号、扫码、能力调用集中操作</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="status-pill" id="healthPill"><span class="status-dot"></span><span>检测服务中</span></span>
+        <a class="btn secondary" href="/docs/index.html">Swagger</a>
+        <a class="btn primary" href="/scan">扫码添加</a>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="overview" aria-label="控制台概览">
+        <div class="summary">
+          <h2>选择账号，执行服务调用</h2>
+          <p class="summary-copy">首页现在聚焦运行工作流。接口详情保留在 Swagger，当前页面只放账号状态、调用配置和返回结果。</p>
+          <div class="stat-row" aria-label="运行统计">
+            <span class="stat-chip">账号 <strong id="accountCount">0</strong></span>
+            <span class="stat-chip">可用 <strong id="aliveCount">0</strong></span>
+            <span class="stat-chip">能力 <strong id="featureCount">0</strong></span>
+            <span class="stat-chip">当前 <strong id="currentAccountText">未选择</strong></span>
+          </div>
+        </div>
+        <aside class="quick-actions" aria-label="常用动作">
+          <p>常用入口放在这里，避免把接口文档铺满首页。</p>
+          <div class="inline-actions">
+            <button class="btn" id="refreshAllBtn" type="button">刷新存活</button>
+            <button class="btn" id="resyncAllBtn" type="button">同步资料</button>
+          </div>
+        </aside>
+      </section>
+
+      <section class="account-band" aria-label="账号队列">
+        <div class="section-head">
+          <div class="section-title">
+            <h3>账号队列</h3>
+            <p>点击账号后，下方调用面板会使用该账号</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn secondary" id="reloadAccountsBtn" type="button">重新加载</button>
+            <a class="btn primary" href="/scan">添加账号</a>
+          </div>
+        </div>
+        <div class="account-strip" id="accountStrip">
+          <div class="empty-state">账号加载中</div>
+        </div>
+      </section>
+
+      <section class="work-grid" aria-label="调用工作区">
+        <section class="panel" aria-label="调用配置">
+          <div class="section-head">
+            <div class="section-title">
+              <h3>调用配置</h3>
+              <p>配置目标小程序和能力参数</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="selected-account">
+              <span>当前账号</span>
+              <strong id="selectedAccountName">未选择</strong>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="featureSel">能力</label>
+                <select class="select" id="featureSel"></select>
+              </div>
+              <div class="field">
+                <label for="appidInput">APPID</label>
+                <input class="input" id="appidInput" value="wx5306c5978fdb76e4" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="field hidden" id="payloadGroup">
+                <label for="payloadInput">请求 JSON</label>
+                <textarea class="textarea" id="payloadInput" spellcheck="false">{"api_name":"getUserInfo","data":{},"env":1}</textarea>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <button class="btn primary" id="callBtn" type="button">执行调用</button>
+              <button class="btn secondary" id="clearResultBtn" type="button">清空结果</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel result-panel" aria-label="调用结果">
+          <div class="section-head">
+            <div class="section-title">
+              <h3>返回结果</h3>
+              <p id="resultMeta">等待调用</p>
+            </div>
+            <button class="btn secondary" id="copyResultBtn" type="button">复制</button>
+          </div>
+          <div class="panel-body">
+            <pre class="result-box" id="resultBox">选择账号并执行调用后，返回内容会显示在这里。</pre>
+          </div>
+        </section>
+
+        <aside class="panel" aria-label="系统入口">
+          <div class="section-head">
+            <div class="section-title">
+              <h3>系统入口</h3>
+              <p>文档、接口和状态</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="quick-list">
+              <a class="quick-link" href="/docs/index.html">
+                Swagger 文档
+                <span>浏览完整 OpenAPI 接口</span>
+              </a>
+              <a class="quick-link" href="/openapi.json">
+                OpenAPI JSON
+                <span>用于接口工具导入</span>
+              </a>
+              <a class="quick-link" href="/scan">
+                扫码页面
+                <span>添加新的微信账号</span>
+              </a>
+            </div>
+            <div class="log-line" id="activityLine">尚未执行操作</div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      accounts: [],
+      features: [
+        { name: "getCode" },
+        { name: "getPhoneNumber" },
+        { name: "operateWxData" }
+      ],
+      selectedOpenID: "",
+      lastResult: ""
+    };
+
+    const $ = id => document.getElementById(id);
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function api(method, url, body) {
+      const options = { method, headers: { "Content-Type": "application/json" } };
+      if (body !== undefined) options.body = JSON.stringify(body);
+      const response = await fetch(url, options);
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+      const isEnvelope = data && typeof data === "object" && !Array.isArray(data)
+        && Object.prototype.hasOwnProperty.call(data, "code")
+        && Object.prototype.hasOwnProperty.call(data, "msg")
+        && Object.prototype.hasOwnProperty.call(data, "data");
+      if (!response.ok || (isEnvelope && data.code !== 0)) {
+        const error = new Error(isEnvelope ? data.msg : "HTTP " + response.status);
+        error.status = response.status;
+        error.code = isEnvelope ? data.code : response.status;
+        error.data = isEnvelope ? data.data : data;
+        error.payload = data;
+        throw error;
+      }
+      return isEnvelope ? data.data : data;
+    }
+
+    function accountName(account) {
+      return account.nickname || account.alias || account.openid || "未命名账号";
+    }
+
+    function statusText(status) {
+      if (status === "alive") return "可用";
+      if (status === "expired") return "需重扫";
+      return "待确认";
+    }
+
+    function statusClass(status) {
+      if (status === "alive") return "alive";
+      if (status === "expired") return "expired";
+      return "unknown";
+    }
+
+    function formatChecked(ts) {
+      if (!ts) return "未检测";
+      const date = new Date(ts * 1000);
+      const pad = n => String(n).padStart(2, "0");
+      return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    function setActivity(message) {
+      $("activityLine").textContent = message;
+    }
+
+    function setResult(value, meta, isError) {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      state.lastResult = text;
+      $("resultBox").textContent = text;
+      $("resultBox").classList.toggle("error", Boolean(isError));
+      $("resultMeta").textContent = meta || "已更新";
+    }
+
+    function selectedAccount() {
+      return state.accounts.find(item => item.openid === state.selectedOpenID) || null;
+    }
+
+    function syncSelectedAccount() {
+      const selected = selectedAccount();
+      const label = selected ? accountName(selected) : "未选择";
+      $("selectedAccountName").textContent = label;
+      $("currentAccountText").textContent = label;
+      document.querySelectorAll(".account-card").forEach(card => {
+        card.classList.toggle("selected", card.dataset.openid === state.selectedOpenID);
+      });
+    }
+
+    function renderStats() {
+      $("accountCount").textContent = String(state.accounts.length);
+      $("aliveCount").textContent = String(state.accounts.filter(item => item.status === "alive").length);
+      $("featureCount").textContent = String(state.features.length);
+      syncSelectedAccount();
+    }
+
+    function renderAccounts() {
+      const strip = $("accountStrip");
+      if (!state.accounts.length) {
+        strip.innerHTML = `<div class="empty-state">暂无账号，点击“添加账号”开始扫码。</div>`;
+        state.selectedOpenID = "";
+        renderStats();
+        return;
+      }
+
+      if (!state.accounts.some(item => item.openid === state.selectedOpenID)) {
+        state.selectedOpenID = state.accounts[0].openid;
+      }
+
+      strip.innerHTML = "";
+      for (const account of state.accounts) {
+        const name = accountName(account);
+        const cls = statusClass(account.status);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "account-card";
+        button.dataset.openid = account.openid;
+        button.innerHTML = `
+          <span class="avatar">
+            <img alt="" src="/accounts/avatar?ref=${encodeURIComponent(account.openid)}">
+            <span class="avatar-letter hidden">${escapeHTML(name.slice(0, 1).toUpperCase() || "Y")}</span>
+          </span>
+          <span class="account-main">
+            <span class="account-name">${escapeHTML(name)}</span>
+            <span class="account-status ${cls}"><span class="status-dot"></span>${statusText(account.status)}</span>
+            <span class="account-openid" onclick="var t=document.createElement('textarea');t.value=this.textContent;t.style.position='fixed';t.style.left='-9999px';document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);this.textContent='✓ 已复制';var self=this;setTimeout(function(){self.textContent='${escapeHTML(account.openid)}'},2000)">${escapeHTML(account.openid)}</span>
+            <span class="account-meta">uin: ${escapeHTML(account.uin ?? "-")} · ${formatChecked(account.last_checked_at)}</span>
+          </span>
+        `;
+        button.querySelector("img").addEventListener("error", event => {
+          event.currentTarget.classList.add("hidden");
+          button.querySelector(".avatar-letter").classList.remove("hidden");
+        });
+        button.addEventListener("click", () => {
+          state.selectedOpenID = account.openid;
+          syncSelectedAccount();
+          setActivity(`已选择账号：${name}`);
+        });
+        strip.appendChild(button);
+      }
+      renderStats();
+    }
+
+    function renderFeatures() {
+      const select = $("featureSel");
+      if (!state.features.length) {
+        select.innerHTML = `<option value="">暂无能力</option>`;
+        togglePayload();
+        return;
+      }
+      select.innerHTML = state.features.map(feature => {
+        return `<option value="${escapeHTML(feature.name)}" data-name="${escapeHTML(feature.name)}">${escapeHTML(feature.name)}</option>`;
+      }).join("");
+      togglePayload();
+      renderStats();
+    }
+
+    function currentFeatureName() {
+      const option = $("featureSel").selectedOptions[0];
+      return option ? option.dataset.name || "" : "";
+    }
+
+    function togglePayload() {
+      const needsPayload = currentFeatureName().toLowerCase() === "operatewxdata";
+      $("payloadGroup").classList.toggle("hidden", !needsPayload);
+    }
+
+    async function loadHealth() {
+      const pill = $("healthPill");
+      try {
+        await api("GET", "/health");
+        pill.classList.add("ok");
+        pill.classList.remove("bad");
+        pill.querySelector("span:last-child").textContent = "服务正常";
+      } catch {
+        pill.classList.add("bad");
+        pill.classList.remove("ok");
+        pill.querySelector("span:last-child").textContent = "服务异常";
+      }
+    }
+
+    async function loadAccounts() {
+      $("accountStrip").innerHTML = `<div class="empty-state">账号加载中</div>`;
+      try {
+        state.accounts = await api("GET", "/accounts");
+        renderAccounts();
+        setActivity("账号列表已加载");
+      } catch (error) {
+        $("accountStrip").innerHTML = `<div class="empty-state">账号加载失败：${escapeHTML(error.data?.detail || error.message)}</div>`;
+        setActivity("账号列表加载失败");
+      }
+    }
+
+    async function loadFeatures() {
+      renderFeatures();
+    }
+
+    async function refreshAll() {
+      const button = $("refreshAllBtn");
+      button.disabled = true;
+      button.textContent = "刷新中";
+      try {
+        const result = await api("POST", "/accounts/refresh");
+        setResult(result, "存活刷新完成", false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, "存活刷新失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "刷新存活";
+      }
+    }
+
+    async function resyncAll() {
+      const button = $("resyncAllBtn");
+      button.disabled = true;
+      button.textContent = "同步中";
+      try {
+        const result = await api("POST", "/accounts/resync");
+        setResult(result, "资料同步完成", false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, "资料同步失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "同步资料";
+      }
+    }
+
+    async function callFeature() {
+      const account = selectedAccount();
+      if (!account) {
+        setResult("请先选择一个账号。", "缺少账号", true);
+        return;
+      }
+
+      const endpoint = currentFeatureName();
+      const appID = $("appidInput").value.trim();
+      if (!endpoint) {
+        setResult("当前没有可调用能力。", "缺少能力", true);
+        return;
+      }
+      if (!appID) {
+        setResult("请输入 APPID。", "缺少 APPID", true);
+        return;
+      }
+
+      const body = { ref: account.openid, app_id: appID };
+      if (endpoint.toLowerCase() === "operatewxdata") {
+        const raw = $("payloadInput").value.trim();
+        if (!raw) {
+          setResult("operateWxData 需要请求 JSON。", "缺少 payload", true);
+          return;
+        }
+        try {
+          body.payload = JSON.parse(raw);
+        } catch {
+          setResult("请求 JSON 格式不正确。", "JSON 解析失败", true);
+          return;
+        }
+      }
+
+      const button = $("callBtn");
+      button.disabled = true;
+      const startedAt = performance.now();
+      setResult("调用中，首次调用可能需要建立会话。", "请求进行中", false);
+      setActivity(`正在调用 ${endpoint}：${accountName(account)}`);
+
+      try {
+        const result = await api("POST", `/wxapp/${endpoint}`, body);
+        const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+        setResult(result, `调用完成，用时 ${seconds}s`, false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, `调用失败 ${error.status || ""}`.trim(), true);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    $("reloadAccountsBtn").addEventListener("click", loadAccounts);
+    $("refreshAllBtn").addEventListener("click", refreshAll);
+    $("resyncAllBtn").addEventListener("click", resyncAll);
+    $("featureSel").addEventListener("change", togglePayload);
+    $("callBtn").addEventListener("click", callFeature);
+    $("clearResultBtn").addEventListener("click", () => setResult("结果已清空。", "等待调用", false));
+    $("copyResultBtn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(state.lastResult || $("resultBox").textContent);
+        setActivity("结果已复制");
+      } catch {
+        setActivity("复制失败，请手动选择结果内容");
+      }
+    });
+
+    loadHealth();
+    loadFeatures();
+    loadAccounts();
+    setInterval(loadHealth, 15000);
+  </script>
+</body>
+</html>

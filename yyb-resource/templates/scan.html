@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>扫码添加账号</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:"Microsoft YaHei",sans-serif; }
+    body { background:#f5f7fa; height:100vh; display:flex; align-items:center; justify-content:center; color:#303133; }
+    .box { background:#fff; width:420px; border-radius:14px; box-shadow:0 4px 24px rgba(0,0,0,.1); padding:30px; text-align:center; }
+    .box h2 { font-size:20px; margin-bottom:6px; }
+    .sub { color:#909399; font-size:13px; margin-bottom:22px; }
+    .qr-wrap { width:240px; height:240px; margin:0 auto 18px; border:1px solid #e4e7ed; border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#fafafa; }
+    .qr-wrap img { width:100%; height:100%; object-fit:contain; }
+    .status { font-size:14px; margin-bottom:20px; min-height:22px; }
+    .s-pending { color:#909399; } .s-scanned { color:#409eff; }
+    .s-authorized,.s-ok { color:#67c23a; } .s-err { color:#f56c6c; }
+    .btn { border:none; border-radius:6px; cursor:pointer; color:#fff; font-size:14px; padding:11px 22px; transition:background .2s; margin:0 5px; }
+    .primary { background:#409eff; } .primary:hover { background:#66b1ff; }
+    .ghost { background:#909399; } .ghost:hover { background:#a6a9ad; }
+    .acc { background:#f0f9eb; border:1px solid #c2e7b0; border-radius:8px; padding:14px; margin-bottom:18px; text-align:left; font-size:13px; display:none; }
+    .acc b { color:#67c23a; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>扫码添加账号</h2>
+    <div class="sub">用「手机微信」扫描下方二维码并确认登录</div>
+    <div class="qr-wrap" id="qrWrap"><span style="color:#c0c4cc">生成中…</span></div>
+    <div class="status s-pending" id="status">正在获取二维码…</div>
+    <div id="countdown" style="font-size:12px;color:#c0c4cc;margin-bottom:18px;min-height:16px;"></div>
+    <div class="acc" id="accBox"></div>
+    <div>
+      <button class="btn primary" id="refreshBtn">重新生成二维码</button>
+      <button class="btn ghost" id="backBtn">返回列表</button>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const QR_TTL = 110;             // 秒,到点自动重新生成(早于微信真正过期)
+    let sid = null, pollTimer = null, cdTimer = null, secsLeft = 0;
+
+    async function api(method, url) {
+      const r = await fetch(url, { method });
+      const t = await r.text(); let d; try { d = t ? JSON.parse(t) : null; } catch { d = t; }
+      const isEnvelope = d && typeof d === "object" && !Array.isArray(d)
+        && Object.prototype.hasOwnProperty.call(d, "code")
+        && Object.prototype.hasOwnProperty.call(d, "msg")
+        && Object.prototype.hasOwnProperty.call(d, "data");
+      if (!r.ok || (isEnvelope && d.code !== 0)) {
+        throw { status: r.status, code: isEnvelope ? d.code : r.status, data: isEnvelope ? d.data : d, message: isEnvelope ? d.msg : ("HTTP " + r.status), payload: d };
+      }
+      return isEnvelope ? d.data : d;
+    }
+    function setStatus(text, cls) { const s = $("status"); s.textContent = text; s.className = "status " + cls; }
+    function stopTimers() { if (pollTimer) clearInterval(pollTimer); if (cdTimer) clearInterval(cdTimer); pollTimer = cdTimer = null; }
+
+    function startCountdown() {
+      secsLeft = QR_TTL;
+      $("countdown").textContent = `二维码 ${secsLeft}s 后自动刷新`;
+      cdTimer = setInterval(() => {
+        secsLeft--;
+        $("countdown").textContent = secsLeft > 0 ? `二维码 ${secsLeft}s 后自动刷新` : "二维码已过期，正在刷新…";
+        if (secsLeft <= 0) { stopTimers(); newQr(); }
+      }, 1000);
+    }
+
+    async function newQr() {
+      stopTimers();
+      $("accBox").style.display = "none";
+      $("qrWrap").innerHTML = '<span style="color:#c0c4cc">生成中…</span>';
+      setStatus("正在获取二维码…", "s-pending");
+      $("countdown").textContent = "";
+      try {
+        const r = await api("POST", "/qr");
+        sid = r.session_id;
+        $("qrWrap").innerHTML = `<img src="${r.image_url}?t=${Date.now()}" alt="二维码">`;
+        setStatus("等待扫码…", "s-pending");
+        startCountdown();
+        pollTimer = setInterval(poll, 1500);
+      } catch (e) { setStatus("获取二维码失败: " + JSON.stringify(e.data ?? e), "s-err"); }
+    }
+
+    async function poll() {
+      if (!sid) return;
+      let st;
+      try { st = await api("GET", `/qr/${sid}/poll`); } catch { return; }
+      if (st.status === "pending") setStatus("等待扫码…", "s-pending");
+      else if (st.status === "scanned") setStatus("已扫码，请在手机上确认", "s-scanned");
+      else if (st.status === "authorized" || st.status === "confirmed") { stopTimers(); await confirm(); }
+      else if (st.status === "expired" || st.status === "unknown") { stopTimers(); setStatus("二维码已失效，正在重新生成…", "s-err"); newQr(); }
+      else if (st.status === "cancelled") { stopTimers(); setStatus("已取消，请重新生成二维码", "s-err"); $("countdown").textContent = ""; }
+    }
+
+    async function confirm() {
+      $("countdown").textContent = "";
+      setStatus("授权成功，正在入库…", "s-authorized");
+      try {
+        const acc = await api("POST", `/qr/${sid}/confirm`);
+        setStatus("✓ 添加成功", "s-ok");
+        const name = acc.nickname || acc.alias || acc.openid;
+        $("accBox").style.display = "block";
+        $("accBox").innerHTML = `<div>账号：<b>${name}</b></div><div>openid：${acc.openid}</div><div>状态：${acc.status}</div>`;
+        $("qrWrap").innerHTML = '<span style="color:#67c23a;font-size:48px">✓</span>';
+      } catch (e) { setStatus("入库失败: " + JSON.stringify(e.data ?? e), "s-err"); }
+    }
+
+    $("refreshBtn").addEventListener("click", newQr);
+    $("backBtn").addEventListener("click", () => { stopTimers(); location.href = "/"; });
+    newQr();
+  </script>
+</body>
+</html>
