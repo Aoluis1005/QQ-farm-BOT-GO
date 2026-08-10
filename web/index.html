@@ -1250,7 +1250,7 @@ body{
         <button class="fa-btn fa-clear fa-remove-all">🗑️ 一键铲除</button>
       </div>
       <div class="grid-title" style="margin-top:14px">
-        <h3>我的农场 · <span id="landSummary"></span></h3>
+        <h3>我的农场</h3>
         <div class="legend">
           <span><i style="background:var(--grow)"></i>生长</span>
           <span><i style="background:var(--good)"></i>可收</span>
@@ -2111,9 +2111,6 @@ function loadLands(force){
     if(!(d.ok && d.data)) return;
     const land = document.getElementById('land'); if(!land) return;
     const lands = d.data.lands || [];
-    const summary = d.data.summary || {};
-    const st = document.getElementById('landSummary');
-    if(st) st.textContent = `${lands.length} 块地 · 可收 ${summary.harvestable||0} · 缺水 ${summary.needWater||0} · 枯死 ${summary.dead||0}`;
     land.innerHTML = lands.map(renderLandCard).join('');
   }).catch(()=>{});
 }
