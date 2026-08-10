@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/config"
 )
@@ -347,8 +348,16 @@ func AddOrUpdateAccount(acc Account) ([]Account, error) {
 			return result, nil
 		}
 	}
+	// 新建账号：若默认方案存在且「新账号自动应用」开启，则套用默认方案（对齐 Node
+	// addOrUpdateAccount：created && plan.enabled !== false → setAccountConfigSnapshot）
 	accounts = append(accounts, acc)
+	if planCfg, ok := globalConfig.UserDefaultAccountPlans[defaultPlanKey]; ok && globalConfig.DefaultPlanEnabled {
+		globalConfig.AccountConfigs[acc.ID] = planCfg
+	}
 	if err := saveAccounts(); err != nil {
+		return nil, err
+	}
+	if err := saveGlobalConfig(); err != nil {
 		return nil, err
 	}
 	result := make([]Account, len(accounts))
@@ -425,4 +434,77 @@ func GetDefaultAccountID() string {
 		return accs[0].ID
 	}
 	return ""
+}
+
+// ==================== 账号全量配置 + 默认方案（对齐 Node store.js） ====================
+
+// SetAccountConfig 全量保存账号配置（含 automation/intervals/strategy 等，对齐 Node setAccountConfigSnapshot）
+func SetAccountConfig(accountID string, cfg config.AccountConfig) error {
+	mu.Lock()
+	defer mu.Unlock()
+	globalConfig.AccountConfigs[accountID] = cfg
+	return saveGlobalConfig()
+}
+
+// UserDefaultPlan 默认方案（对齐 Node getUserDefaultAccountPlan 返回 {exists, enabled, config, updatedAt}）。
+// Go 为单用户面板，固定存 key "default"（对齐 Node 按 username 存的语义）。
+type UserDefaultPlan struct {
+	Exists    bool                 `json:"exists"`
+	Enabled   bool                 `json:"enabled"`
+	Config    config.AccountConfig `json:"config"`
+	UpdatedAt int64                `json:"updatedAt"`
+}
+
+const defaultPlanKey = "default"
+
+// GetUserDefaultPlan 读取当前用户默认方案
+func GetUserDefaultPlan() UserDefaultPlan {
+	mu.RLock()
+	defer mu.RUnlock()
+	cfg, ok := globalConfig.UserDefaultAccountPlans[defaultPlanKey]
+	if !ok {
+		return UserDefaultPlan{
+			Exists:    false,
+			Enabled:   globalConfig.DefaultPlanEnabled,
+			Config:    config.DefaultAccountConfig(),
+			UpdatedAt: 0,
+		}
+	}
+	return UserDefaultPlan{
+		Exists:    true,
+		Enabled:   globalConfig.DefaultPlanEnabled,
+		Config:    cfg,
+		UpdatedAt: globalConfig.DefaultPlanUpdatedAt,
+	}
+}
+
+// SetUserDefaultPlan 保存默认方案（对齐 Node setUserDefaultAccountPlan）
+func SetUserDefaultPlan(cfg config.AccountConfig, enabled bool) error {
+	mu.Lock()
+	defer mu.Unlock()
+	globalConfig.UserDefaultAccountPlans[defaultPlanKey] = cfg
+	globalConfig.DefaultPlanEnabled = enabled
+	globalConfig.DefaultPlanUpdatedAt = time.Now().UnixMilli()
+	return saveGlobalConfig()
+}
+
+// ResetUserDefaultPlan 恢复系统默认方案（对齐 Node default-plan/reset：enabled 保持不变）
+func ResetUserDefaultPlan() error {
+	mu.Lock()
+	defer mu.Unlock()
+	globalConfig.UserDefaultAccountPlans[defaultPlanKey] = config.DefaultAccountConfig()
+	globalConfig.DefaultPlanUpdatedAt = time.Now().UnixMilli()
+	return saveGlobalConfig()
+}
+
+// ApplyUserDefaultPlan 把默认方案套用到指定账号（对齐 Node applyUserDefaultAccountPlan）
+func ApplyUserDefaultPlan(accountID string) (config.AccountConfig, error) {
+	plan := GetUserDefaultPlan()
+	if !plan.Exists {
+		return config.AccountConfig{}, fmt.Errorf("尚未保存默认方案")
+	}
+	if err := SetAccountConfig(accountID, plan.Config); err != nil {
+		return config.AccountConfig{}, err
+	}
+	return plan.Config, nil
 }

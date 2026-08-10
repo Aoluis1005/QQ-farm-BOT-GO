@@ -820,74 +820,77 @@ body{
     <div class="seg-pane active" id="m-auto">
       <div class="sub-head">🎛️ 自动控制 <small>核心自动化开关</small></div>
       <div class="auto-grid" style="margin-top:0">
-        <div class="auto-item"><span>自动种植收获</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动做任务</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动卖果实</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动好友互动</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>推送触发巡田</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动升级土地</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动填充化肥</span><div class="switch"></div></div>
-        <div class="auto-item"><span>自动购买无机化肥</span><div class="switch"></div></div>
-        <div class="auto-item"><span>自动购买有机化肥</span><div class="switch"></div></div>
-        <div class="auto-item"><span>不除自己草虫</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on"></div></div>
+        <div class="auto-item"><span>自动种植收获</span><div class="switch on" data-auto-key="farm"></div></div>
+        <div class="auto-item"><span>自动做任务</span><div class="switch on" data-auto-key="task"></div></div>
+        <div class="auto-item"><span>自动卖果实</span><div class="switch on" data-auto-key="sell"></div></div>
+        <div class="auto-item"><span>自动好友互动</span><div class="switch on" data-auto-key="friend"></div></div>
+        <div class="auto-item"><span>推送触发巡田</span><div class="switch on" data-auto-key="farm_push"></div></div>
+        <div class="auto-item"><span>自动升级土地</span><div class="switch on" data-auto-key="land_upgrade"></div></div>
+        <div class="auto-item"><span>自动填充化肥</span><div class="switch" data-auto-key="fertilizer_gift"></div></div>
+        <div class="auto-item"><span>自动购买无机化肥</span><div class="switch" data-auto-key="fertilizer_buy_normal"></div></div>
+        <div class="auto-item"><span>自动购买有机化肥</span><div class="switch" data-auto-key="fertilizer_buy_organic"></div></div>
+        <div class="auto-item"><span>不除自己草虫</span><div class="switch on" data-auto-key="skip_own_weed_bug"></div></div>
+        <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on" data-auto-key="golden_bug_clear"></div></div>
       </div>
 
       <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
       <div class="auto-grid">
-        <div class="auto-item"><span>自动偷菜</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动帮忙</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>自动捣乱</span><div class="switch"></div></div>
-        <div class="auto-item"><span>自动放黄金虫</span><div class="switch"></div></div>
-        <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on"></div></div>
-        <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch"></div></div>
+        <div class="auto-item"><span>自动偷菜</span><div class="switch on" data-auto-key="friend_steal"></div></div>
+        <div class="auto-item"><span>自动帮忙</span><div class="switch on" data-auto-key="friend_help"></div></div>
+        <div class="auto-item"><span>自动捣乱</span><div class="switch" data-auto-key="friend_bad"></div></div>
+        <div class="auto-item"><span>自动放黄金虫</span><div class="switch" data-auto-key="friend_golden_bug"></div></div>
+        <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on" data-auto-key="friend_help_exp_limit"></div></div>
+        <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch" data-auto-key="friend_turbo_mode"></div></div>
       </div>
 
       <div class="sub-head">💊 施肥策略 <small>按地块与阶段自动施肥</small></div>
       <div class="panel">
         <div class="auto-item col">
           <div class="f-label">自动通过好友最低等级<small>设为 0 表示不限制等级；启用好友相关自动化后，系统会按这里的最低等级自动通过好友申请</small></div>
-          <input type="number" class="field w-90" value="0">
+          <input type="number" class="field w-90" id="mAutoFriendMinLevel" value="0">
         </div>
         <div class="auto-item col">
           <div class="f-label">施肥范围<small>施肥前会优先按土地类型过滤，仅对命中范围的地块执行施肥策略</small></div>
-          <div class="chips">
-            <button class="chip on">紫土地</button>
-            <button class="chip on">金土地</button>
-            <button class="chip on">黑土地</button>
-            <button class="chip on">红土地</button>
-            <button class="chip on">普通土地</button>
+          <div class="chips" id="mFertLandTypes">
+            <button class="chip on" data-land="purple">紫土地</button>
+            <button class="chip on" data-land="gold">金土地</button>
+            <button class="chip on" data-land="black">黑土地</button>
+            <button class="chip on" data-land="red">红土地</button>
+            <button class="chip on" data-land="normal">普通土地</button>
           </div>
         </div>
         <div class="auto-item col">
           <div class="f-label">施肥策略</div>
           <div class="strategy-row">
             <div class="sel-wrap">
-              <select class="field">
-                <option>普通 + 有机</option>
-                <option>普通 + 快成熟有机</option>
-                <option>快成熟有机</option>
-                <option selected>快成熟普通</option>
-                <option>最终阶段普通肥</option>
-                <option>最终阶段有机肥</option>
-                <option>仅普通化肥</option>
-                <option>仅有机化肥</option>
-                <option>不施肥</option>
+              <select class="field" id="mFertStrategy">
+                <option value="both">普通 + 有机</option>
+                <option value="smart">普通 + 快成熟有机</option>
+                <option value="smart_only">快成熟有机</option>
+                <option value="smart_normal">快成熟普通</option>
+                <option value="final_normal">最终阶段普通肥</option>
+                <option value="final_organic">最终阶段有机肥</option>
+                <option value="normal">仅普通化肥</option>
+                <option value="organic">仅有机化肥</option>
+                <option value="none">不施肥</option>
               </select>
             </div>
             <div class="mini-toggle">
               <span>多季补肥</span>
-              <div class="switch on"></div>
+              <div class="switch on" data-auto-key="fertilizer_multi_season"></div>
             </div>
           </div>
         </div>
         <div class="auto-item col">
           <div class="f-label">快成熟判定秒数</div>
           <div class="sec-field">
-            <input type="number" class="field w-90" value="300">
+            <input type="number" class="field w-90" id="mFertSeconds" value="300">
             <span class="unit">秒数</span>
           </div>
         </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="fa-btn" style="flex:1" id="mAutoSave">💾 保存自动控制</button>
       </div>
     </div>
 
@@ -899,14 +902,14 @@ body{
         <div class="f-label">种植策略</div>
         <div class="strategy-row">
           <div class="sel-wrap">
-            <select class="field">
-              <option>优先种植种子</option>
-              <option>最高等级作物</option>
-              <option>最大经验/时</option>
-              <option>最大普通肥经验/时</option>
-              <option>最大净利润/时</option>
-              <option>最大普通肥净利润/时</option>
-              <option selected>背包种子优先</option>
+            <select class="field" id="mPlantStrategy">
+              <option value="preferred">优先种植种子</option>
+              <option value="level">最高等级作物</option>
+              <option value="max_exp">最大经验/时</option>
+              <option value="max_fert_exp">最大普通肥经验/时</option>
+              <option value="max_profit">最大净利润/时</option>
+              <option value="max_fert_profit">最大普通肥净利润/时</option>
+              <option value="bag_priority">背包种子优先</option>
             </select>
           </div>
         </div>
@@ -917,13 +920,13 @@ body{
         <div class="f-label">第二优先策略</div>
         <div class="strategy-row">
           <div class="sel-wrap">
-            <select class="field">
-              <option>优先种植种子</option>
-              <option>最高等级作物</option>
-              <option selected>最大经验/时</option>
-              <option>最大普通肥经验/时</option>
-              <option>最大净利润/时</option>
-              <option>最大普通肥净利润/时</option>
+            <select class="field" id="mFallbackStrategy">
+              <option value="level">最高等级作物</option>
+              <option value="max_exp">最大经验/时</option>
+              <option value="max_fert_exp">最大普通肥经验/时</option>
+              <option value="max_profit">最大净利润/时</option>
+              <option value="max_fert_profit">最大普通肥净利润/时</option>
+              <option value="preferred">优先种植种子</option>
             </select>
           </div>
         </div>
@@ -932,30 +935,29 @@ body{
       <!-- 背包种子优先地块 -->
       <div class="auto-item col" style="border:none;padding:12px 9px">
         <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
-        <div class="chips">
-          <button class="chip on">紫土地</button>
-          <button class="chip on">金土地</button>
-          <button class="chip">黑土地</button>
-          <button class="chip">红土地</button>
-          <button class="chip">普通地</button>
+        <div class="chips" id="mBagLandTypes">
+          <button class="chip on" data-land="purple">紫土地</button>
+          <button class="chip on" data-land="gold">金土地</button>
+          <button class="chip on" data-land="black">黑土地</button>
+          <button class="chip on" data-land="red">红土地</button>
+          <button class="chip on" data-land="normal">普通地</button>
         </div>
       </div>
 
       <!-- 2x2 作物优先 -->
       <div class="auto-item col" style="border:none;padding:12px 9px">
         <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
-        <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch"></div></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="m2x2"></div></div>
       </div>
 
       <!-- 背包种子优先顺序 -->
       <div class="auto-item col" style="border:none;padding:12px 9px 14px">
         <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
         <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-          <button class="chip">↺ 重置顺序</button>
+          <button class="chip" id="mBagSeedsReset">↺ 重置顺序</button>
         </div>
-        <div class="menu">
-          <!-- 背包种子优先顺序由配置接口动态加载，待接入 -->
-          <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">种子优先顺序接口待接入</p>
+        <div class="menu" id="mBagSeedsList">
+          <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
         </div>
       </div>
 
@@ -988,12 +990,12 @@ body{
           <div class="f-label">静默时段</div>
           <div class="strategy-row" style="margin-bottom:10px">
             <span style="flex:1;font-size:13px">🔕 启用静默时段</span>
-            <div class="switch"></div>
+            <div class="switch" id="mQuietSwitch"></div>
           </div>
           <div class="strategy-row">
-            <div class="sel-wrap"><select class="field"><option>01:00</option></select></div>
+            <div class="sel-wrap"><select class="field" id="mQuietStart"><option>00:00</option><option>01:00</option><option>02:00</option><option>03:00</option><option>04:00</option><option>05:00</option><option>06:00</option><option>07:00</option><option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option><option>21:00</option><option>22:00</option><option>23:00</option></select></div>
             <span style="color:var(--muted)">起</span>
-            <div class="sel-wrap"><select class="field"><option>07:30</option></select></div>
+            <div class="sel-wrap"><select class="field" id="mQuietEnd"><option>00:00</option><option>01:00</option><option>02:00</option><option>03:00</option><option>04:00</option><option>05:00</option><option>06:00</option><option>07:00</option><option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option><option>21:00</option><option>22:00</option><option>23:00</option></select></div>
             <span style="color:var(--muted)">止</span>
           </div>
         </div>
@@ -1002,17 +1004,20 @@ body{
           <div class="f-label">种植与偷菜延迟</div>
           <div class="strategy-row" style="margin-bottom:8px">
             <span style="flex:1;font-size:13px">🔀 种植顺序随机</span>
-            <div class="switch on"></div>
+            <div class="switch on" id="mPlantRandom"></div>
           </div>
           <div class="strategy-row" style="margin-bottom:8px">
             <span style="flex:1;font-size:13px">种植延迟</span>
-            <input type="number" class="field w-90" value="2"><span class="unit">秒</span>
+            <input type="number" class="field w-90" id="mPlantDelay" value="2"><span class="unit">秒</span>
           </div>
           <div class="strategy-row">
             <span style="flex:1;font-size:13px">偷菜延迟</span>
-            <input type="number" class="field w-90" value="1"><span class="unit">秒</span>
+            <input type="number" class="field w-90" id="mStealDelay" value="1"><span class="unit">秒</span>
           </div>
         </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="fa-btn" style="flex:1" id="mStrategySave">💾 保存种植策略</button>
       </div>
     </div>
 
@@ -1020,12 +1025,12 @@ body{
     <div class="seg-pane default-page" id="m-default">
       <div class="sec-title" style="margin-top:16px">
         <span><span style="font-size:15px">🎛️</span> 默认方案</span>
-        <span class="chip on" style="background:color-mix(in oklch,var(--good) 15%,transparent);color:var(--good)">新账号自动应用</span>
+        <span class="chip on" id="dAutoApply" style="cursor:pointer;background:color-mix(in oklch,var(--good) 15%,transparent);color:var(--good)">新账号自动应用</span>
       </div>
-      <p style="font-size:11px;color:var(--muted);margin:2px 2px 4px">最后保存：2026/8/5 22:03:21</p>
+      <p style="font-size:11px;color:var(--muted);margin:2px 2px 4px" id="dLastSaved">最后保存：--</p>
       <div style="display:flex;gap:8px;margin:8px 0 2px">
-        <button class="fa-btn" style="flex:1">📥 从当前账号导入</button>
-        <button class="fa-btn" style="flex:1">🔄 恢复系统默认</button>
+        <button class="fa-btn" style="flex:1" id="dPlanImport">📥 从当前账号导入</button>
+        <button class="fa-btn" style="flex:1" id="dPlanReset">🔄 恢复系统默认</button>
       </div>
       <p style="font-size:11px;color:var(--muted);margin:6px 2px">为<b>新账号</b>一键套用此方案，快速完成种植策略与自动控制参数。</p>
 
@@ -1041,41 +1046,41 @@ body{
           <div class="auto-item col" style="border:none;padding:12px 9px">
             <div class="f-label">种植策略</div>
             <div class="strategy-row">
-              <div class="sel-wrap"><select class="field">
-                <option>优先种植种子</option><option>最高等级作物</option><option>最大经验/时</option>
-                <option>最大普通肥经验/时</option><option>最大净利润/时</option><option>最大普通肥净利润/时</option>
-                <option selected>背包种子优先</option>
+              <div class="sel-wrap"><select class="field" id="dPlantStrategy">
+                <option value="preferred">优先种植种子</option><option value="level">最高等级作物</option><option value="max_exp">最大经验/时</option>
+                <option value="max_fert_exp">最大普通肥经验/时</option><option value="max_profit">最大净利润/时</option><option value="max_fert_profit">最大普通肥净利润/时</option>
+                <option value="bag_priority">背包种子优先</option>
               </select></div>
             </div>
           </div>
           <div class="auto-item col" style="border:none;padding:12px 9px">
             <div class="f-label">第二优先策略</div>
             <div class="strategy-row">
-              <div class="sel-wrap"><select class="field">
-                <option>优先种植种子</option><option>最高等级作物</option><option>最大经验/时</option>
-                <option>最大普通肥经验/时</option><option selected>最大净利润/时</option><option>最大普通肥净利润/时</option>
+              <div class="sel-wrap"><select class="field" id="dFallbackStrategy">
+                <option value="level">最高等级作物</option><option value="max_exp">最大经验/时</option>
+                <option value="max_fert_exp">最大普通肥经验/时</option><option value="max_profit">最大净利润/时</option><option value="max_fert_profit">最大普通肥净利润/时</option>
+                <option value="preferred">优先种植种子</option>
               </select></div>
             </div>
           </div>
           <div class="auto-item col" style="border:none;padding:12px 9px">
             <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
-            <div class="chips">
-              <button class="chip on">紫土地</button><button class="chip on">金土地</button>
-              <button class="chip">黑土地</button><button class="chip">红土地</button><button class="chip">普通地</button>
+            <div class="chips" id="dBagLandTypes">
+              <button class="chip on" data-land="purple">紫土地</button><button class="chip on" data-land="gold">金土地</button>
+              <button class="chip" data-land="black">黑土地</button><button class="chip" data-land="red">红土地</button><button class="chip" data-land="normal">普通地</button>
             </div>
           </div>
           <div class="auto-item col" style="border:none;padding:12px 9px">
             <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
-            <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch"></div></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="d2x2"></div></div>
           </div>
           <div class="auto-item col" style="border:none;padding:12px 9px 14px">
             <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
             <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-              <button class="chip">↺ 重置顺序</button>
+              <button class="chip" id="dBagSeedsReset">↺ 重置顺序</button>
             </div>
-            <div class="menu">
-              <!-- 背包种子优先顺序由配置接口动态加载，待接入 -->
-              <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">种子优先顺序接口待接入</p>
+            <div class="menu" id="dBagSeedsList">
+              <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
             </div>
           </div>
         </div>
@@ -1108,12 +1113,12 @@ body{
             <div class="f-label">静默时段</div>
             <div class="strategy-row" style="margin-bottom:10px">
               <span style="flex:1;font-size:13px">🔕 启用静默时段</span>
-              <div class="switch"></div>
+              <div class="switch" id="dQuietSwitch"></div>
             </div>
             <div class="strategy-row">
-              <div class="sel-wrap"><select class="field"><option>01:00</option></select></div>
+              <div class="sel-wrap"><select class="field" id="dQuietStart"><option>00:00</option><option>01:00</option><option>02:00</option><option>03:00</option><option>04:00</option><option>05:00</option><option>06:00</option><option>07:00</option><option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option><option>21:00</option><option>22:00</option><option>23:00</option></select></div>
               <span style="color:var(--muted)">起</span>
-              <div class="sel-wrap"><select class="field"><option>07:30</option></select></div>
+              <div class="sel-wrap"><select class="field" id="dQuietEnd"><option>00:00</option><option>01:00</option><option>02:00</option><option>03:00</option><option>04:00</option><option>05:00</option><option>06:00</option><option>07:00</option><option>08:00</option><option>09:00</option><option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option><option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option><option>18:00</option><option>19:00</option><option>20:00</option><option>21:00</option><option>22:00</option><option>23:00</option></select></div>
               <span style="color:var(--muted)">止</span>
             </div>
           </div>
@@ -1121,75 +1126,81 @@ body{
             <div class="f-label">种植与偷菜延迟</div>
             <div class="strategy-row" style="margin-bottom:8px">
               <span style="flex:1;font-size:13px">🔀 种植顺序随机</span>
-              <div class="switch on"></div>
+              <div class="switch on" id="dPlantRandom"></div>
             </div>
             <div class="strategy-row" style="margin-bottom:8px">
               <span style="flex:1;font-size:13px">种植延迟</span>
-              <input type="number" class="field w-90" value="2"><span class="unit">秒</span>
+              <input type="number" class="field w-90" id="dPlantDelay" value="2"><span class="unit">秒</span>
             </div>
             <div class="strategy-row">
               <span style="flex:1;font-size:13px">偷菜延迟</span>
-              <input type="number" class="field w-90" value="1"><span class="unit">秒</span>
+              <input type="number" class="field w-90" id="dStealDelay" value="1"><span class="unit">秒</span>
             </div>
           </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="fa-btn" style="flex:1" id="dStrategySave">💾 保存默认方案</button>
         </div>
       </div>
 
       <div class="dpane" id="d-auto">
         <div class="sub-head" style="margin-top:16px">🎛️ 自动控制 <small>核心自动化开关</small></div>
         <div class="auto-grid">
-          <div class="auto-item"><span>自动种植收获</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动做任务</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动卖果实</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动好友互动</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>推送触发巡田</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动升级土地</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动填充化肥</span><div class="switch"></div></div>
-          <div class="auto-item"><span>自动购买无机化肥</span><div class="switch"></div></div>
-          <div class="auto-item"><span>自动购买有机化肥</span><div class="switch"></div></div>
-          <div class="auto-item"><span>不除自己草虫</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on"></div></div>
+          <div class="auto-item"><span>自动种植收获</span><div class="switch on" data-auto-key="farm"></div></div>
+          <div class="auto-item"><span>自动做任务</span><div class="switch on" data-auto-key="task"></div></div>
+          <div class="auto-item"><span>自动卖果实</span><div class="switch on" data-auto-key="sell"></div></div>
+          <div class="auto-item"><span>自动好友互动</span><div class="switch on" data-auto-key="friend"></div></div>
+          <div class="auto-item"><span>推送触发巡田</span><div class="switch on" data-auto-key="farm_push"></div></div>
+          <div class="auto-item"><span>自动升级土地</span><div class="switch on" data-auto-key="land_upgrade"></div></div>
+          <div class="auto-item"><span>自动填充化肥</span><div class="switch" data-auto-key="fertilizer_gift"></div></div>
+          <div class="auto-item"><span>自动购买无机化肥</span><div class="switch" data-auto-key="fertilizer_buy_normal"></div></div>
+          <div class="auto-item"><span>自动购买有机化肥</span><div class="switch" data-auto-key="fertilizer_buy_organic"></div></div>
+          <div class="auto-item"><span>不除自己草虫</span><div class="switch on" data-auto-key="skip_own_weed_bug"></div></div>
+          <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on" data-auto-key="golden_bug_clear"></div></div>
         </div>
         <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
         <div class="auto-grid">
-          <div class="auto-item"><span>自动偷菜</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动帮忙</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>自动捣乱</span><div class="switch"></div></div>
-          <div class="auto-item"><span>自动放黄金虫</span><div class="switch"></div></div>
-          <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on"></div></div>
-          <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch"></div></div>
+          <div class="auto-item"><span>自动偷菜</span><div class="switch on" data-auto-key="friend_steal"></div></div>
+          <div class="auto-item"><span>自动帮忙</span><div class="switch on" data-auto-key="friend_help"></div></div>
+          <div class="auto-item"><span>自动捣乱</span><div class="switch" data-auto-key="friend_bad"></div></div>
+          <div class="auto-item"><span>自动放黄金虫</span><div class="switch" data-auto-key="friend_golden_bug"></div></div>
+          <div class="auto-item"><span>经验满只帮护主犬</span><div class="switch on" data-auto-key="friend_help_exp_limit"></div></div>
+          <div class="auto-item"><span>极速务农(只帮护主犬)</span><div class="switch" data-auto-key="friend_turbo_mode"></div></div>
         </div>
         <div class="sub-head">💊 施肥策略 <small>按地块与阶段自动施肥</small></div>
         <div class="panel">
           <div class="auto-item col">
             <div class="f-label">自动通过好友最低等级<small>设为 0 表示不限制等级；启用好友相关自动化后，系统会按这里的最低等级自动通过好友申请</small></div>
-            <input type="number" class="field w-90" value="0">
+            <input type="number" class="field w-90" id="dAutoFriendMinLevel" value="0">
           </div>
           <div class="auto-item col">
             <div class="f-label">施肥范围<small>施肥前会优先按土地类型过滤，仅对命中范围的地块执行施肥策略</small></div>
-            <div class="chips">
-              <button class="chip on">紫土地</button><button class="chip on">金土地</button>
-              <button class="chip on">黑土地</button><button class="chip on">红土地</button><button class="chip on">普通土地</button>
+            <div class="chips" id="dFertLandTypes">
+              <button class="chip on" data-land="purple">紫土地</button><button class="chip on" data-land="gold">金土地</button>
+              <button class="chip on" data-land="black">黑土地</button><button class="chip on" data-land="red">红土地</button><button class="chip on" data-land="normal">普通土地</button>
             </div>
           </div>
           <div class="auto-item col">
             <div class="f-label">施肥策略</div>
             <div class="strategy-row">
-              <div class="sel-wrap"><select class="field">
-                <option>普通 + 有机</option><option>普通 + 快成熟有机</option><option>快成熟有机</option>
-                <option selected>快成熟普通</option><option>最终阶段普通肥</option><option>最终阶段有机肥</option>
-                <option>仅普通化肥</option><option>仅有机化肥</option><option>不施肥</option>
+              <div class="sel-wrap"><select class="field" id="dFertStrategy">
+                <option value="both">普通 + 有机</option><option value="smart">普通 + 快成熟有机</option><option value="smart_only">快成熟有机</option>
+                <option value="smart_normal">快成熟普通</option><option value="final_normal">最终阶段普通肥</option><option value="final_organic">最终阶段有机肥</option>
+                <option value="normal">仅普通化肥</option><option value="organic">仅有机化肥</option><option value="none">不施肥</option>
               </select></div>
-              <div class="mini-toggle"><span>多季补肥</span><div class="switch on"></div></div>
+              <div class="mini-toggle"><span>多季补肥</span><div class="switch on" data-auto-key="fertilizer_multi_season"></div></div>
             </div>
           </div>
           <div class="auto-item col">
             <div class="f-label">快成熟判定秒数</div>
             <div class="sec-field">
-              <input type="number" class="field w-90" value="300">
+              <input type="number" class="field w-90" id="dFertSeconds" value="300">
               <span class="unit">秒数</span>
             </div>
           </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="fa-btn" style="flex:1" id="dAutoSave">💾 保存默认方案</button>
         </div>
       </div>
     </div>
@@ -2856,6 +2867,316 @@ window.loadLogs();
   });
   load();
   window.reloadRCConfig = load;
+})();
+</script>
+
+<script>
+/* ===== 更多：自动控制 / 种植策略 / 默认方案（对齐 Node settings API） =====
+   逻辑关系（Node 确认）：自动控制=账号级开关集(POST /api/automation)；
+   种植策略=账号级(POST /api/settings/save)；默认方案=用户级模板(GET/PUT
+   /api/settings/default-plan)，打包两者，新账号 enabled 时自动套用。
+   UI 风格与全局一致。 */
+(function(){
+  const accId = () => new URLSearchParams(location.search).get('accountId') || '';
+
+  // ---- 通用控件读写 ----
+  function swSet(el, on){ if(el) el.classList.toggle('on', !!on); }
+  function swGet(el){ return !!(el && el.classList.contains('on')); }
+  function chipsVal(id){
+    const c = document.getElementById(id); if(!c) return [];
+    return [...c.querySelectorAll('.chip.on')].map(b => b.dataset.land).filter(Boolean);
+  }
+  function chipsSet(id, vals){
+    const c = document.getElementById(id); if(!c) return;
+    const set = new Set(vals || []);
+    c.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', set.has(b.dataset.land)));
+  }
+  function numVal(id, dflt){
+    const el = document.getElementById(id); if(!el) return dflt;
+    const v = parseInt(el.value, 10); return isNaN(v) ? dflt : v;
+  }
+  function numSet(id, v){
+    const el = document.getElementById(id); if(el) el.value = v == null ? '' : v;
+  }
+  function selVal(id, dflt){
+    const el = document.getElementById(id); if(!el) return dflt;
+    return el.value || dflt;
+  }
+  function selSet(id, v){
+    const el = document.getElementById(id); if(!el) return;
+    if([...el.options].some(o => o.value === String(v))) el.value = String(v);
+  }
+  function autoCollect(container){
+    const out = {};
+    container.querySelectorAll('.switch[data-auto-key]').forEach(s => {
+      out[s.dataset.autoKey] = s.classList.contains('on');
+    });
+    return out;
+  }
+  function autoApply(container, aut){
+    container.querySelectorAll('.switch[data-auto-key]').forEach(s => {
+      const v = aut ? aut[s.dataset.autoKey] : undefined;
+      s.classList.toggle('on', v === undefined ? s.classList.contains('on') : !!v);
+    });
+  }
+
+  // ---- 账号级：自动控制（m-auto）----
+  function fillAuto(d){
+    const aut = (d && d.automation) || {};
+    autoApply(document.getElementById('m-auto'), aut);
+    numSet('mAutoFriendMinLevel', (d && d.autoAcceptFriendMinLevel) ?? 0);
+    chipsSet('mFertLandTypes', aut.fertilizer_land_types);
+    selSet('mFertStrategy', aut.fertilizer || 'smart_normal');
+    numSet('mFertSeconds', aut.fertilizer_smart_seconds ?? 300);
+  }
+  function collectAuto(){
+    const mauto = document.getElementById('m-auto');
+    const aut = autoCollect(mauto);
+    aut.fertilizer_land_types = chipsVal('mFertLandTypes');
+    aut.fertilizer = selVal('mFertStrategy', 'smart_normal');
+    aut.fertilizer_smart_seconds = numVal('mFertSeconds', 300);
+    return aut;
+  }
+
+  // ---- 账号级：种植策略（m-strategy）----
+  function fillStrategy(d){
+    selSet('mPlantStrategy', d.plantingStrategy || 'max_exp');
+    selSet('mFallbackStrategy', d.bagSeedFallbackStrategy || 'level');
+    chipsSet('mBagLandTypes', d.bagPriorityLandTypes);
+    swSet(document.getElementById('m2x2'), d.prioritize2x2Crops);
+    const iv = d.intervals || {};
+    numSet('fMin', iv.farmMin ?? 5); numSet('fMax', iv.farmMax ?? 10);
+    numSet('hMin', iv.helpMin ?? 3); numSet('hMax', iv.helpMax ?? 5);
+    numSet('sMin', iv.stealMin ?? 3); numSet('sMax', iv.stealMax ?? 10);
+    const qh = d.friendQuietHours || {};
+    swSet(document.getElementById('mQuietSwitch'), qh.enabled);
+    selSet('mQuietStart', qh.start || '01:00');
+    selSet('mQuietEnd', qh.end || '07:30');
+    swSet(document.getElementById('mPlantRandom'), d.plantOrderRandom);
+    numSet('mPlantDelay', d.plantDelaySeconds ?? 2);
+    numSet('mStealDelay', d.stealDelaySeconds ?? 1);
+    window.__bagPriority = Array.isArray(d.bagSeedPriority) ? d.bagSeedPriority.slice() : [];
+    renderBagSeeds('mBagSeedsList', window.__bagPriority);
+  }
+  function collectStrategy(){
+    return {
+      plantingStrategy: selVal('mPlantStrategy', 'max_exp'),
+      bagSeedFallbackStrategy: selVal('mFallbackStrategy', 'level'),
+      bagPriorityLandTypes: chipsVal('mBagLandTypes'),
+      prioritize2x2Crops: swGet(document.getElementById('m2x2')),
+      intervals: {
+        farmMin: numVal('fMin', 5), farmMax: numVal('fMax', 10),
+        helpMin: numVal('hMin', 3), helpMax: numVal('hMax', 5),
+        stealMin: numVal('sMin', 3), stealMax: numVal('sMax', 10),
+      },
+      friendQuietHours: {
+        enabled: swGet(document.getElementById('mQuietSwitch')),
+        start: selVal('mQuietStart', '01:00'),
+        end: selVal('mQuietEnd', '07:30'),
+      },
+      plantOrderRandom: swGet(document.getElementById('mPlantRandom')),
+      plantDelaySeconds: numVal('mPlantDelay', 2),
+      stealDelaySeconds: numVal('mStealDelay', 1),
+      bagSeedPriority: (window.__bagPriority || []).slice(),
+    };
+  }
+
+  // ---- 背包种子列表（/api/seeds，本地种子库）----
+  let allSeeds = [];
+  function loadSeeds(){
+    fetch('/api/seeds?accountId=' + accId()).then(r => r.json()).then(d => {
+      allSeeds = (d && d.ok && d.data) || [];
+      renderBagSeeds('mBagSeedsList', window.__bagPriority || []);
+      renderBagSeeds('dBagSeedsList', window.__dBagPriority || []);
+    }).catch(() => {});
+  }
+  function renderBagSeeds(listId, priority){
+    const box = document.getElementById(listId); if(!box) return;
+    if(!allSeeds.length){ box.innerHTML = '<p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">无可用种子</p>'; return; }
+    const byId = new Map(allSeeds.map(s => [s.seedId, s]));
+    const ordered = (priority || []).map(id => byId.get(id)).filter(Boolean);
+    const rest = allSeeds.filter(s => !ordered.includes(s));
+    const items = [...ordered, ...rest];
+    box.innerHTML = items.map((s, i) =>
+      `<div class="seed-row" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
+        <span style="color:var(--muted-2);font-size:10px;width:16px;flex:none">${i+1}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name || ('种子' + s.seedId))}</span>
+        <button class="seed-up" data-list="${listId}" data-seed="${s.seedId}" ${i === 0 ? 'disabled' : ''} style="flex:none;border:1px solid var(--border);background:transparent;border-radius:5px;font-size:10px;cursor:pointer;padding:1px 7px">↑</button>
+        <button class="seed-dn" data-list="${listId}" data-seed="${s.seedId}" ${i === items.length - 1 ? 'disabled' : ''} style="flex:none;border:1px solid var(--border);background:transparent;border-radius:5px;font-size:10px;cursor:pointer;padding:1px 7px">↓</button>
+      </div>`).join('');
+  }
+  function moveSeed(listId, seedId, dir){
+    const target = listId === 'dBagSeedsList' ? '__dBagPriority' : '__bagPriority';
+    const list = (window[target] || []).slice();
+    const idx = list.indexOf(seedId);
+    const to = idx + dir;
+    if(idx < 0 || to < 0 || to >= allSeeds.length) return;
+    // 用全部种子顺序维护：先移除再插入
+    const order = list.length ? list : allSeeds.map(s => s.seedId);
+    const i2 = order.indexOf(seedId);
+    const t2 = i2 + dir;
+    if(i2 < 0 || t2 < 0 || t2 >= order.length) return;
+    const tmp = order[i2]; order[i2] = order[t2]; order[t2] = tmp;
+    window[target] = order;
+    renderBagSeeds(listId, order);
+  }
+  function resetSeeds(listId){
+    window[listId === 'dBagSeedsList' ? '__dBagPriority' : '__bagPriority'] = allSeeds.map(s => s.seedId);
+    renderBagSeeds(listId, allSeeds.map(s => s.seedId));
+  }
+
+  // ---- 默认方案（d- 控件）----
+  function fillDefault(data){
+    const cfg = (data && data.config) || {};
+    const enabled = data ? data.enabled !== false : true;
+    const applyChip = document.getElementById('dAutoApply');
+    if(applyChip){ applyChip.classList.toggle('on', enabled); applyChip.textContent = enabled ? '新账号自动应用' : '新账号不应用'; }
+    const saved = document.getElementById('dLastSaved');
+    if(saved){
+      const ts = Number(data && data.updatedAt) || 0;
+      saved.textContent = data && data.exists ? ('最后保存：' + (ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '--')) : '尚未保存默认方案';
+    }
+    selSet('dPlantStrategy', cfg.plantingStrategy || 'max_exp');
+    selSet('dFallbackStrategy', cfg.bagSeedFallbackStrategy || 'level');
+    chipsSet('dBagLandTypes', cfg.bagPriorityLandTypes);
+    swSet(document.getElementById('d2x2'), cfg.prioritize2x2Crops);
+    const iv = cfg.intervals || {};
+    numSet('dfMin', iv.farmMin ?? 5); numSet('dfMax', iv.farmMax ?? 10);
+    numSet('dhMin', iv.helpMin ?? 3); numSet('dhMax', iv.helpMax ?? 5);
+    numSet('dsMin', iv.stealMin ?? 3); numSet('dsMax', iv.stealMax ?? 10);
+    const qh = cfg.friendQuietHours || {};
+    swSet(document.getElementById('dQuietSwitch'), qh.enabled);
+    selSet('dQuietStart', qh.start || '01:00');
+    selSet('dQuietEnd', qh.end || '07:30');
+    swSet(document.getElementById('dPlantRandom'), cfg.plantOrderRandom);
+    numSet('dPlantDelay', cfg.plantDelaySeconds ?? 2);
+    numSet('dStealDelay', cfg.stealDelaySeconds ?? 1);
+    const aut = cfg.automation || {};
+    autoApply(document.getElementById('d-auto'), aut);
+    numSet('dAutoFriendMinLevel', cfg.autoAcceptFriendMinLevel ?? 0);
+    chipsSet('dFertLandTypes', aut.fertilizer_land_types);
+    selSet('dFertStrategy', aut.fertilizer || 'smart_normal');
+    numSet('dFertSeconds', aut.fertilizer_smart_seconds ?? 300);
+    window.__dBagPriority = Array.isArray(cfg.bagSeedPriority) ? cfg.bagSeedPriority.slice() : [];
+    renderBagSeeds('dBagSeedsList', window.__dBagPriority);
+  }
+  function collectDefault(){
+    const plan = {
+      plantingStrategy: selVal('dPlantStrategy', 'max_exp'),
+      bagSeedFallbackStrategy: selVal('dFallbackStrategy', 'level'),
+      bagPriorityLandTypes: chipsVal('dBagLandTypes'),
+      prioritize2x2Crops: swGet(document.getElementById('d2x2')),
+      intervals: {
+        farmMin: numVal('dfMin', 5), farmMax: numVal('dfMax', 10),
+        helpMin: numVal('dhMin', 3), helpMax: numVal('dhMax', 5),
+        stealMin: numVal('dsMin', 3), stealMax: numVal('dsMax', 10),
+      },
+      friendQuietHours: {
+        enabled: swGet(document.getElementById('dQuietSwitch')),
+        start: selVal('dQuietStart', '01:00'),
+        end: selVal('dQuietEnd', '07:30'),
+      },
+      plantOrderRandom: swGet(document.getElementById('dPlantRandom')),
+      plantDelaySeconds: numVal('dPlantDelay', 2),
+      stealDelaySeconds: numVal('dStealDelay', 1),
+      bagSeedPriority: (window.__dBagPriority || []).slice(),
+      autoAcceptFriendMinLevel: numVal('dAutoFriendMinLevel', 0),
+      automation: (function(){
+        const dauto = document.getElementById('d-auto');
+        const aut = autoCollect(dauto);
+        aut.fertilizer_land_types = chipsVal('dFertLandTypes');
+        aut.fertilizer = selVal('dFertStrategy', 'smart_normal');
+        aut.fertilizer_smart_seconds = numVal('dFertSeconds', 300);
+        return aut;
+      })(),
+    };
+    return plan;
+  }
+
+  // ---- 数据加载 ----
+  function loadAccountMore(){
+    fetch('/api/settings?accountId=' + accId()).then(r => r.json()).then(d => {
+      if(!(d && d.ok && d.data)) return;
+      fillAuto(d.data);
+      fillStrategy(d.data);
+    }).catch(() => {});
+  }
+  function loadDefaultPlan(){
+    fetch('/api/settings/default-plan').then(r => r.json()).then(d => {
+      if(d && d.ok) fillDefault(d.data);
+    }).catch(() => {});
+  }
+
+  // ---- 保存 ----
+  function postJSON(url, body){
+    return fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(r => r.json());
+  }
+  function bindSave(btnId, fn){
+    const b = document.getElementById(btnId); if(!b) return;
+    b.addEventListener('click', async () => {
+      const old = b.textContent; b.disabled = true; b.textContent = '保存中…';
+      try{
+        const d = await fn();
+        alert(d && d.ok ? '已保存' : ('保存失败：' + ((d && d.error) || '未知错误')));
+        if(d && d.ok){ loadAccountMore(); loadDefaultPlan(); }
+      }catch(e){ alert('请求失败：' + e.message); }
+      b.disabled = false; b.textContent = old;
+    });
+  }
+  bindSave('mAutoSave', () => postJSON('/api/automation?accountId=' + accId(), collectAuto()));
+  bindSave('mStrategySave', () => postJSON('/api/settings/save?accountId=' + accId(), collectStrategy()));
+  bindSave('dStrategySave', () => fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: document.getElementById('dAutoApply') ? document.getElementById('dAutoApply').classList.contains('on') : true, config: collectDefault() }) }).then(r => r.json()));
+  bindSave('dAutoSave', () => fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: document.getElementById('dAutoApply') ? document.getElementById('dAutoApply').classList.contains('on') : true, config: collectDefault() }) }).then(r => r.json()));
+
+  // 从当前账号导入 / 恢复系统默认
+  const imp = document.getElementById('dPlanImport');
+  if(imp) imp.addEventListener('click', async () => {
+    const old = imp.textContent; imp.disabled = true; imp.textContent = '导入中…';
+    try{
+      const d = await postJSON('/api/settings/default-plan/import?accountId=' + accId(), {});
+      alert(d && d.ok ? '已从当前账号导入默认方案' : ('导入失败：' + ((d && d.error) || '未知')));
+      if(d && d.ok) loadDefaultPlan();
+    }catch(e){ alert('请求失败：' + e.message); }
+    imp.disabled = false; imp.textContent = old;
+  });
+  const rst = document.getElementById('dPlanReset');
+  if(rst) rst.addEventListener('click', async () => {
+    if(!confirm('确定要用系统默认设置覆盖当前默认方案吗？')) return;
+    const old = rst.textContent; rst.disabled = true; rst.textContent = '恢复中…';
+    try{
+      const d = await postJSON('/api/settings/default-plan/reset', {});
+      alert(d && d.ok ? '默认方案已恢复为系统默认' : ('恢复失败：' + ((d && d.error) || '未知')));
+      if(d && d.ok) loadDefaultPlan();
+    }catch(e){ alert('请求失败：' + e.message); }
+    rst.disabled = false; rst.textContent = old;
+  });
+  // 新账号自动应用 开关
+  const applyChip = document.getElementById('dAutoApply');
+  if(applyChip) applyChip.addEventListener('click', async () => {
+    const on = !applyChip.classList.contains('on');
+    applyChip.classList.toggle('on', on);
+    applyChip.textContent = on ? '新账号自动应用' : '新账号不应用';
+    const cfg = collectDefault();
+    await fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: on, config: cfg }) }).catch(() => {});
+  });
+
+  // 背包种子顺序按钮（事件委托）
+  document.addEventListener('click', (e) => {
+    const up = e.target.closest('.seed-up');
+    const dn = e.target.closest('.seed-dn');
+    if(up) moveSeed(up.dataset.list, Number(up.dataset.seed), -1);
+    else if(dn) moveSeed(dn.dataset.list, Number(dn.dataset.seed), 1);
+  });
+  const br = document.getElementById('mBagSeedsReset');
+  if(br) br.addEventListener('click', () => resetSeeds('mBagSeedsList'));
+  const dr = document.getElementById('dBagSeedsReset');
+  if(dr) dr.addEventListener('click', () => resetSeeds('dBagSeedsList'));
+
+  // 初始化
+  loadAccountMore();
+  loadDefaultPlan();
+  loadSeeds();
 })();
 </script>
 </body>

@@ -26,6 +26,7 @@ type AutomationConfig struct {
 	Fertilizer              string `json:"fertilizer"`           // 施肥模式 (smart_normal/smart_only/both/organic...)
 	FertilizerMultiSeason   bool   `json:"fertilizer_multi_season"` // 多季补肥
 	FertilizerSmartSeconds  int    `json:"fertilizer_smart_seconds"`  // 快成熟判定秒数
+	FertilizerLandTypes     []string `json:"fertilizer_land_types"`   // 施肥范围土地类型（对齐 Node DEFAULT_AUTOMATION.fertilizer_land_types）
 	SkipOwnWeedBug          bool   `json:"skip_own_weed_bug"`   // 不除自己草虫
 	GoldenBugClear          bool   `json:"golden_bug_clear"`    // 自动清除黄金虫
 }
@@ -125,6 +126,7 @@ func DefaultAccountConfig() AccountConfig {
 			FertilizerSmartSeconds: 300,
 			SkipOwnWeedBug:         true,
 			GoldenBugClear:         true,
+			FertilizerLandTypes:    []string{"purple", "gold", "black", "red", "normal"},
 		},
 		AutoCodeRefresh: AutoCodeRefreshConfig{
 			Enabled:        false,
@@ -180,6 +182,8 @@ type GlobalConfig struct {
 	AccountConfigs           map[string]AccountConfig `json:"accountConfigs"`
 	DefaultAccountConfig      AccountConfig         `json:"defaultAccountConfig"`
 	UserDefaultAccountPlans  map[string]AccountConfig `json:"userDefaultAccountPlans"`
+	DefaultPlanEnabled       bool                 `json:"defaultPlanEnabled"`       // 新账号自动应用默认方案（对齐 Node plan.enabled）
+	DefaultPlanUpdatedAt     int64                `json:"defaultPlanUpdatedAt"`     // 默认方案最后保存时间
 	AdminPasswordHash        string               `json:"adminPasswordHash"`
 	SystemConfig             SystemConfig         `json:"systemConfig"`
 	CaptureConfig           CaptureConfig        `json:"captureConfig"`
@@ -316,6 +320,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		AccountConfigs:          make(map[string]AccountConfig),
 		DefaultAccountConfig:     DefaultAccountConfig(),
 		UserDefaultAccountPlans: make(map[string]AccountConfig),
+		DefaultPlanEnabled:      true, // 新账号自动应用默认方案（对齐 Node plan.enabled 默认 true）
 		SystemConfig:            DefaultSystemConfig(),
 		CaptureConfig:           DefaultCaptureConfig(),
 		GlobalWxConfig:          DefaultGlobalWxConfig(),

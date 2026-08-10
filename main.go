@@ -103,6 +103,7 @@ func main() {
 	registerFriendOpsAPI(api)
 	registerFriendExtraAPI(api)
 	registerReconnectAPI(api)
+	registerSettingsAPI(api)
 
 	mux.Handle("/api/", corsHandler(api))
 
