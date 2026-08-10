@@ -1602,7 +1602,7 @@ async function startQrLogin(){
     const code = gc.data.code;
 
     // 5. 添加/登录账号
-    const platform = (cfa && cfa.platform) || '扫码登录';
+    const platform = (cfa && cfa.platform) || 'wx';
     const name = (cfa && (cfa.nickname || cfa.alias || cfa.name)) || '新账号';
     const addResp = await fetch('/api/accounts', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, code, platform, openId: openid})});
     const add = await addResp.json();

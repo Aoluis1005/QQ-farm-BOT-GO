@@ -31,6 +31,9 @@ var clientPool = &ClientPool{
 func gwConfig(platform string) gw.Config {
 	if platform == "" {
 		platform = "qq"
+	} else if platform != "qq" && platform != "wx" {
+		// YYB 扫码等渠道本质是 WX 渠道（对标 Node platform='wx'）
+		platform = "wx"
 	}
 	return gw.Config{
 		ServerURL:       "wss://gate-obt.nqf.qq.com/prod/ws",
