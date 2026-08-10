@@ -150,6 +150,25 @@ func (r *Reader) ReadString() string { return string(r.ReadBytes()) }
 // ReadInt64 读 int64
 func (r *Reader) ReadInt64() int64 { return int64(r.ReadVarint()) }
 
+// AppendRepeatedInt64 读取 repeated int64 字段并追加到 dst。
+// proto3 的 repeated 标量默认是 packed（wire=2，一个长度前缀里塞多个 varint），
+// 但服务端也可能按非 packed（wire=0，每个元素一个 tag）下发。两种都要吃下，
+// 否则 packed 情况下会把「长度前缀」当成数值读出来（旧实现就有这个隐患）。
+func (r *Reader) AppendRepeatedInt64(wire int, dst []int64) []int64 {
+	if wire == WireLen {
+		sub := NewReader(r.ReadBytes())
+		for sub.More() {
+			dst = append(dst, sub.ReadInt64())
+		}
+		return dst
+	}
+	if wire == WireVarint {
+		return append(dst, r.ReadInt64())
+	}
+	r.Skip(wire)
+	return dst
+}
+
 // Skip 跳过字段（按 wireType）
 func (r *Reader) Skip(wire int) {
 	switch wire {

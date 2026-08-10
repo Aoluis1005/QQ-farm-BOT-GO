@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // ============================================================
@@ -13,13 +15,26 @@ import (
 // Plant.json + ItemInfo.json 位于服务器 game-config/ 目录；本地缺失时回退启发式规则。
 // ============================================================
 
-// plantEntry Plant.json 条目（仅关心分类所需字段）
+// plantEntry Plant.json 条目（对齐 Node gameConfig.js：id/seed_id/seasons/grow_phases/size）
 type plantEntry struct {
-	Name   string `json:"name"`
-	SeedID int    `json:"seed_id"`
-	Fruit  *struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	SeedID     int    `json:"seed_id"`
+	Seasons    int    `json:"seasons"`
+	GrowPhases string `json:"grow_phases"` // "种子:5760;发芽:5760;...;成熟:0;"
+	Size       int    `json:"size"`        // 合种尺寸（2=2x2），可空
+	Fruit      *struct {
 		ID int `json:"id"`
 	} `json:"fruit"`
+}
+
+// mutantEffectEntry MutantEffect.json 条目
+type mutantEffectEntry struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	EffectName string `json:"effect_name"`
+	Icon       string `json:"icon"`
+	Tag        string `json:"tag"`
 }
 
 // itemInfoEntry ItemInfo.json 条目
@@ -35,10 +50,12 @@ type itemInfoEntry struct {
 
 // 运行期从配置文件建立的映射
 var (
-	seedToPlantMap  = map[int]plantEntry{} // seed_id -> 植物
-	fruitToPlantMap = map[int]plantEntry{} // fruit.id -> 植物
-	itemInfoMap     = map[int]itemInfoEntry{}
-	seedItemSet     = map[int]bool{} // ItemInfo type==5 的种子物品 id
+	seedToPlantMap   = map[int]plantEntry{}    // seed_id -> 植物
+	fruitToPlantMap  = map[int]plantEntry{}    // fruit.id -> 植物
+	plantByIDMap     = map[int]plantEntry{}    // plant.id -> 植物（对齐 Node plantMap）
+	itemInfoMap      = map[int]itemInfoEntry{}
+	seedItemSet      = map[int]bool{}          // ItemInfo type==5 的种子物品 id
+	mutantEffectMap  = map[int]mutantEffectEntry{} // mutant id -> 效果（对齐 Node mutantEffectMap）
 )
 
 // initGameConfig 从 gameConfigDir 加载 Plant.json / ItemInfo.json。
@@ -46,6 +63,7 @@ var (
 func initGameConfig(gameConfigDir string) {
 	loadPlantJSON(filepath.Join(gameConfigDir, "Plant.json"))
 	loadItemInfoJSON(filepath.Join(gameConfigDir, "ItemInfo.json"))
+	loadMutantEffectJSON(filepath.Join(gameConfigDir, "MutantEffect.json"))
 	if len(seedToPlantMap) > 0 || len(seedItemSet) > 0 {
 		log.Printf("[config] 已加载植物配置(%d)与物品配置(%d)", len(seedToPlantMap), len(itemInfoMap))
 	} else {
@@ -65,7 +83,13 @@ func loadPlantJSON(path string) {
 	}
 	seedToPlantMap = make(map[int]plantEntry, len(rows))
 	fruitToPlantMap = make(map[int]plantEntry, len(rows))
+	plantByIDMap = make(map[int]plantEntry, len(rows))
 	for _, p := range rows {
+		if p.ID > 0 {
+			if _, ok := plantByIDMap[p.ID]; !ok {
+				plantByIDMap[p.ID] = p
+			}
+		}
 		if p.SeedID > 0 {
 			if _, ok := seedToPlantMap[p.SeedID]; !ok {
 				seedToPlantMap[p.SeedID] = p
@@ -75,6 +99,27 @@ func loadPlantJSON(path string) {
 			if _, ok := fruitToPlantMap[p.Fruit.ID]; !ok {
 				fruitToPlantMap[p.Fruit.ID] = p
 			}
+		}
+	}
+}
+
+func loadMutantEffectJSON(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var rows []mutantEffectEntry
+	if err := json.Unmarshal(data, &rows); err != nil {
+		log.Printf("[config] 解析 %s 失败: %v", path, err)
+		return
+	}
+	mutantEffectMap = make(map[int]mutantEffectEntry, len(rows))
+	for _, it := range rows {
+		if it.ID <= 0 {
+			continue
+		}
+		if _, ok := mutantEffectMap[it.ID]; !ok {
+			mutantEffectMap[it.ID] = it
 		}
 	}
 }
@@ -195,4 +240,64 @@ func itemDisplayName(id int64) string {
 		return it.Name
 	}
 	return ""
+}
+
+// ============================================================
+// 农场页所需配置查询（对齐 Node gameConfig.js）
+// ============================================================
+
+// getPlantByID 按植物ID取植物配置（对齐 Node getPlantById，plantMap 按 plant.id）
+func getPlantByID(plantID int64) (plantEntry, bool) {
+	p, ok := plantByIDMap[int(plantID)]
+	return p, ok
+}
+
+// getPlantGrowTime 总生长秒数（对齐 Node gameConfig.js getPlantGrowTime：
+// grow_phases 形如 "种子:5760;发芽:5760;...;成熟:0;"，取每段 ":(\d+)" 求和）
+func getPlantGrowTime(plantID int64) int64 {
+	p, ok := plantByIDMap[int(plantID)]
+	if !ok || p.GrowPhases == "" {
+		return 0
+	}
+	var total int64
+	for _, phase := range strings.Split(p.GrowPhases, ";") {
+		if phase == "" {
+			continue
+		}
+		if idx := strings.LastIndex(phase, ":"); idx >= 0 {
+			if sec, err := strconv.ParseInt(phase[idx+1:], 10, 64); err == nil {
+				total += sec
+			}
+		}
+	}
+	return total
+}
+
+// getPlantNameOrNull 按植物ID取名称（找不到返回空串；对齐 Node getPlantNameOrNull）
+func getPlantNameOrNull(plantID int64) string {
+	if p, ok := plantByIDMap[int(plantID)]; ok {
+		return p.Name
+	}
+	return ""
+}
+
+// getMutantEffectsByIDs 变异效果列表（对齐 Node getMutantEffectsByIds，过滤无效 ID）
+type MutantEffect struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	EffectName string `json:"effect_name"`
+	Icon       string `json:"icon"`
+	Tag        string `json:"tag"`
+}
+
+func getMutantEffectsByIDs(ids []int64) []MutantEffect {
+	out := []MutantEffect{}
+	for _, id := range ids {
+		it, ok := mutantEffectMap[int(id)]
+		if !ok {
+			continue
+		}
+		out = append(out, MutantEffect{ID: it.ID, Name: it.Name, EffectName: it.EffectName, Icon: it.Icon, Tag: it.Tag})
+	}
+	return out
 }

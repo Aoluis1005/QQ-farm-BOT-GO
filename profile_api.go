@@ -55,32 +55,314 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 		c.StoreLands(body) // 更新缓存，后续读缓存即最新
 	}
 	all := proto.DecodeAllLandsReply(body)
-	now := time.Now().Unix()
 
-	lands := make([]map[string]interface{}, 0, len(all.Lands))
+	// ── 对齐 Node farm-land-analyzer.js getLandsDetail()，逐字段构造 ──
+	serverTime := time.Now().Unix()
+	landMap := buildFarmLandMap(all.Lands)
+
+	details := make([]map[string]interface{}, 0, len(all.Lands))
 	for _, l := range all.Lands {
-		status, name, progress, timeLeft := analyzeLand(l, now)
-		land := map[string]interface{}{
-			"id":       l.ID,
-			"state":    iconFor(name),
-			"status":   status,
-			"name":     name,
-			"progress": progress,
-			"timeLeft": timeLeft,
-			"level":    l.Level,
-			"fruit":    fruitCount(l.Plant),
+		landID := l.ID
+		level := l.Level
+		maxLevel := l.MaxLevel
+		landsLevel := l.LandsLevel
+		landSize := l.LandSize
+		landTypeName := farmLandTypeNameByLevel(level)
+		couldUnlock := l.CouldUnlock
+		couldUpgrade := l.CouldUpgrade
+
+		ctx := getFarmDisplayLandContext(l, landMap)
+
+		// 未解锁（对齐 Node：unlocked=false → status='locked'）
+		if !l.Unlocked {
+			details = append(details, map[string]interface{}{
+				"id": landID, "unlocked": false, "status": "locked",
+				"plantName": "", "phaseName": "",
+				"level": level, "maxLevel": maxLevel, "landsLevel": landsLevel,
+				"landSize": landSize, "landTypeName": landTypeName,
+				"couldUnlock": couldUnlock, "couldUpgrade": couldUpgrade,
+				"currentSeason": 0, "totalSeason": 0,
+				"occupiedByMaster": false, "masterLandId": int64(0),
+				"occupiedLandIds": []int64{}, "plantSize": int64(1),
+			})
+			continue
 		}
-		// 接真实作物图：Plant(id=种子ID) → seed_images_named/{id}_xxx_Crop_N_Seed.png；无图保留 emoji 兜底
-		if p := l.Plant; p != nil && p.ID > 0 {
-			land["seedId"] = p.ID
-			if img := GetItemImageURL(int(p.ID)); img != "" {
-				land["img"] = img
+
+		plant := ctx.SourceLand.Plant
+
+		// 空地（对齐 Node：无 plant 或无 phases → status='empty'，phaseName='空地'）
+		if plant == nil || len(plant.Phases) == 0 {
+			details = append(details, map[string]interface{}{
+				"id": landID, "unlocked": true, "status": "empty",
+				"plantName": "", "phaseName": "空地",
+				"level": level, "maxLevel": maxLevel, "landsLevel": landsLevel,
+				"landSize": landSize, "landTypeName": landTypeName,
+				"couldUnlock": couldUnlock, "couldUpgrade": couldUpgrade,
+				"currentSeason": 0, "totalSeason": 0,
+				"occupiedByMaster": ctx.OccupiedByMaster, "masterLandId": ctx.MasterLandID,
+				"occupiedLandIds": ctx.OccupiedLandIDs, "plantSize": int64(1),
+			})
+			continue
+		}
+
+		currentPhase := farmCurrentPhase(plant.Phases, serverTime)
+		if currentPhase == nil {
+			details = append(details, map[string]interface{}{
+				"id": landID, "unlocked": true, "status": "empty",
+				"plantName": "", "phaseName": "",
+				"level": level, "maxLevel": maxLevel, "landsLevel": landsLevel,
+				"landSize": landSize, "landTypeName": landTypeName,
+				"couldUnlock": couldUnlock, "couldUpgrade": couldUpgrade,
+				"currentSeason": 0, "totalSeason": 0,
+				"occupiedByMaster": ctx.OccupiedByMaster, "masterLandId": ctx.MasterLandID,
+				"occupiedLandIds": ctx.OccupiedLandIDs, "plantSize": int64(1),
+			})
+			continue
+		}
+
+		phase := currentPhase.Phase
+		plantID := plant.ID
+		displayName := getPlantNameOrNull(plantID)
+		if displayName == "" {
+			displayName = plant.Name
+		}
+		if displayName == "" {
+			displayName = "未知"
+		}
+		plantInfo, _ := getPlantByID(plantID)
+		seedID := int64(0)
+		if plantInfo.SeedID > 0 {
+			seedID = int64(plantInfo.SeedID)
+		}
+		seedImage := ""
+		if seedID > 0 {
+			seedImage = GetItemImageURL(int(seedID))
+		}
+		plantSize := int64(1)
+		if plantInfo.Size > 1 {
+			plantSize = int64(plantInfo.Size)
+		}
+		totalSeason := int64(1)
+		if plantInfo.Seasons > 1 {
+			totalSeason = int64(plantInfo.Seasons)
+		}
+		rawSeason := plant.Season
+		currentSeason := int64(1)
+		if rawSeason > 0 {
+			currentSeason = rawSeason
+			if currentSeason > totalSeason {
+				currentSeason = totalSeason
 			}
 		}
-		lands = append(lands, land)
+		phaseName := farmPhaseName(phase)
+
+		// 剩余成熟时间：对齐 Node——找 MATURE 阶段的 begin_time，减去服务器时间
+		matureInSec := int64(0)
+		for _, ph := range plant.Phases {
+			if ph.Phase == proto.PhaseMature && ph.BeginTime > serverTime {
+				matureInSec = ph.BeginTime - serverTime
+				break
+			}
+		}
+		totalGrowTime := getPlantGrowTime(plantID)
+
+		// 状态（对齐 Node：MATURE→harvestable，DEAD→dead，否则 growing）
+		status := "growing"
+		if phase == proto.PhaseMature {
+			status = "harvestable"
+		} else if phase == proto.PhaseDead {
+			status = "dead"
+		}
+
+		// 需要浇水/除草/除虫（对齐 Node：计数或阶段时间已到，二选一成立即可）
+		needWater := plant.DryNum > 0 || (currentPhase.DryTime > 0 && currentPhase.DryTime <= serverTime)
+		needWeed := len(plant.WeedOwners) > 0 || (currentPhase.WeedsTime > 0 && currentPhase.WeedsTime <= serverTime)
+		needBug := len(plant.InsectOwners) > 0 || (currentPhase.InsectTime > 0 && currentPhase.InsectTime <= serverTime)
+
+		// 变异效果
+		mutantEffects := getMutantEffectsByIDs(plant.MutantConfigIDs)
+		me := make([]map[string]interface{}, 0, len(mutantEffects))
+		for _, e := range mutantEffects {
+			item := map[string]interface{}{"id": e.ID, "name": e.Name, "effect_name": e.EffectName, "icon": e.Icon, "tag": e.Tag}
+			nm := e.Name
+			if nm == "" && e.EffectName != "" {
+				nm = e.EffectName
+			}
+			if nm == "" {
+				nm = "变异"
+			}
+			item["name"] = nm
+			me = append(me, item)
+		}
+
+		details = append(details, map[string]interface{}{
+			"id": landID, "unlocked": true, "status": status,
+			"plantName": displayName, "plantId": plantID, "seedId": seedID, "seedImage": seedImage,
+			"phaseName": phaseName, "currentSeason": currentSeason, "totalSeason": totalSeason,
+			"matureInSec": matureInSec, "totalGrowTime": totalGrowTime,
+			"needWater": needWater, "needWeed": needWeed, "needBug": needBug,
+			"stealable": plant.Stealable,
+			"level": level, "maxLevel": maxLevel, "landsLevel": landsLevel,
+			"landSize": landSize, "landTypeName": landTypeName,
+			"couldUnlock": couldUnlock, "couldUpgrade": couldUpgrade,
+			"occupiedByMaster": ctx.OccupiedByMaster, "masterLandId": ctx.MasterLandID,
+			"occupiedLandIds": ctx.OccupiedLandIDs,
+			"plantSize": plantSize, "mutantEffects": me,
+		})
 	}
 
-	writeJSON(w, map[string]interface{}{"ok": true, "data": lands})
+	writeJSON(w, map[string]interface{}{"ok": true, "data": map[string]interface{}{
+		"lands":   details,
+		"summary": summarizeFarmLands(details),
+	}})
+}
+
+// ── 以下辅助函数对齐 Node farm-land-analyzer.js ──
+
+// farmLandTypeNameByLevel 土地类型名（对齐 getLandTypeNameByLevel）
+func farmLandTypeNameByLevel(level int64) string {
+	switch level {
+	case 5:
+		return "紫土地"
+	case 4:
+		return "金土地"
+	case 3:
+		return "黑土地"
+	case 2:
+		return "红土地"
+	default:
+		return "普通地"
+	}
+}
+
+// farmPhaseName 阶段名（对齐 Node config.js PHASE_NAMES：['未知','种子','发芽','小叶','大叶','开花','成熟','枯死']）
+func farmPhaseName(phase int32) string {
+	names := [...]string{"未知", "种子", "发芽", "小叶", "大叶", "开花", "成熟", "枯死"}
+	if phase >= 0 && int(phase) < len(names) {
+		return names[phase]
+	}
+	return ""
+}
+
+// farmCurrentPhase 当前所处阶段（对齐 Node getCurrentPhase：从后往前找第一个 begin_time<=now）
+func farmCurrentPhase(phases []*proto.PlantPhaseInfo, serverTime int64) *proto.PlantPhaseInfo {
+	if len(phases) == 0 {
+		return nil
+	}
+	for i := len(phases) - 1; i >= 0; i-- {
+		if phases[i].BeginTime > 0 && phases[i].BeginTime <= serverTime {
+			return phases[i]
+		}
+	}
+	// 所有阶段都在未来，使用第一个
+	return phases[0]
+}
+
+// farmLandMap id → land
+func buildFarmLandMap(lands []*proto.LandInfo) map[int64]*proto.LandInfo {
+	m := make(map[int64]*proto.LandInfo, len(lands))
+	for _, l := range lands {
+		if l != nil && l.ID > 0 {
+			m[l.ID] = l
+		}
+	}
+	return m
+}
+
+// farmSlaveLandIDs 从属土地 ID 列表
+func farmSlaveLandIDs(land *proto.LandInfo) []int64 {
+	seen := map[int64]bool{}
+	out := []int64{}
+	for _, id := range land.SlaveLandIDs {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// farmHasPlantData 是否有植物数据（对齐 Node hasPlantData）
+func farmHasPlantData(land *proto.LandInfo) bool {
+	return land != nil && land.Plant != nil && len(land.Plant.Phases) > 0
+}
+
+// farmLinkedMasterLand 关联的主土地（对齐 Node getLinkedMasterLand）
+func farmLinkedMasterLand(land *proto.LandInfo, landMap map[int64]*proto.LandInfo) *proto.LandInfo {
+	landID := land.ID
+	masterID := land.MasterLandID
+	if masterID <= 0 || masterID == landID {
+		return nil
+	}
+	master := landMap[masterID]
+	if master == nil {
+		return nil
+	}
+	slaveIDs := farmSlaveLandIDs(master)
+	if len(slaveIDs) > 0 && !containsInt64(slaveIDs, landID) {
+		return nil
+	}
+	return master
+}
+
+// farmDisplayLandContext 显示上下文（对齐 Node getDisplayLandContext：处理合种 master/slave）
+type farmLandContext struct {
+	SourceLand      *proto.LandInfo
+	OccupiedByMaster bool
+	MasterLandID    int64
+	OccupiedLandIDs []int64
+}
+
+func getFarmDisplayLandContext(land *proto.LandInfo, landMap map[int64]*proto.LandInfo) farmLandContext {
+	if master := farmLinkedMasterLand(land, landMap); master != nil && farmHasPlantData(master) {
+		allIDs := []int64{master.ID}
+		allIDs = append(allIDs, farmSlaveLandIDs(master)...)
+		filtered := []int64{}
+		for _, id := range allIDs {
+			if id > 0 {
+				filtered = append(filtered, id)
+			}
+		}
+		occ := filtered
+		if len(filtered) <= 1 {
+			occ = filtered
+		}
+		return farmLandContext{SourceLand: master, OccupiedByMaster: true, MasterLandID: master.ID, OccupiedLandIDs: occ}
+	}
+	landID := land.ID
+	return farmLandContext{SourceLand: land, OccupiedByMaster: false, MasterLandID: landID, OccupiedLandIDs: []int64{landID}}
+}
+
+// summarizeFarmLands 汇总（对齐 Node summarizeLandDetails，只统计 unlocked 的地块）
+func summarizeFarmLands(lands []map[string]interface{}) map[string]int {
+	s := map[string]int{"harvestable": 0, "growing": 0, "empty": 0, "dead": 0, "needWater": 0, "needWeed": 0, "needBug": 0}
+	for _, land := range lands {
+		unlocked, _ := land["unlocked"].(bool)
+		if !unlocked {
+			continue
+		}
+		status, _ := land["status"].(string)
+		switch status {
+		case "harvestable":
+			s["harvestable"]++
+		case "dead":
+			s["dead"]++
+		case "empty":
+			s["empty"]++
+		case "growing", "stealable", "harvested":
+			s["growing"]++
+		}
+		if needWater, _ := land["needWater"].(bool); needWater {
+			s["needWater"]++
+		}
+		if needWeed, _ := land["needWeed"].(bool); needWeed {
+			s["needWeed"]++
+		}
+		if needBug, _ := land["needBug"].(bool); needBug {
+			s["needBug"]++
+		}
+	}
+	return s
 }
 
 // analyzeLand 分析地块状态：ready/growing/dry/dead/idle + 作物名 + 进度 + 剩余时间
@@ -340,8 +622,15 @@ func handleBagUse(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	if _, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Use",
-		proto.EncodeUseRequest(req.ItemID, req.Count), 12*time.Second); err != nil {
+	// 对齐 Node warehouse.js useItem()：先发标准 UseRequest；若报 code=1000020 /
+	// 请求参数错误，则改用 raw protobuf 嵌套形态重发一次（服务端实际期望的结构）。
+	_, err = c.Request(r.Context(), "gamepb.itempb.ItemService", "Use",
+		proto.EncodeUseRequest(req.ItemID, req.Count), 12*time.Second)
+	if err != nil && proto.IsBadParamError(err.Error()) {
+		_, err = c.Request(r.Context(), "gamepb.itempb.ItemService", "Use",
+			proto.EncodeUseRequestFallback(req.ItemID, req.Count), 12*time.Second)
+	}
+	if err != nil {
 		writeError(w, 500, "使用失败: "+err.Error())
 		return
 	}

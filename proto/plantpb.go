@@ -53,10 +53,12 @@ func (p *PlantPhaseInfo) decode(buf []byte) {
 
 // PlantInfo 作物信息
 type PlantInfo struct {
-	ID           int64
-	Name         string
-	Phases       []*PlantPhaseInfo
-	DryNum       int64 // 缺水次数
+	ID              int64
+	Name            string
+	Phases          []*PlantPhaseInfo
+	Season          int64   // 当前季（plantpb.proto season=5）
+	MutantConfigIDs []int64 // 变异配置ID（plantpb.proto mutant_config_ids=20）
+	DryNum          int64   // 缺水次数
 	StoleNum     int64
 	FruitID      int64
 	FruitNum     int64
@@ -88,6 +90,8 @@ func (p *PlantInfo) decode(buf []byte) {
 			} else {
 				r.Skip(wire)
 			}
+		case 5:
+			p.Season = r.ReadInt64()
 		case 6:
 			p.DryNum = r.ReadInt64()
 		case 9:
@@ -97,17 +101,19 @@ func (p *PlantInfo) decode(buf []byte) {
 		case 11:
 			p.FruitNum = r.ReadInt64()
 		case 12:
-			p.WeedOwners = append(p.WeedOwners, r.ReadInt64())
+			p.WeedOwners = r.AppendRepeatedInt64(wire, p.WeedOwners)
 		case 13:
-			p.InsectOwners = append(p.InsectOwners, r.ReadInt64())
+			p.InsectOwners = r.AppendRepeatedInt64(wire, p.InsectOwners)
 		case 14:
-			p.Stealers = append(p.Stealers, r.ReadInt64())
+			p.Stealers = r.AppendRepeatedInt64(wire, p.Stealers)
 		case 15:
 			p.GrowSec = r.ReadInt64()
 		case 16:
 			p.Stealable = r.ReadInt64() != 0
 		case 18:
 			p.LeftFruitNum = r.ReadInt64()
+		case 20:
+			p.MutantConfigIDs = r.AppendRepeatedInt64(wire, p.MutantConfigIDs)
 		case 21:
 			p.IsNudged = r.ReadInt64() != 0
 		default:
@@ -119,11 +125,17 @@ func (p *PlantInfo) decode(buf []byte) {
 
 // LandInfo 地块信息
 type LandInfo struct {
-	ID       int64
-	Unlocked bool
-	Level    int64
-	MaxLevel int64
-	Plant    *PlantInfo
+	ID           int64
+	Unlocked     bool
+	Level        int64
+	MaxLevel     int64
+	CouldUnlock  bool // plantpb.proto could_unlock=5
+	CouldUpgrade bool // plantpb.proto could_upgrade=6
+	MasterLandID int64 // plantpb.proto master_land_id=13
+	SlaveLandIDs []int64 // plantpb.proto slave_land_ids=14
+	LandSize     int64 // plantpb.proto land_size=15
+	LandsLevel   int64 // plantpb.proto lands_level=16
+	Plant        *PlantInfo
 }
 
 func (l *LandInfo) decode(buf []byte) {
@@ -138,6 +150,18 @@ func (l *LandInfo) decode(buf []byte) {
 			l.Level = r.ReadInt64()
 		case 4:
 			l.MaxLevel = r.ReadInt64()
+		case 5:
+			l.CouldUnlock = r.ReadInt64() != 0
+		case 6:
+			l.CouldUpgrade = r.ReadInt64() != 0
+		case 13:
+			l.MasterLandID = r.ReadInt64()
+		case 14:
+			l.SlaveLandIDs = r.AppendRepeatedInt64(wire, l.SlaveLandIDs)
+		case 15:
+			l.LandSize = r.ReadInt64()
+		case 16:
+			l.LandsLevel = r.ReadInt64()
 		case 10:
 			if wire == WireLen {
 				sub := r.ReadBytes()

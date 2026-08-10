@@ -233,25 +233,55 @@ body{
 .grid-title h3{ font-size:16px; font-weight:700; }
 .legend{ display:flex; gap:10px; font-size:11px; color:var(--muted); }
 .legend i{ display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:3px;vertical-align:1px; }
-.land{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.land{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+@media (max-width:480px){ .land{ grid-template-columns:repeat(3,1fr); gap:7px; } }
+/* 对齐 Node LandCard.vue：等级配色 1黄/2红/3黑/4金/5紫 */
 .land .plot{
-  aspect-ratio:.72; border-radius:calc(var(--radius-md) + 2px);
+  border-radius:calc(var(--radius-md) + 2px);
   border:1px solid var(--border); background:linear-gradient(165deg,var(--card-strong),var(--card));
   backdrop-filter:blur(14px); position:relative;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
-  padding:12px 5px 9px; overflow:hidden; transition:transform .2s var(--ease);
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:18px 5px 8px; overflow:hidden; transition:transform .2s var(--ease);
   box-shadow:var(--shadow-sm); min-height:132px;
 }
+.land .plot.lv1{ background:color-mix(in oklch,var(--warn) 7%,var(--card)); border-color:color-mix(in oklch,var(--warn) 40%,var(--border)); }
+.land .plot.lv2{ background:color-mix(in oklch,var(--danger) 7%,var(--card)); border-color:color-mix(in oklch,var(--danger) 40%,var(--border)); }
+.land .plot.lv3{ background:color-mix(in oklch,#475569 22%,var(--card)); border-color:#64748b; }
+.land .plot.lv4{ background:color-mix(in oklch,#f59e0b 8%,var(--card)); border-color:color-mix(in oklch,#f59e0b 45%,var(--border)); }
+.land .plot.lv5{ background:color-mix(in oklch,#a855f7 8%,var(--card)); border-color:color-mix(in oklch,#a855f7 45%,var(--border)); }
+.land .plot.status-dead{ filter:grayscale(.85); opacity:.75; }
+.land .plot.status-harvestable{ box-shadow:0 0 0 2px var(--good); }
+.land .plot.status-stealable{ box-shadow:0 0 0 2px #a855f7; }
+.land .plot.locked{ opacity:.5; border-style:dashed; }
+.land .plot.merged{ grid-column:span 2; grid-row:span 2; min-height:230px; }
 .land .plot:active{ transform:scale(.94); }
-.land .plot .state{ font-size:23px; filter:drop-shadow(0 2px 6px oklch(0 0 0/.18)); }
-.land .plot .no{ position:absolute; top:7px; left:8px; font-size:8.5px; color:var(--muted-2); font-variant-numeric:tabular-nums; }
-.land .plot .name{ font-size:11px; font-weight:600; color:var(--foreground); text-align:center; padding:0 2px; line-height:1.2; max-width:100%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
-.land .bar{ width:100%; height:4px; border-radius:99px; background:var(--border); overflow:hidden; margin-top:3px; }
-.land .bar i{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--grow),var(--good)); }
-.land .meta{ font-size:8px; color:var(--muted-2); margin-top:2px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.land .ptime{ font-size:9px; color:var(--warn); font-weight:600; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.land .plot-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; width:100%; margin-top:5px; }
-.land .plot-btns button{ padding:4px 0; border-radius:7px; border:1px solid var(--border); background:transparent; font-size:9px; font-weight:600; cursor:pointer; font-family:var(--font-sans); }
+.land .plot .lc-id{ position:absolute; top:6px; left:8px; font-size:8.5px; color:var(--muted-2); font-variant-numeric:tabular-nums; }
+.land .plot .lc-merged-badge{ position:absolute; top:5px; right:6px; font-size:9px; font-weight:700; color:#db2777; background:color-mix(in oklch,#fce7f3 70%,transparent); border-radius:5px; padding:1px 5px; }
+.land .plot .lc-img{ width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:22px; margin-top:2px; }
+.land .plot.merged .lc-img{ width:52px; height:52px; font-size:30px; }
+.land .plot .lc-img img{ max-width:100%; max-height:100%; object-fit:contain; }
+.land .plot .lc-name{ font-size:11px; font-weight:600; color:var(--foreground); text-align:center; padding:0 2px; line-height:1.2; max-width:100%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.land .plot .lc-meta{ font-size:9px; color:var(--muted); text-align:center; }
+.land .plot .lc-meta .mature{ color:#f97316; font-weight:600; }
+.land .plot .lc-type{ font-size:8.5px; color:var(--muted-2); text-align:center; }
+.land .plot .lc-season{ font-size:8.5px; color:var(--muted-2); text-align:center; margin-bottom:1px; }
+/* 彩虹进度条（对齐 LandCard.vue：宽度=matureInSec/totalGrowTime*100） */
+.land .lc-bar{ width:80%; height:8px; border-radius:99px; background:var(--border); overflow:hidden; position:relative; margin:1px auto 0; }
+.land .lc-bar i{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#ff6b9d,#ff9f43,#ffd32a,#26de81,#45aaf2,#a55eea); transition:width 1s linear; }
+/* 状态标签：水/草/虫/可收/可偷 */
+.land .lc-tags{ display:flex; gap:2px; font-size:8.5px; font-weight:700; margin-top:2px; }
+.land .lc-tags span{ border-radius:4px; padding:0 3px; }
+.land .lc-tags .t-water{ background:color-mix(in oklch,#dbeafe 80%,transparent); color:#1d4ed8; }
+.land .lc-tags .t-weed{ background:color-mix(in oklch,#dcfce7 80%,transparent); color:#15803d; }
+.land .lc-tags .t-bug{ background:color-mix(in oklch,#fee2e2 80%,transparent); color:#b91c1c; }
+.land .lc-tags .t-harvest{ background:color-mix(in oklch,#ffedd5 80%,transparent); color:#c2410c; }
+.land .lc-tags .t-steal{ background:color-mix(in oklch,#f3e8ff 80%,transparent); color:#7e22ce; }
+/* 变异效果图标 */
+.land .lc-mutants{ position:absolute; top:22px; left:6px; display:flex; flex-direction:column; gap:2px; }
+.land .lc-mutants img{ width:14px; height:14px; object-fit:contain; border-radius:3px; }
+.land .plot-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; width:100%; margin-top:4px; }
+.land .plot-btns button{ height:24px; padding:0 2px; border-radius:6px; border:1px solid var(--border); background:transparent; font-size:9px; font-weight:600; cursor:pointer; font-family:var(--font-sans); display:inline-flex; align-items:center; justify-content:center; gap:2px; }
+.land .plot-btns button:hover{ transform:translateY(-1px); }
 .p-cuisi{ color:var(--grow); border-color:color-mix(in oklch,var(--grow) 50%,var(--border)) !important; }
 .p-chan{ color:var(--danger); border-color:color-mix(in oklch,var(--danger) 50%,var(--border)) !important; }
 
@@ -1216,14 +1246,15 @@ body{
         <button class="fa-btn fa-plant">🌱 种植</button>
         <button class="fa-btn fa-upgrade">🏠 升级土地</button>
         <button class="fa-btn fa-full">⚡ 一键全收</button>
-        <button class="fa-btn fa-clear">🗑️ 一键铲除</button>
+        <button class="fa-btn fa-clear fa-remove-all">🗑️ 一键铲除</button>
       </div>
       <div class="grid-title" style="margin-top:14px">
-        <h3>我的农场 · 24 块地</h3>
+        <h3>我的农场 · <span id="landSummary"></span></h3>
         <div class="legend">
           <span><i style="background:var(--grow)"></i>生长</span>
           <span><i style="background:var(--good)"></i>可收</span>
-          <span><i style="background:var(--warn)"></i>虫害</span>
+          <span><i style="background:var(--warn)"></i>缺水</span>
+          <span><i style="background:var(--danger)"></i>枯死</span>
         </div>
       </div>
       <div class="land" id="land"></div>
@@ -1233,8 +1264,8 @@ body{
     <div class="seg-pane" id="p-bag">
       <div class="sec-title" style="margin-top:16px"><span>🎒 背包</span><span class="link" id="batchSell">🗑️ 批量出售</span></div>
       <div class="seg seg-5 bag-cats" style="margin-bottom:12px">
-        <button class="seg-btn active" data-bagcat="">全部 (0)</button>
-        <button class="seg-btn" data-bagcat="fruit">果实 (0)</button>
+        <button class="seg-btn" data-bagcat="">全部 (0)</button>
+        <button class="seg-btn active" data-bagcat="fruit">果实 (0)</button>
         <button class="seg-btn" data-bagcat="seed">种子 (0)</button>
         <button class="seg-btn" data-bagcat="props">道具 (0)</button>
         <button class="seg-btn" data-bagcat="other">其他 (0)</button>
@@ -2078,27 +2109,141 @@ function loadLands(force){
   fetch('/api/farm/lands?accountId='+accountId+(force?'&refresh=1':'')).then(r=>r.json()).then(d => {
     if(!(d.ok && d.data)) return;
     const land = document.getElementById('land'); if(!land) return;
-    const statusMeta = { ready:'可收获', growing:'生长中', dry:'干旱', pest:'虫害' };
-    land.innerHTML = d.data.map(p => {
-      const pstat = statusMeta[p.status]||p.status||'';
-      const ready = p.status==='ready';
-      const nm = (p.name||'') + (ready?' 已成熟':'');
-      const pt = ready ? '已可收获' : (p.timeLeft||'预计成熟');
-      return `<div class="plot"><span class="no">#${p.id}</span><div class="state">${p.img?`<img src="${p.img}" alt="" style="width:42px;height:42px;object-fit:contain">`:(p.state||'🌱')}</div>`+
-        `<div class="name">${nm}</div>`+
-        `<div class="bar"><i style="width:${p.progress||0}%"></i></div>`+
-        `<div class="meta">${pstat}</div>`+
-        `<div class="ptime">${pt}</div>`+
-        `<div class="plot-btns"><button class="p-cuisi">催熟</button><button class="p-chan">铲除</button></div></div>`;
-    }).join('');
+    const lands = d.data.lands || [];
+    const summary = d.data.summary || {};
+    const st = document.getElementById('landSummary');
+    if(st) st.textContent = `${lands.length} 块地 · 可收 ${summary.harvestable||0} · 缺水 ${summary.needWater||0} · 枯死 ${summary.dead||0}`;
+    land.innerHTML = lands.map(renderLandCard).join('');
   }).catch(()=>{});
 }
+
+/* 对齐 Node LandCard.vue 的判定：canFertilize / canRemove */
+function landCanFertilize(l){
+  return Number(l.matureInSec||0) > 0 && l.status !== 'locked' && l.status !== 'empty';
+}
+function landCanRemove(l){
+  return l.status !== 'locked' && l.status !== 'empty' && Boolean(
+    l.plantName || l.seedImage || Number(l.matureInSec||0) > 0 ||
+    ['dead','growing','harvestable','stealable'].includes(String(l.status||''))
+  );
+}
+
+/* 对齐 Node LandCard.vue：剩余成熟倒计时 HH:MM:SS（h>0 省略前导零） */
+function landFmtTime(sec){
+  if(!(sec>0)) return '';
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  return (h>0 ? h+':' : '') + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+/* 对齐 Node LandCard.vue 的彩虹进度条：宽度 = matureInSec/totalGrowTime*100 */
+function landGrowProgress(l){
+  const mature=Number(l.matureInSec||0), total=Number(l.totalGrowTime||0);
+  if(total<=0 || mature<=0) return 0;
+  return Math.min(100, Math.max(0, (mature/total)*100));
+}
+
+/* 渲染单个土地卡片（对齐 Node LandCard.vue 模板） */
+function renderLandCard(l){
+  const esc=window.esc || function(v){return String(v==null?'':v);};
+  const level = Number(l.level)||0;
+  const merged = Number(l.plantSize) > 1;
+  const status = String(l.status||'');
+  const cls = ['plot'];
+  if(status==='locked') cls.push('locked');
+  if(status==='dead') cls.push('status-dead');
+  if(status==='harvestable') cls.push('status-harvestable');
+  if(status==='stealable') cls.push('status-stealable');
+  if(level>=1 && level<=5) cls.push('lv'+level);
+  if(merged) cls.push('merged');
+
+  const img = l.seedImage
+    ? `<img src="${esc(l.seedImage)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : '<span>🌱</span>';
+  const mergedBadge = merged ? `<span class="lc-merged-badge">合种 ${l.plantSize}x${l.plantSize}</span>` : '';
+  const mutants = (Array.isArray(l.mutantEffects)?l.mutantEffects:[])
+    .filter(m=>m && m.icon)
+    .map(m=>`<img src="/game-config/seed_images_named/mutant/${esc(m.icon)}.png" alt="${esc(m.name||'变异')}" title="${esc(m.tag && m.tag!=='无' ? m.name+' · '+m.tag : m.name||'变异')}" loading="lazy">`).join('');
+
+  const mature = Number(l.matureInSec||0);
+  const meta = mature>0
+    ? `<span class="mature">预计 ${landFmtTime(mature)} 后成熟</span>`
+    : esc(l.phaseName || (status==='locked' ? '未解锁' : '未开垦'));
+  const bar = (mature>0 && Number(l.totalGrowTime||0)>0)
+    ? `<div class="lc-bar"><i style="width:${landGrowProgress(l)}%"></i></div>` : '';
+  const landType = l.landTypeName || '';
+  const season = (Number(l.totalSeason)||0)>0 ? `${l.currentSeason}/${l.totalSeason}` : '-/-';
+
+  const tags = [];
+  if(l.needWater) tags.push('<span class="t-water">水</span>');
+  if(l.needWeed) tags.push('<span class="t-weed">草</span>');
+  if(l.needBug) tags.push('<span class="t-bug">虫</span>');
+  if(status==='harvestable') tags.push('<span class="t-harvest">可收</span>');
+  else if(status==='stealable') tags.push('<span class="t-steal">可偷</span>');
+
+  let btns = '';
+  if(landCanFertilize(l) || landCanRemove(l)){
+    btns = '<div class="plot-btns">' +
+      (landCanFertilize(l) ? '<button class="p-cuisi" title="催熟">🌿催熟</button>' : '<div></div>') +
+      (landCanRemove(l) ? '<button class="p-chan" title="铲除作物">🗑铲除</button>' : '') +
+      '</div>';
+  }
+
+  return `<div class="${cls.join(' ')}">` +
+    `<span class="lc-id">#${l.id}</span>` +
+    mergedBadge +
+    `<div class="lc-mutants">${mutants}</div>` +
+    `<div class="lc-img">${img}</div>` +
+    `<div class="lc-name" title="${esc(l.plantName||'')}">${esc(l.plantName||'-')}</div>` +
+    `<div class="lc-meta">${meta}</div>` +
+    bar +
+    `<div class="lc-type">${esc(landType)}</div>` +
+    `<div class="lc-season">季数 ${esc(season)}</div>` +
+    (tags.length?`<div class="lc-tags">${tags.join('')}</div>`:'') +
+    btns +
+    `</div>`;
+}
+
+/* 每秒倒计时：成熟倒计时实时递减（对齐 Node FarmPanel useIntervalFn 每秒 -1） */
+let landTimer = null;
+function startLandCountdown(){
+  if(landTimer) return;
+  landTimer = setInterval(()=>{
+    const land = document.getElementById('land');
+    if(!land || !land.querySelector('.lc-meta .mature')) return;
+    // 就地递减 DOM 里的倒计时文本，避免整体重渲染闪烁
+    land.querySelectorAll('.lc-meta .mature').forEach(el=>{
+      const txt = el.textContent || '';
+      const m = txt.match(/(\d+):(\d{2}):(\d{2})/);
+      if(!m) return;
+      let total = (+m[1])*3600 + (+m[2])*60 + (+m[3]) - 1;
+      if(total < 0) total = 0;
+      el.textContent = '预计 ' + landFmtTime(total) + ' 后成熟';
+    });
+  }, 1000);
+}
+startLandCountdown();
 let BAG_ALL = [];
 let BAG_SELL_MODE = false;
 // 对齐 Node BagPanel.vue 的 canUse/canSell 判定（itemType 取自后端，= Node info.type）
 function bagCanUse(it){ const t=Number(it.itemType); return t===11; }
 function bagCanSell(it){ const t=Number(it.itemType); return t===17||t===6; }
+// 分类计数：对齐 Node BagPanel.vue:53 `categoryCounts` computed——
+// 它是 computed(() => ...items.value...)，items 一变就自动重算。
+// 我们没有响应式，所以在每次 renderBag 时重算一遍，保证「用/售」后角标实时更新。
+function bagCountFor(k){
+  if(!k) return BAG_ALL.length;                                            // 全部
+  if(k==='props') return BAG_ALL.filter(it=>it.category==='props'||it.category==='fertilizer').length;
+  return BAG_ALL.filter(it=>it.category===k).length;
+}
+function renderBagCounts(){
+  const labels={'':'全部','fruit':'果实','seed':'种子','props':'道具','other':'其他'};
+  document.querySelectorAll('#p-bag .bag-cats .seg-btn').forEach(b=>{
+    const k=b.dataset.bagcat||'';
+    b.textContent = (labels[k]||k) + ' (' + bagCountFor(k) + ')';
+  });
+}
 function renderBag(cat){
+  renderBagCounts();
   const container = document.querySelector('#p-bag .bag-grid');
   if(!container) return;
   let list = BAG_ALL;
@@ -2186,6 +2331,15 @@ function renderBagSellBar(){
     btn.addEventListener('click', async ()=>{
       const old=btn.textContent; btn.disabled=true; btn.textContent='处理中…';
       try{
+        // 一键铲除走 /api/land/remove-all（对齐 Node worker.js removeAllPlants，过滤空地/未解锁）
+        if(btn.classList.contains('fa-remove-all')){
+          if(!confirm('确定要铲除全部已种植作物吗？此操作不可恢复。')) return;
+          const resp=await fetch('/api/land/remove-all?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          const data=await resp.json();
+          alert(data.ok ? ('操作完成：'+((data.message)||'铲除')) : ('失败：'+(data.error||'未知')));
+          if(data.ok){ loadLands(true); if(window.loadLogs)loadLogs(); }
+          return;
+        }
         const body={action:actMap[cls]};
         if(actMap[cls]==='plant'){ body.landId='1'; body.seedId='200001'; }
         const resp=await fetch('/api/farm/action?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -2201,16 +2355,15 @@ function renderBagSellBar(){
   fetch('/api/bag/items?accountId='+accId()).then(r=>r.json()).then(d=>{
     if(!(d.ok&&d.data)) return;
     BAG_ALL=d.data;
-    renderBag('');
+    // 默认分类对齐 Node BagPanel.vue:34 `selectedCategory = ref('fruit')`——
+    // 默认落在「果实」，金币/经验(category=other) 不会一进来就糊在最前面。
+    renderBag('fruit');
     const pane=document.querySelector('#p-bag');
     if(!pane) return;
-    const catMap=[['','全部'],['fruit','果实'],['seed','种子'],['props','道具'],['other','其他']];
-    const btns=pane.querySelectorAll('.seg > button');
-    const countFor=(k)=>{ if(!k) return BAG_ALL.length; if(k==='props') return BAG_ALL.filter(it=>it.category==='props'||it.category==='fertilizer').length; return BAG_ALL.filter(it=>it.category===k).length; };
-    btns.forEach((b,idx)=>{
-      const key=catMap[idx][0]; const label=catMap[idx][1];
-      b.textContent = label + ' (' + countFor(key) + ')';
-      const cfg=b.dataset.bagcat; // 记录点击目标分类
+    // 角标不再在这里算一次就完事——统一由全局 renderBagCounts() 维护，
+    // renderBag() 每次调用都会重算，所以「用/售」后 loadBag() 刷新时角标会跟着变。
+    const btns=pane.querySelectorAll('.bag-cats .seg-btn');
+    btns.forEach(b=>{
       b.addEventListener('click',()=>{
         btns.forEach(x=>x.classList.remove('active')); b.classList.add('active');
         renderBag(b.dataset.bagcat || '');
@@ -2282,10 +2435,10 @@ document.addEventListener('click', async (e)=>{
   const pb = e.target.closest('.plot-btns button');
   if(pb){
     const plot = pb.closest('.plot');
-    const no = plot ? ((plot.querySelector('.no').textContent||'')).replace('#','') : '';
+    const no = plot ? ((plot.querySelector('.lc-id').textContent||'')).replace('#','') : '';
     try{
       if(pb.classList.contains('p-cuisi')){ const d=await postJSON('/api/land/fertilize?accountId='+accIdQ(),{landId:no}); alert(d.ok?'催熟完成':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
-      else if(pb.classList.contains('p-chan')){ const d=await postJSON('/api/farm/operate?accountId='+accIdQ(),{opType:'clear',landId:no}); alert(d.ok?'已铲除':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
+      else if(pb.classList.contains('p-chan')){ const d=await postJSON('/api/land/remove?accountId='+accIdQ(),{landId:no}); alert(d.ok?'已铲除':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
     }catch(err){ alert('请求失败：'+err.message); }
     return;
   }

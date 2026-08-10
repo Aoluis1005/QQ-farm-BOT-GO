@@ -21,6 +21,8 @@ const friendService = "gamepb.friendpb.FriendService"
 func registerFriendOpsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/operate", handleFarmOperate)
 	mux.HandleFunc("/api/land/fertilize", handleLandFertilize)
+	mux.HandleFunc("/api/land/remove", handleLandRemove)
+	mux.HandleFunc("/api/land/remove-all", handleLandRemoveAll)
 	mux.HandleFunc("/api/friend-blacklist/toggle", handleFriendBlacklistToggle)
 	mux.HandleFunc("/api/friend/", handleFriendRoute)
 	mux.HandleFunc("/api/friend/apply", handleFriendApply)
@@ -107,13 +109,112 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid landId")
 		return
 	}
-	if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest(ids, normalFertilizerID)); err != nil {
+	// 单块地催熟使用有机肥料（对齐 Node worker.js fertilizeLand: fertilize([landId], ORGANIC_FERTILIZER_ID)）
+	if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest(ids, organicFertilizerID)); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
 	recordOperation(accountID, "fertilize", int64(len(ids)))
 	appendOpLog(accountID, "fertilize", "催熟 "+req.LandID)
 	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID, "message": "催熟完成"})
+}
+
+// POST /api/land/remove  body: { landId }  —— 铲除单块地作物（对齐 Node admin-farm-operation-routes.js /api/land/remove）
+func handleLandRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		LandID string `json:"landId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "bad json")
+		return
+	}
+	if req.LandID == "" {
+		writeError(w, 400, "缺少土地ID")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	ids := parseIDs(req.LandID)
+	if len(ids) == 0 {
+		writeError(w, 400, "invalid landId")
+		return
+	}
+	if err := execFarmOp(c, "RemovePlant", proto.EncodeRemovePlantRequest(ids)); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	recordOperation(accountID, "remove", int64(len(ids)))
+	appendOpLog(accountID, "remove", "铲除 "+req.LandID)
+	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID, "message": "铲除完成"})
+}
+
+// POST /api/land/remove-all  —— 一键铲除全部已种植作物（对齐 Node worker.js removeAllPlants：
+// 过滤 unlocked && status 不在 empty/locked，然后批量 RemovePlant）
+func handleLandRemoveAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	body, ok := c.LandsCached(0)
+	if !ok {
+		rep, err := c.Request(r.Context(), "gamepb.plantpb.PlantService", "AllLands",
+			proto.EncodeAllLandsRequest(0), 15*time.Second)
+		if err != nil {
+			writeError(w, 500, "拉取农场失败: "+err.Error())
+			return
+		}
+		body = rep.Body
+	}
+	all := proto.DecodeAllLandsReply(body)
+	var ids []int64
+	for _, l := range all.Lands {
+		if !l.Unlocked {
+			continue
+		}
+		status := "empty"
+		if l.Plant != nil && len(l.Plant.Phases) > 0 {
+			now := time.Now().Unix()
+			if cp := farmCurrentPhase(l.Plant.Phases, now); cp != nil {
+				switch cp.Phase {
+				case proto.PhaseMature:
+					status = "harvestable"
+				case proto.PhaseDead:
+					status = "dead"
+				default:
+					status = "growing"
+				}
+			}
+		}
+		if status == "empty" || status == "locked" {
+			continue
+		}
+		ids = append(ids, l.ID)
+	}
+	if len(ids) == 0 {
+		writeJSON(w, map[string]interface{}{"ok": true, "removed": 0, "message": "没有可铲除的作物"})
+		return
+	}
+	if err := execFarmOp(c, "RemovePlant", proto.EncodeRemovePlantRequest(ids)); err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	recordOperation(accountID, "remove", int64(len(ids)))
+	appendOpLog(accountID, "remove-all", fmt.Sprintf("一键铲除 %d 块地", len(ids)))
+	writeJSON(w, map[string]interface{}{"ok": true, "removed": len(ids), "message": fmt.Sprintf("已铲除 %d 块地", len(ids))})
 }
 
 // POST /api/friend-blacklist/toggle  body: { gid, skipSteal?, skipHelp? }   —— 拉黑/取消拉黑（本地持久化黑名单库）

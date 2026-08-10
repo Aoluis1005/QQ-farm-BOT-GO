@@ -1,5 +1,7 @@
 package proto
 
+import "strings"
+
 // gamepb.itempb / corepb 背包编解码
 
 // 点券/金豆物品ID
@@ -76,6 +78,34 @@ func EncodeUseRequest(itemID, count int64) []byte {
 	b.FieldInt64(1, itemID)
 	b.FieldInt64(2, count)
 	return b.Bytes()
+}
+
+// EncodeUseRequestFallback 使用物品的 raw protobuf 回退编码。
+//
+// 严格照抄 Node core/src/services/warehouse.js useItem() 的 catch 分支（118-134 行）：
+//
+//	writer.uint32(10).fork();                // field 1, wire 2（嵌套 message）
+//	writer.uint32(8).int64(toLong(itemId));  // 内层 field 1, varint
+//	writer.uint32(16).int64(toLong(count));  // 内层 field 2, varint
+//	writer.ldelim();
+//
+// 即：外层 field1 是一个 length-delimited 子消息，子消息里才是 item_id/count。
+// 与 itempb.proto 里 UseRequest{item_id=1,count=2} 的平铺结构不同——线上服务端
+// 实际期望的是这种嵌套形态，proto 文件已过时，故 Node 才需要这个回退。
+// 用 Always 版本以忠实对齐 protobuf.js Writer 低层 API（不做默认值跳过）。
+func EncodeUseRequestFallback(itemID, count int64) []byte {
+	sub := NewBuilder()
+	sub.FieldInt64Always(1, itemID)
+	sub.FieldInt64Always(2, count)
+	b := NewBuilder()
+	b.FieldMessage(1, sub.Bytes())
+	return b.Bytes()
+}
+
+// IsBadParamError 对齐 Node warehouse.js:120 的判定：
+// msg.includes('code=1000020') || msg.includes('请求参数错误')
+func IsBadParamError(msg string) bool {
+	return strings.Contains(msg, "code=1000020") || strings.Contains(msg, "请求参数错误")
 }
 
 // EncodeSellRequest 对齐 Node itempb.proto SellRequest{items=1} 每项 corepb.Item{id=1,count=2,uid=6}
