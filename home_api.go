@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Aoluis1005/go-farm-bot/models"
@@ -169,13 +171,23 @@ func handleHomePatrol(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DELETE /api/logs  清空操作日志
+// DELETE /api/logs  清空操作日志（对齐 Node clearLogs：真正删除该账号日志文件，
+// 否则前端清空后刷新页面又会从文件读回来）
 func handleLogsDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeError(w, 405, "method not allowed")
 		return
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "message": "logs cleared"})
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	if accountID == "" {
+		accountID = "default"
+	}
+	path := filepath.Join(dataDir, "logs", accountID+".log")
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		writeError(w, 500, "清空日志失败: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "message": "日志已清空", "accountId": accountID})
 }
 
 func handleHomeLogs(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +227,8 @@ func formatGold(v int64) string {
 }
 
 // parseLogLine 解析日志行 "[date time] action detail" → 前端展示对象
+// 字段对齐 Node status.ts normalizeLogEntry 消费的 /api/logs 条目：
+// time/tag/msg/meta{event}（Node Dashboard.vue 渲染 [时间] [tag徽章] [event徽章] msg）
 func parseLogLine(ln string) map[string]interface{} {
 	i := strings.Index(ln, "] ")
 	if i < 0 {
@@ -228,14 +242,11 @@ func parseLogLine(ln string) map[string]interface{} {
 		action = rest[:j]
 		detail = rest[j+1:]
 	}
-	tag := actionTagFor(action)
 	return map[string]interface{}{
-		"type":     action,
-		"color":    actionColorFor(action),
-		"message":  detail,
-		"tag":      tag,
-		"tagColor": "var(--primary-soft)",
-		"time":     t,
+		"time": t, // "01-02 15:04:05"，前端取空格后部分显示
+		"tag":  actionTagFor(action),
+		"msg":  detail,
+		"meta": map[string]interface{}{"event": action}, // 对齐 Node meta.event 徽章
 	}
 }
 

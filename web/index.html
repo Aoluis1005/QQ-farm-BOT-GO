@@ -207,21 +207,22 @@ body{
 .switch.on{ background:linear-gradient(90deg,var(--primary),var(--primary-2)); }
 .switch.on::after{ transform:translateX(16px); }
 
-/* 操作日志 */
+/* 操作日志（功能对齐 Node：清空真删、自动滚动；UI 风格与全局一致） */
 .logs{
   background:var(--card); backdrop-filter:blur(16px);
   border:1px solid var(--border); border-radius:var(--radius-lg);
   padding:6px 14px; box-shadow:var(--shadow-sm);
-  max-height:280px; overflow-y:auto;
+  max-height:280px; overflow-y:auto; overscroll-behavior:contain;
 }
 .logs::-webkit-scrollbar{ width:0; }
-.log{ display:flex; gap:11px; padding:11px 2px; border-bottom:1px solid var(--border); }
-.log:last-child{ border-bottom:none; }
-.log .dot{ width:9px;height:9px;border-radius:50%;margin-top:5px; flex:none; box-shadow:0 0 8px currentColor; }
-.log .l-time{ font-size:11px; color:var(--muted-2); font-variant-numeric:tabular-nums; margin-top:1px; }
-.log p{ font-size:13px; line-height:1.45; }
-.log .tag{ display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; margin-left:6px; vertical-align:1px; }
-.log small{ font-size:11.5px; color:var(--muted); }
+.log-row{ display:flex; align-items:flex-start; gap:8px; padding:10px 2px; border-bottom:1px solid var(--border); }
+.log-row:last-child{ border-bottom:none; }
+.log-row .dot{ width:8px;height:8px;border-radius:50%;margin-top:5px; flex:none; box-shadow:0 0 8px currentColor; }
+.log-row .log-msg{ flex:1; min-width:0; font-size:12.5px; line-height:1.45; color:var(--foreground); word-break:break-all; }
+.log-row .log-tag{ font-style:normal; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; margin-left:4px; vertical-align:1px; flex:none; background:var(--primary-soft); color:var(--primary); }
+.log-row small{ font-size:11px; color:var(--muted-2); font-variant-numeric:tabular-nums; flex:none; margin-top:2px; white-space:nowrap; }
+.logs .log-empty{ text-align:center; padding:22px 0; color:var(--muted); font-size:12.5px; }
+.logs .log-empty span{ font-size:11px; color:var(--muted-2); display:block; margin-top:4px; }
 
 /* ============ 页面切换 ============ */
 .page{ display:none; animation:fadeUp .35s var(--ease); }
@@ -2297,12 +2298,8 @@ function renderBagSellBar(){
 (function(){
   const accId = () => new URLSearchParams(location.search).get('accountId') || '';
 
-  // 首页运行日志
-  fetch('/api/home/logs?accountId='+accId()).then(r=>r.json()).then(d=>{
-    if(!(d.ok&&d.data)) return;
-    const box=document.getElementById('logBox'); if(!box) return;
-    box.innerHTML = d.data.map(l=>`<div class="log-row"><i style="color:${l.color||'var(--muted)'}">●</i><span>${l.message||''}</span><em>${l.tag||''}</em><small>${l.time||''}</small></div>`).join('');
-  }).catch(()=>{});
+  // 首页运行日志（统一走 window.loadLogs：Node 风格渲染 + 空状态 + 自动滚动）
+  if(window.loadLogs) window.loadLogs();
 
   // 巡查开关：点击持久化
   const switchMap={'偷菜':'steal','帮忙':'help','收菜':'farm'};
@@ -2484,11 +2481,11 @@ document.addEventListener('click', async (e)=>{
     alert('已全部开启');
   });
 
-  // 清空日志
+  // 清空日志（对齐 Node clearLogs：DELETE 真删后端文件，再重新拉取确认空——否则刷新后日志又回来）
   const clearLogs = document.getElementById('clearLogs');
   if(clearLogs) clearLogs.addEventListener('click', async ()=>{
-    try{ await fetch('/api/logs', {method:'DELETE'}); }catch(e){}
-    const box=document.getElementById('logBox'); if(box) box.innerHTML='';
+    try{ await fetch('/api/logs?accountId='+accIdQ(), {method:'DELETE'}); }catch(e){}
+    if(window.loadLogs) window.loadLogs();
     alert('日志已清空');
   });
 
@@ -2710,15 +2707,44 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 
 <script>
-/* 操作日志区刷新（读后端真实日志文件） */
+/* 操作日志区刷新（功能对齐 Node：清空真删 + 自动滚动；渲染风格与全局一致：
+   ●圆点 + 消息 + tag 胶囊 + 时间；空状态） */
+let logAutoScroll = true;
+/* 圆点颜色按操作类型（沿用原 actionColorFor 语义） */
+function logDotColor(l){
+  const ev=(l.meta&&l.meta.event)||'';
+  if(ev==='harvest'||ev==='full') return 'var(--good)';
+  if(ev==='fertilize'||ev==='plant') return 'var(--grow)';
+  if(ev==='clear'||ev==='remove'||ev==='remove-all') return 'var(--warn)';
+  if(ev==='steal') return 'var(--primary)';
+  if(ev==='upgrade'||ev==='unlock') return 'var(--primary-2)';
+  return 'var(--muted)';
+}
 window.loadLogs=function(){
   const acc=new URLSearchParams(location.search).get('accountId')||'';
   fetch('/api/home/logs?accountId='+acc).then(r=>r.json()).then(d=>{
     if(!(d.ok&&d.data)) return;
     const box=document.getElementById('logBox'); if(!box) return;
-    box.innerHTML=d.data.map(l=>`<div class="log-row"><i style="color:${l.color||'var(--muted)'}">●</i><span>${l.message||''}</span><em>${l.tag||''}</em><small>${l.time||''}</small></div>`).join('');
+    if(!d.data.length){
+      box.innerHTML='<div class="log-empty">📄 暂无日志<span>运行账号后，这里会持续追加巡查、种植、任务和出售记录。</span></div>';
+    }else{
+      box.innerHTML=d.data.map(l=>'<div class="log-row"><i class="dot" style="color:'+logDotColor(l)+'">●</i>'+
+        '<span class="log-msg">'+esc(l.msg||'')+'</span>'+
+        (l.tag?'<em class="log-tag">'+esc(l.tag)+'</em>':'')+
+        '<small>'+esc(l.time||'')+'</small></div>').join('');
+    }
+    if(logAutoScroll) box.scrollTop=box.scrollHeight; // 对齐 Node：autoScroll 时滚到底
   }).catch(()=>{});
 };
+/* 滚动监听：用户上滚（剩余<50px 才算贴底）暂停自动滚动（对齐 Node onLogScroll） */
+(function(){
+  const box=document.getElementById('logBox');
+  if(!box) return;
+  box.addEventListener('scroll',()=>{
+    logAutoScroll = (box.scrollHeight - box.scrollTop - box.clientHeight) < 50;
+  });
+})();
+window.loadLogs();
 </script>
 
 <script>
