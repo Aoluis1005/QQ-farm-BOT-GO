@@ -588,39 +588,90 @@ func handleFriendVisitors(w http.ResponseWriter, r *http.Request) {
 	})
 
 	out := make([]map[string]interface{}, 0, len(recs))
-	for _, rec := range recs {
+	for i, rec := range recs {
 		name := rec.Nick
 		if name == "" {
 			name = fmt.Sprintf("GID:%d", rec.VisitorGID)
 		}
-		out = append(out, map[string]interface{}{
-			"name":   name,
-			"avatar": rec.AvatarURL,
-			"action": visitorActionLabel(rec),
-			"time":   formatVisitorTime(rec.ServerTime),
-		})
+			out = append(out, map[string]interface{}{
+		"key":          fmt.Sprintf("%d-%d-%d-%d", rec.ServerTime, rec.VisitorGID, rec.ActionType, i),
+		"visitorGid":   rec.VisitorGID,
+		"nick":         name,
+		"avatarUrl":    rec.AvatarURL,
+		"actionType":   rec.ActionType,
+		"actionLabel":  interactActionLabel(rec.ActionType),
+		"actionDetail": buildInteractDetail(rec),
+		"serverTimeMs": serverTimeMs(rec.ServerTime),
+		"level":        rec.Level,
+		"landId":       rec.LandID,
+		"times":        rec.Times,
+		"name":         name,
+		"avatar":       rec.AvatarURL,
+		"action":       interactActionLabel(rec.ActionType),
+		"time":         formatVisitorTime(rec.ServerTime),
+	})
+
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
 }
 
-// visitorActionLabel 对齐 Node interact.js getActionLabel + buildActionDetail 的简短展示
-func visitorActionLabel(rec *proto.InteractRecord) string {
+// interactActionLabel 对齐 Node interact.js getActionLabel / ACTION_LABELS
+func interactActionLabel(t int32) string {
+	switch t {
+	case 1:
+		return "偷取"
+	case 2:
+		return "帮忙"
+	case 3:
+		return "捣乱"
+	default:
+		return "互动"
+	}
+}
+
+// buildInteractDetail 对齐 Node interact.js buildActionDetail
+func buildInteractDetail(rec *proto.InteractRecord) string {
 	var parts []string
 	switch rec.ActionType {
 	case 1:
-		parts = append(parts, "偷取作物")
+		if rec.CropCount > 0 {
+			parts = append(parts, fmt.Sprintf("偷取作物 × %d", rec.CropCount))
+		} else {
+			parts = append(parts, "偷取作物")
+		}
 	case 2:
-		parts = append(parts, "帮忙")
+		if rec.Times > 0 {
+			parts = append(parts, fmt.Sprintf("帮忙 %d 次", rec.Times))
+		} else {
+			parts = append(parts, "帮忙")
+		}
 	case 3:
-		parts = append(parts, "捣乱")
+		if rec.Times > 0 {
+			parts = append(parts, fmt.Sprintf("捣乱 %d 次", rec.Times))
+		} else {
+			parts = append(parts, "捣乱")
+		}
 	default:
-		parts = append(parts, "互动")
+		if rec.Times > 0 {
+			parts = append(parts, fmt.Sprintf("互动 %d 次", rec.Times))
+		} else {
+			parts = append(parts, "互动")
+		}
 	}
 	if rec.LandID > 0 {
 		parts = append(parts, fmt.Sprintf("地块 %d", rec.LandID))
 	}
 	return strings.Join(parts, " · ")
 }
+
+// serverTimeMs 服务器秒 -> 毫秒（对齐 Node serverTimeMs = serverTimeSec*1000）
+func serverTimeMs(sec int64) int64 {
+	if sec <= 0 {
+		return 0
+	}
+	return sec * 1000
+}
+
 
 // formatVisitorTime 服务器时间(秒) → 可读时间
 func formatVisitorTime(sec int64) string {

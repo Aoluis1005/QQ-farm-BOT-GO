@@ -620,6 +620,30 @@ body{
 .fs5{ color:var(--grow); } .fs6{ color:var(--muted); } .fs7{ color:var(--danger); border-color:color-mix(in oklch,var(--danger) 55%,var(--border)) !important; background:color-mix(in oklch,var(--danger) 12%,transparent); }
 
 .nb{ display:inline-block; margin-left:3px; font-size:9px; background:var(--danger); color:#fff; border-radius:999px; padding:0 5px; line-height:14px; }
+
+.visitor-card{ border-radius:16px; background:var(--card); border:1px solid var(--border); padding:14px; margin-bottom:10px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:10px; }
+.visitor-card .fc-head{ flex:1; min-width:0; }
+.visitor-card .f-av{ width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft); overflow:hidden; }
+.visitor-card .f-av img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
+.visitor-card .f-info{ flex:1; min-width:0; }
+.visitor-card .f-info h4{ font-size:14px; font-weight:600; }
+.visitor-card .f-info p{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.visitor-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:8px 0 12px; }
+.vstat{ background:var(--glass); border:1px solid var(--border); border-radius:14px; padding:10px 6px; text-align:center; }
+.vstat b{ display:block; font-size:18px; color:var(--text); }
+.vstat span{ font-size:11px; color:var(--muted); }
+.visitor-filters{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+.v-err{ background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.3); border-radius:12px; padding:10px 12px; font-size:12px; margin:8px 0; }
+.v-empty{ text-align:center; color:var(--muted); padding:18px 12px; }
+.v-badge{ display:inline-block; font-size:11px; padding:1px 8px; border-radius:999px; margin-right:4px; vertical-align:middle; }
+.v-badge.steal{ background:rgba(59,130,246,.15); color:#3b82f6; }
+.v-badge.help{ background:rgba(34,197,94,.15); color:#22c55e; }
+.v-badge.bad{ background:rgba(239,68,68,.15); color:#ef4444; }
+.v-lvl{ font-size:11px; padding:1px 6px; border-radius:999px; background:var(--glass); color:var(--muted); margin-right:4px; }
+.v-time{ font-size:11px; color:var(--muted); white-space:nowrap; }
+.v-av-img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
+.v-av-fb{ width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted); }
+
 </style>
 </head>
 <body data-theme="dark">
@@ -1250,7 +1274,25 @@ body{
       </div>
 
       <div class="f-sub" data-pane="visitors">
-        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">最近来过你农场的玩家</p>
+        <div class="visitor-stats">
+          <div class="vstat"><b id="vTotal">0</b><span>访客总数</span></div>
+          <div class="vstat"><b id="vSteal">0</b><span>偷菜记录</span></div>
+          <div class="vstat"><b id="vHelp">0</b><span>帮忙记录</span></div>
+          <div class="vstat"><b id="vBad">0</b><span>捣乱记录</span></div>
+        </div>
+        <div class="visitor-filters">
+          <button class="chip on" data-vf="all">全部</button>
+          <button class="chip" data-vf="steal">偷菜</button>
+          <button class="chip" data-vf="help">帮忙</button>
+          <button class="chip" data-vf="bad">捣乱</button>
+          <button class="chip" id="vRefresh" style="margin-left:auto">刷新</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin:4px 0 8px">仅展示最近 50 条访客记录</p>
+        <div id="visitorErr" class="v-err" style="display:none"></div>
+        <div id="visitorEmpty" class="v-empty" style="display:none">
+          <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">暂无访客记录</div>
+          <div style="font-size:11px;color:var(--muted)">有新访客后会同步展示在这里，QQ 账号也会用它补充已知 GID；如果这里长期为空，好友同步也会相对受限。</div>
+        </div>
         <div id="visitorList"></div>
       </div>
 
@@ -1755,6 +1797,114 @@ function fcLandFill(container){
     }).catch(()=>{ container.innerHTML = '<p class="f-land-empty">地块加载失败</p>'; });
 }
 
+
+/* ===== 访客记录（对齐 Node Friends.vue interactRecords） ===== */
+var visitorCache = [];
+var visitorFilter = 'all';
+var visitorAvatarErr = {};
+function setText(id, t){ var el = document.getElementById(id); if(el) el.textContent = t; }
+function interactBadgeClass(t){
+  var n = Number(t);
+  if(n===1) return 'v-badge steal';
+  if(n===2) return 'v-badge help';
+  if(n===3) return 'v-badge bad';
+  return 'v-badge';
+}
+function interactBadgeText(t){
+  var n = Number(t);
+  if(n===1) return '偷取';
+  if(n===2) return '帮忙';
+  if(n===3) return '捣乱';
+  return '互动';
+}
+function formatInteractTime(ts){
+  ts = Number(ts)||0;
+  if(!ts) return '--';
+  var date = new Date(ts), now = new Date();
+  var diff = now.getTime() - date.getTime();
+  var minute = 60000, hour = 3600000;
+  if(diff>=0 && diff<minute) return '刚刚';
+  if(diff>=minute && diff<hour) return Math.floor(diff/minute)+' 分钟前';
+  function p(n){ return String(n).padStart(2,'0'); }
+  var sameDay = now.getFullYear()===date.getFullYear() && now.getMonth()===date.getMonth() && now.getDate()===date.getDate();
+  if(sameDay) return '今天 '+p(date.getHours())+':'+p(date.getMinutes());
+  if(now.getFullYear()===date.getFullYear()) return (date.getMonth()+1)+'-'+date.getDate()+' '+p(date.getHours())+':'+p(date.getMinutes());
+  return date.getFullYear()+'-'+p(date.getMonth()+1)+'-'+p(date.getDate())+' '+p(date.getHours())+':'+p(date.getMinutes());
+}
+function loadVisitors(){
+  var acc = friendAccId();
+  var box = document.getElementById('visitorList');
+  var errBox = document.getElementById('visitorErr');
+  var emptyBox = document.getElementById('visitorEmpty');
+  if(!box) return;
+  box.innerHTML = '<p style="text-align:center;color:var(--muted);margin-top:16px">加载中...</p>';
+  if(errBox) errBox.style.display = 'none';
+  fetch('/api/friends/visitors?accountId='+acc).then(function(r){ return r.json(); }).then(function(d){
+    if(!d.ok){
+      if(errBox){ errBox.textContent = (d.error||'加载访客记录失败'); errBox.style.display = 'block'; }
+      box.innerHTML = '';
+      return;
+    }
+    visitorCache = Array.isArray(d.data) ? d.data : [];
+    renderVisitors();
+  }).catch(function(err){
+    if(errBox){ errBox.textContent = '加载访客记录失败：' + (err && err.message ? err.message : err); errBox.style.display = 'block'; }
+    box.innerHTML = '';
+  });
+}
+function renderVisitors(){
+  var box = document.getElementById('visitorList');
+  var emptyBox = document.getElementById('visitorEmpty');
+  var errBox = document.getElementById('visitorErr');
+  if(!box) return;
+  if(errBox) errBox.style.display = 'none';
+  var list = visitorCache;
+  setText('vTotal', list.length);
+  setText('vSteal', list.filter(function(r){ return Number(r.actionType)===1; }).length);
+  setText('vHelp', list.filter(function(r){ return Number(r.actionType)===2; }).length);
+  setText('vBad', list.filter(function(r){ return Number(r.actionType)===3; }).length);
+  var map = { all:0, steal:1, help:2, bad:3 };
+  var tgt = map[visitorFilter] || 0;
+  var view = (visitorFilter==='all') ? list : list.filter(function(r){ return Number(r.actionType)===tgt; });
+  view = view.slice(0, 50);
+  if(!view.length){ if(emptyBox) emptyBox.style.display = 'block'; box.innerHTML = ''; return; }
+  if(emptyBox) emptyBox.style.display = 'none';
+  box.innerHTML = view.map(function(v, idx){
+    var key = v.key || (v.visitorGid + '-' + v.serverTimeMs + '-' + v.actionType + '-' + idx);
+    var av = v.avatarUrl || v.avatar || '';
+    var showAv = !!av && !visitorAvatarErr[key];
+    var avHtml = showAv ? '<img src="'+esc(av)+'" alt="" class="v-av-img">' : '<div class="v-av-fb">访</div>';
+    var name = v.nick || (v.visitorGid ? ('GID:'+v.visitorGid) : (v.name || '访客'));
+    var detail = v.actionDetail || v.actionLabel || v.action || '';
+    var time = formatInteractTime(Number(v.serverTimeMs || v.timeSec || 0));
+    var gidTxt = v.visitorGid ? ('GID '+v.visitorGid) : '';
+    var lvl = (v.level>0) ? ('<span class="v-lvl">Lv.'+v.level+'</span>') : '';
+    return '<div class="visitor-card"><div class="fc-head"><div class="f-av">'+avHtml+'</div>'+
+      '<div class="f-info"><h4>'+esc(name)+' <span class="'+interactBadgeClass(v.actionType)+'">'+interactBadgeText(v.actionType)+'</span> '+lvl+' <small class="fc-id">'+gidTxt+'</small></h4>'+
+      '<p>'+esc(detail)+'</p></div></div>'+
+      '<div class="v-time">'+esc(time)+'</div></div>';
+  }).join('');
+  box.querySelectorAll('.v-av-img').forEach(function(img){
+    img.addEventListener('error', function(){
+      var fb = document.createElement('div');
+      fb.className = 'v-av-fb';
+      fb.textContent = '访';
+      if(img.parentNode) img.parentNode.replaceChild(fb, img);
+    });
+  });
+}
+(function(){
+  var chips = document.querySelectorAll('#p-friends .visitor-filters .chip[data-vf]');
+  chips.forEach(function(b){ b.addEventListener('click', function(){
+    chips.forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    visitorFilter = b.dataset.vf;
+    renderVisitors();
+  }); });
+  var rf = document.getElementById('vRefresh');
+  if(rf) rf.addEventListener('click', loadVisitors);
+})();
+
 function loadFriendSub(sub){
   const acc = friendAccId();
   if(sub==='list'){
@@ -1795,13 +1945,7 @@ function loadFriendSub(sub){
     }).catch(()=>{});
   }
   else if(sub==='visitors'){
-    fetch('/api/friends/visitors?accountId='+acc).then(r=>r.json()).then(d=>{
-      if(!(d.ok&&d.data)) return;
-      const list=d.data;
-      const box=document.getElementById('visitorList'); if(!box) return;
-      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无访客记录</p>'; return; }
-      box.innerHTML=list.map(v=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${favHtml(v.avatar,'🚶')}</div><div class="f-info"><h4>${v.name||''}</h4><p>${v.action||''} · ${v.time||''}</p></div></div></div>`).join('');
-    }).catch(()=>{});
+    loadVisitors();
   }
   else if(sub==='del'){
     fetch('/api/friends/list?accountId='+acc).then(r=>r.json()).then(d=>{
