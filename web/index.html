@@ -1831,6 +1831,9 @@ function formatInteractTime(ts){
   if(now.getFullYear()===date.getFullYear()) return (date.getMonth()+1)+'-'+date.getDate()+' '+p(date.getHours())+':'+p(date.getMinutes());
   return date.getFullYear()+'-'+p(date.getMonth()+1)+'-'+p(date.getDate())+' '+p(date.getHours())+':'+p(date.getMinutes());
 }
+/* 全局 esc：HTML 转义。必须定义在全局作用域——friends/visitors/黑名单等多个 <script> 块都会用到；
+   之前它只定义在生涯统计那个 IIFE 内部，导致其它块调用时 esc is not defined。 */
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function loadVisitors(){
   var acc = friendAccId();
   var box = document.getElementById('visitorList');
