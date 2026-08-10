@@ -21,6 +21,8 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/action", handleFarmAction)
 	mux.HandleFunc("/api/farm/plant", handleFarmPlant)
 	mux.HandleFunc("/api/bag/items", handleBagItems)
+	mux.HandleFunc("/api/bag/use", handleBagUse)
+	mux.HandleFunc("/api/bag/sell", handleBagSell)
 	mux.HandleFunc("/api/friends/list", handleFriendList)
 	mux.HandleFunc("/api/friends/lands", handleFriendLandsRoute)
 	mux.HandleFunc("/api/friends/blacklist", handleFriendBlacklist)
@@ -276,6 +278,8 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		Category string `json:"category"`
 		Img      string `json:"img,omitempty"`
 		Icon     string `json:"icon,omitempty"`
+		ItemType int64  `json:"itemType"` // 对齐 Node info.type：6/17=果实可售, 11=道具可用
+		UID      int64  `json:"uid"`       // 物品实例 uid，出售时回传
 	}
 	items := make([]bagOut, 0, len(br.Items))
 	for _, it := range br.Items {
@@ -283,7 +287,8 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		cat, name := classifyBagCategory(it.ID)
-		outItem := bagOut{ID: it.ID, Name: name, Count: it.Count, Category: cat}
+		outItem := bagOut{ID: it.ID, Name: name, Count: it.Count, Category: cat,
+			ItemType: int64(itemInfoMap[int(it.ID)].Type), UID: it.UID}
 		if img := GetItemImageURL(int(it.ID)); img != "" {
 			outItem.Img = img
 		} else {
@@ -306,6 +311,83 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]interface{}{"ok": true, "data": items})
+}
+
+// handleBagUse POST /api/bag/use 对齐 Node admin-bag-routes.js POST /api/bag/use
+func handleBagUse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		ItemID int64 `json:"itemId"`
+		Count  int64 `json:"count"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "bad json")
+		return
+	}
+	if req.ItemID <= 0 {
+		writeError(w, 400, "缺少 itemId")
+		return
+	}
+	if req.Count <= 0 {
+		req.Count = 1
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	if _, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Use",
+		proto.EncodeUseRequest(req.ItemID, req.Count), 12*time.Second); err != nil {
+		writeError(w, 500, "使用失败: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "message": "use ok"})
+}
+
+// handleBagSell POST /api/bag/sell 对齐 Node admin-bag-routes.js POST /api/bag/sell
+func handleBagSell(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		Items []struct {
+			ID    int64 `json:"id"`
+			Count int64 `json:"count"`
+			UID   int64 `json:"uid"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "bad json")
+		return
+	}
+	items := make([]proto.SellItem, 0, len(req.Items))
+	for _, it := range req.Items {
+		if it.ID <= 0 || it.Count <= 0 {
+			continue
+		}
+		items = append(items, proto.SellItem{ID: it.ID, Count: it.Count, UID: it.UID})
+	}
+	if len(items) == 0 {
+		writeError(w, 400, "items 无效")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	if _, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Sell",
+		proto.EncodeSellRequest(items), 12*time.Second); err != nil {
+		writeError(w, 500, "出售失败: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "message": "sell ok"})
 }
 
 // classifyBagCategory 对齐 Node warehouse.js getBagDetail 的 category 判定。

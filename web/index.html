@@ -1242,6 +1242,10 @@ body{
       <div class="bag-grid">
         <!-- 背包物品由 /api/bag/items 动态渲染（renderBag） -->
       </div>
+      <div id="bagSellBar" style="display:none;position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:var(--card);border-top:1px solid var(--line);align-items:center;gap:12px;z-index:60">
+        <span style="color:var(--muted);font-size:13px">勾选要出售的果实</span>
+        <button id="bagSellConfirm" class="seg-btn" style="margin-left:auto">确认出售选中 (0)</button>
+      </div>
     </div>
 
     <!-- 好友子页 -->
@@ -2090,15 +2094,58 @@ function loadLands(force){
   }).catch(()=>{});
 }
 let BAG_ALL = [];
+let BAG_SELL_MODE = false;
+// 对齐 Node BagPanel.vue 的 canUse/canSell 判定（itemType 取自后端，= Node info.type）
+function bagCanUse(it){ const t=Number(it.itemType); return t===11; }
+function bagCanSell(it){ const t=Number(it.itemType); return t===17||t===6; }
 function renderBag(cat){
   const container = document.querySelector('#p-bag .bag-grid');
   if(!container) return;
   let list = BAG_ALL;
   if(cat==='props') list = BAG_ALL.filter(it => it.category==='props'||it.category==='fertilizer');
   else if(cat) list = BAG_ALL.filter(it => it.category===cat);
-  container.innerHTML = list.length ? list.map(it =>
-    `<div class="bag-item"><span class="bi-id">${it.id}</span><div class="bi-icon">${it.img ? `<img src="${it.img}" style="width:34px;height:34px;object-fit:contain;border-radius:8px">` : `<span style="font-size:20px">${it.icon||'📦'}</span>`}</div><div class="bi-name">${it.name||''}</div><div class="bi-meta">数量 ×${it.count}</div></div>`
-  ).join('') : '<p style="text-align:center;color:var(--muted);margin-top:24px">该分类暂无物品</p>';
+  if(!list.length){
+    container.innerHTML = '<p style="text-align:center;color:var(--muted);margin-top:24px">该分类暂无物品</p>';
+    renderBagSellBar();
+    return;
+  }
+  container.innerHTML = list.map(it=>{
+    const canUse = bagCanUse(it);
+    const canSell = bagCanSell(it);
+    let acts = '';
+    if(BAG_SELL_MODE && canSell){
+      acts += `<label class="bi-sel"><input type="checkbox" data-id="${it.id}" data-count="${it.count}" data-uid="${it.uid||0}"> 选</label>`;
+    } else {
+      if(canUse) acts += `<button class="bi-use" data-id="${it.id}" data-count="${it.count}">用</button>`;
+      if(canSell) acts += `<button class="bi-sell" data-id="${it.id}" data-count="${it.count}" data-uid="${it.uid||0}">售</button>`;
+    }
+    return `<div class="bag-item"><span class="bi-id">${it.id}</span>`
+      + `<div class="bi-icon">${it.img ? `<img src="${it.img}" style="width:34px;height:34px;object-fit:contain;border-radius:8px">` : `<span style="font-size:20px">${it.icon||'📦'}</span>`}</div>`
+      + `<div class="bi-name">${esc(it.name||'')}</div>`
+      + `<div class="bi-meta">数量 ×${it.count}</div>`
+      + (acts ? `<div class="bi-acts">${acts}</div>` : '')
+      + `</div>`;
+  }).join('');
+  renderBagSellBar();
+}
+// 拉取背包并刷新（对齐 Node stores/bag.ts fetchBag）
+function loadBag(){
+  fetch('/api/bag/items?accountId='+accIdQ()).then(r=>r.json()).then(d=>{
+    if(!(d.ok&&d.data)) return;
+    BAG_ALL=d.data;
+    const active=document.querySelector('#p-bag .bag-cats .seg-btn.active');
+    renderBag(active?active.dataset.bagcat||'':'');
+  }).catch(()=>{});
+}
+// 批量出售确认条显隐
+function renderBagSellBar(){
+  const bar=document.getElementById('bagSellBar');
+  if(!bar) return;
+  if(!BAG_SELL_MODE){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const n=document.querySelectorAll('#p-bag .bi-sel input:checked').length;
+  const btn=document.getElementById('bagSellConfirm');
+  if(btn) btn.textContent='确认出售选中 ('+n+')';
 }
 
 /* ===== 首页日志 + 巡查开关 + 农场操作 + 背包分类 ===== */
@@ -2243,6 +2290,32 @@ document.addEventListener('click', async (e)=>{
     return;
   }
 });
+/* ===== 背包：使用/出售 按钮事件委托（对齐 Node BagPanel.vue handleUseClick/handleConfirm） ===== */
+document.addEventListener('click', async (e)=>{
+  const ub = e.target.closest('.bi-use');
+  if(ub){
+    const id=Number(ub.dataset.id), count=Number(ub.dataset.count)||1;
+    if(!confirm('确定使用 '+count+' 个该道具？')) return;
+    try{
+      const d=await postJSON('/api/bag/use?accountId='+accIdQ(),{itemId:id,count:count});
+      alert(d.ok?'使用成功':'失败：'+(d.error||''));
+      loadBag();
+    }catch(err){ alert('请求失败：'+err.message); }
+    return;
+  }
+  const sb = e.target.closest('.bi-sell');
+  if(sb){
+    const id=Number(sb.dataset.id), count=Number(sb.dataset.count)||1, uid=Number(sb.dataset.uid)||0;
+    if(!confirm('确定出售 '+count+' 个该物品？')) return;
+    try{
+      const d=await postJSON('/api/bag/sell?accountId='+accIdQ(),{items:[{id:id,count:count,uid:uid}]});
+      alert(d.ok?'出售成功':'失败：'+(d.error||''));
+      loadBag();
+    }catch(err){ alert('请求失败：'+err.message); }
+    return;
+  }
+});
+
 /* ===== 补充交互：巡查全开 / 清空日志 / 批量出售 / 好友搜索 / 好友筛选 ===== */
 (function(){
   const accIdQ = () => new URLSearchParams(location.search).get('accountId') || '';
@@ -2266,9 +2339,34 @@ document.addEventListener('click', async (e)=>{
     alert('日志已清空');
   });
 
-  // 背包批量出售
+  // 背包批量出售：切换选择模式（对齐 Node BagPanel 批量出售模式）
   const batchSell = document.getElementById('batchSell');
-  if(batchSell) batchSell.addEventListener('click', ()=> alert('请在具体物品上操作（后端批量出售接口待接入）'));
+  if(batchSell) batchSell.addEventListener('click', ()=>{
+    BAG_SELL_MODE = !BAG_SELL_MODE;
+    batchSell.textContent = BAG_SELL_MODE ? '✅ 取消批量' : '🗑️ 批量出售';
+    const active=document.querySelector('#p-bag .bag-cats .seg-btn.active');
+    renderBag(active?active.dataset.bagcat||'':'');
+    renderBagSellBar();
+  });
+  // 批量出售确认
+  const bagSellConfirm = document.getElementById('bagSellConfirm');
+  if(bagSellConfirm) bagSellConfirm.addEventListener('click', async ()=>{
+    const checks=document.querySelectorAll('#p-bag .bi-sel input:checked');
+    if(!checks.length){ alert('请先勾选要出售的果实'); return; }
+    const items=[].map.call(checks, c=>({id:Number(c.dataset.id),count:Number(c.dataset.count)||1,uid:Number(c.dataset.uid)||0}));
+    if(!confirm('确定批量出售 '+items.length+' 种物品？')) return;
+    try{
+      const d=await postJSON('/api/bag/sell?accountId='+accIdQ(),{items:items});
+      alert(d.ok?'批量出售成功':'失败：'+(d.error||''));
+      BAG_SELL_MODE=false;
+      const bs=document.getElementById('batchSell'); if(bs) bs.textContent='🗑️ 批量出售';
+      loadBag();
+    }catch(err){ alert('请求失败：'+err.message); }
+  });
+  // 勾选变化时刷新确认条数量
+  document.addEventListener('change', (e)=>{
+    if(e.target && e.target.closest && e.target.closest('.bi-sel')) renderBagSellBar();
+  });
 
   // 好友搜索框实时过滤
   const search = document.getElementById('frSearch');

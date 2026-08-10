@@ -12,6 +12,7 @@ const (
 type BagItem struct {
 	ID    int64
 	Count int64
+	UID   int64 // 物品实例 uid（corepb.Item.uid=6），出售时需回传
 }
 
 // BagReply 背包响应
@@ -35,17 +36,19 @@ func DecodeBagReply(buf []byte) *BagReply {
 					itemRaw := r2.ReadBytes()
 					st := NewReader(itemRaw)
 					var it BagItem
-					st.EachField(func(f3, w3 int, r3 *Reader) bool {
-						switch f3 {
-						case 1:
-							it.ID = r3.ReadInt64()
-						case 2:
-							it.Count = r3.ReadInt64()
-						default:
-							r3.Skip(w3)
-						}
-						return true
-					})
+				st.EachField(func(f3, w3 int, r3 *Reader) bool {
+					switch f3 {
+					case 1:
+						it.ID = r3.ReadInt64()
+					case 2:
+						it.Count = r3.ReadInt64()
+					case 6:
+						it.UID = r3.ReadInt64()
+					default:
+						r3.Skip(w3)
+					}
+					return true
+				})
 					rep.Items = append(rep.Items, it)
 				} else {
 					r2.Skip(w2)
@@ -58,4 +61,32 @@ func DecodeBagReply(buf []byte) *BagReply {
 		return true
 	})
 	return rep
+}
+
+// SellItem 出售物品（字段对齐 Node warehouse.js toSellItem → corepb.Item{id=1,count=2,uid=6}）
+type SellItem struct {
+	ID    int64
+	Count int64
+	UID   int64
+}
+
+// EncodeUseRequest 对齐 Node itempb.proto UseRequest{item_id=1,count=2}
+func EncodeUseRequest(itemID, count int64) []byte {
+	b := NewBuilder()
+	b.FieldInt64(1, itemID)
+	b.FieldInt64(2, count)
+	return b.Bytes()
+}
+
+// EncodeSellRequest 对齐 Node itempb.proto SellRequest{items=1} 每项 corepb.Item{id=1,count=2,uid=6}
+func EncodeSellRequest(items []SellItem) []byte {
+	b := NewBuilder()
+	for _, it := range items {
+		sub := NewBuilder()
+		sub.FieldInt64(1, it.ID)
+		sub.FieldInt64(2, it.Count)
+		sub.FieldInt64(6, it.UID)
+		b.FieldMessage(1, sub.Bytes())
+	}
+	return b.Bytes()
 }
