@@ -1156,17 +1156,49 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 		}
 		recordOperation(accountID, "farming", int64(len(ids)))
 		detail = fmt.Sprintf("一键务农 %d 块地", len(ids))
-	case "upgrade": // 升级土地
-		ids := parseIDs(req.LandID)
-		if len(ids) == 0 {
-			writeError(w, 400, "缺少 landId")
+	case "upgrade": // 一键升级土地（对齐 Node runFarmOperation 'upgrade'：先解锁 could_unlock，再升级 could_upgrade，逐个执行带间隔）
+		rep, err := c.Request(r.Context(), "gamepb.plantpb.PlantService", "AllLands",
+			proto.EncodeAllLandsRequest(0), 15*time.Second)
+		if err != nil {
+			writeError(w, 500, "拉取农场失败: "+err.Error())
 			return
 		}
-		if err := execFarmOp(c, "UpgradeLand", proto.EncodeUpgradeLandRequest(ids[0])); err != nil {
-			writeError(w, 500, err.Error())
+		all := proto.DecodeAllLandsReply(rep.Body)
+		var unlockIDs, upgradeIDs []int64
+		for _, l := range all.Lands {
+			if !l.Unlocked && l.CouldUnlock {
+				unlockIDs = append(unlockIDs, l.ID)
+			}
+			if l.CouldUpgrade {
+				upgradeIDs = append(upgradeIDs, l.ID)
+			}
+		}
+		unlocked, upgraded := 0, 0
+		// 先解锁（对齐 Node：unlockLand(landId, false)，逐个失败不中断）
+		for _, id := range unlockIDs {
+			if err := execFarmOp(c, "UnlockLand", proto.EncodeUnlockLandRequest(id, false)); err == nil {
+				unlocked++
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		// 再升级（对齐 Node：upgradeLand(landId)，逐个失败不中断）
+		for _, id := range upgradeIDs {
+			if err := execFarmOp(c, "UpgradeLand", proto.EncodeUpgradeLandRequest(id)); err == nil {
+				upgraded++
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		if unlocked == 0 && upgraded == 0 {
+			// 对齐 Node：无候选时不报错（runFarmOperation 返回 hadWork:false，路由仍 ok:true）
+			detail = "没有可解锁或可升级的土地"
+			appendOpLog(accountID, req.Action, detail)
+			writeJSON(w, map[string]interface{}{"ok": true, "action": req.Action, "message": detail})
 			return
 		}
-		detail = fmt.Sprintf("升级土地 %d", ids[0])
+		if upgraded > 0 {
+			recordOperation(accountID, "upgrade", int64(upgraded))
+		}
+		detail = fmt.Sprintf("解锁 %d 块，升级 %d 块", unlocked, upgraded)
 	case "clear": // 铲除（未指定地块则一键铲除全部）
 		ids := parseIDs(req.LandID)
 		if len(ids) == 0 {
