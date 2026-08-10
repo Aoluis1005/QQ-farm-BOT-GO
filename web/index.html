@@ -1477,6 +1477,10 @@ document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', (
   b.classList.add('active');
   const pane = document.getElementById(b.dataset.seg);
   if(pane) pane.classList.add('active');
+  if(b.dataset.seg === 'p-friends' && typeof loadFriendSub === 'function'){
+    const af = document.querySelector('.friend-subtab.active');
+    loadFriendSub(af ? af.dataset.segf : 'list');
+  }
 }));
 
 /* 好友页 5 子tab 切换（独立 .f-sub 容器） */
@@ -2184,6 +2188,7 @@ document.addEventListener('click', async (e)=>{
         if(window.refreshAccount) window.refreshAccount();
         if(window.loadLands) window.loadLands();
         if(window.loadRealAccounts) window.loadRealAccounts();
+        if(typeof loadFriendSub === 'function') loadFriendSub('list');
         var sh=document.getElementById('sheet'); if(sh) sh.classList.remove('show');
         var mask=document.getElementById('sheetMask'); if(mask) mask.classList.remove('show');
       } else alert('切换失败: '+(d.error||'?')); })
