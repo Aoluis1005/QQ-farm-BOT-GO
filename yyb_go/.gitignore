@@ -1,0 +1,12 @@
+# 二进制
+yyb_go
+*.exe
+
+# 数据库（用户数据）
+resource/db/*.db
+resource/db/*.db-shm
+resource/db/*.db-wal
+
+# 缓存和临时文件
+*.tar.gz
+*.log
