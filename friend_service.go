@@ -419,12 +419,14 @@ func getFriendDog(accountID string, gid int64) (dogInfo, bool) {
 // 好友黑名单本地库（对齐 Node getFriendBlacklist / addFriendToBlacklist，客户端侧管理）
 // ============================================================
 
-// blacklistEntry 黑名单条目
+// blacklistEntry 黑名单条目（对齐 Node BlacklistItem：gid/name + skipSteal/skipHelp）
 type blacklistEntry struct {
-	GID     int64  `json:"gid"`
-	Name    string `json:"name"`
-	Reason  string `json:"reason"`
-	AddedAt string `json:"addedAt"`
+	GID      int64  `json:"gid"`
+	Name     string `json:"name"`
+	Reason   string `json:"reason"`
+	AddedAt  string `json:"addedAt"`
+	SkipSteal bool  `json:"skipSteal"`
+	SkipHelp  bool  `json:"skipHelp"`
 }
 
 var blacklistMu sync.Mutex
@@ -464,8 +466,10 @@ func getBlacklistEntries(accountID string) []blacklistEntry {
 	return out
 }
 
-// toggleBlacklist 拉黑/取消拉黑（对齐前端"已切换黑名单"语义）
-func toggleBlacklist(accountID string, gid int64, name string) (blacklisted bool, entry blacklistEntry) {
+// toggleBlacklist 拉黑/取消拉黑（对齐前端"已切换黑名单"语义）。
+// 拉黑时默认 skipSteal=skipHelp=true（即黑名单内默认跳过偷菜与帮忙），
+// 与 Node /api/friend-blacklist/toggle 的默认行为一致。
+func toggleBlacklist(accountID string, gid int64, name string, skipSteal, skipHelp bool) (blacklisted bool, entry blacklistEntry) {
 	blacklistMu.Lock()
 	defer blacklistMu.Unlock()
 	m := readBlacklist(accountID)
@@ -475,14 +479,32 @@ func toggleBlacklist(accountID string, gid int64, name string) (blacklisted bool
 		return false, e
 	}
 	e := blacklistEntry{
-		GID:     gid,
-		Name:    name,
-		Reason:  "手动拉黑",
-		AddedAt: time.Now().Format("2006-01-02 15:04"),
+		GID:       gid,
+		Name:      name,
+		Reason:    "手动拉黑",
+		AddedAt:   time.Now().Format("2006-01-02 15:04"),
+		SkipSteal: skipSteal,
+		SkipHelp:  skipHelp,
 	}
 	m[gid] = e
 	writeBlacklist(accountID, m)
 	return true, e
+}
+
+// updateBlacklistItem 更新黑名单条目的 skipSteal/skipHelp（对齐 Node /api/friend-blacklist/update）
+func updateBlacklistItem(accountID string, gid int64, skipSteal, skipHelp bool) bool {
+	blacklistMu.Lock()
+	defer blacklistMu.Unlock()
+	m := readBlacklist(accountID)
+	e, ok := m[gid]
+	if !ok {
+		return false
+	}
+	e.SkipSteal = skipSteal
+	e.SkipHelp = skipHelp
+	m[gid] = e
+	writeBlacklist(accountID, m)
+	return true
 }
 
 // addFriendBlacklist 强制加入黑名单
@@ -493,6 +515,6 @@ func addFriendBlacklist(accountID string, gid int64, name string) {
 	if _, ok := m[gid]; ok {
 		return
 	}
-	m[gid] = blacklistEntry{GID: gid, Name: name, Reason: "手动拉黑", AddedAt: time.Now().Format("2006-01-02 15:04")}
+	m[gid] = blacklistEntry{GID: gid, Name: name, Reason: "手动拉黑", AddedAt: time.Now().Format("2006-01-02 15:04"), SkipSteal: true, SkipHelp: true}
 	writeBlacklist(accountID, m)
 }

@@ -575,6 +575,11 @@ body{
 
 /* ── 好友 ── */
 .friend-filter{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.f-toggle{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text); cursor:pointer; }
+.f-field{ display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-right:10px; }
+.del-form{ background:var(--card,#1e1e22); border:1px solid var(--border,#333); border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; align-items:center; }
+.del-form .field{ background:var(--input,#15151a); color:var(--text); border:1px solid var(--border,#333); border-radius:8px; padding:6px 8px; font-size:13px; }
+.f-batch{ background:var(--accent,#4f7cff); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
 .friend-card{ border-radius:16px; background:var(--card); border:1px solid var(--border); padding:14px; margin-bottom:10px; box-shadow:var(--shadow-sm); cursor:pointer; }
 .fc-head{ display:flex; align-items:center; gap:10px; }
 .fc-id{ font-weight:400; }
@@ -1228,9 +1233,10 @@ body{
         <input class="field" id="frSearch" placeholder="🔍 搜索好友…" style="margin-top:16px">
         <p id="frTotal" style="font-size:11px;color:var(--muted);margin:6px 2px 10px">共 0 名好友</p>
         <div class="friend-filter">
-          <button class="chip on">全部</button>
-          <button class="chip">无护主犬</button>
-          <button class="chip">有护主犬</button>
+          <button class="chip on" data-dogf="all">全部</button>
+          <button class="chip" data-dogf="noGuardDog">无护主犬</button>
+          <button class="chip" data-dogf="guardDog">有护主犬</button>
+          <button class="chip" id="frDogInfo" style="margin-left:8px">🐶 获取狗信息</button>
           <button class="chip" style="margin-left:auto" id="frRefresh">🔄 刷新</button>
         </div>
         <div id="friendList"></div>
@@ -1256,7 +1262,14 @@ body{
       </div>
 
       <div class="f-sub" data-pane="del">
-        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">选择要删除的好友（点 🗑️）</p>
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">按等级批量删除（不可恢复，需二级密码）</p>
+        <div class="del-form">
+          <label class="f-field">等级 ≤ <input class="field" id="delLevel" type="number" placeholder="如 30" style="width:90px;display:inline-block"></label>
+          <label class="f-field"><input type="checkbox" id="delSkipGuard" checked> 保留护主犬</label>
+          <input class="field" id="delPwd" type="password" placeholder="二级密码（可选）" style="margin-top:8px;width:100%">
+          <button class="f-batch" id="delBatchBtn" style="margin-top:12px">批量删除</button>
+          <span id="delCount" style="font-size:11px;color:var(--muted);margin-left:8px"></span>
+        </div>
         <div id="delList"></div>
       </div>
     </div>
@@ -1742,29 +1755,9 @@ function loadFriendSub(sub){
   if(sub==='list'){
     fetch('/api/friends/list?accountId='+acc).then(r=>r.json()).then(d=>{
       if(!(d.ok&&d.data)) return;
-      const list=d.data.friends||[];
-      const tot=document.getElementById('frTotal'); if(tot) tot.textContent=`共 ${list.length} 名好友`;
+      friendDataCache = d.data.friends||[];
       const box=document.getElementById('friendList'); if(!box) return;
-      if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>'; return; }
-      box.innerHTML = list.map(f=>{
-        const dog = f.hasDog ? `<span class="ripeness fc-dog">护主犬</span>` : '';
-        let acts = '';
-        if(f.canSteal) acts += `<button class="fa-mini fs1" data-act="steal">🥷 偷取</button>`;
-        if(f.canHelp) acts += `<button class="fa-mini fs2" data-act="water">💧 浇水</button><button class="fa-mini fs3" data-act="weed">🌿 除草</button><button class="fa-mini fs4" data-act="bug">🐛 除虫</button>`;
-        return `<div class="friend-card" data-uid="${f.uid}"><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div>`+
-          `<div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small> ${dog}</h4>`+
-          `<p>Lv.${f.level||'-'} · 金币 ${(f.coins||0).toLocaleString()}${f.ripeLands?' · 可收 '+f.ripeLands+' 块':''}</p></div><span class="fc-arrow">▾</span></div>`+
-          `<p class="fc-tip">${f.tip||''}</p>`+
-          `<div class="fc-actions">${acts}</div>`+
-          `<div class="fc-more-actions"><button class="fa-mini fs5" data-act="bad">🎭 捣乱</button><button class="fa-mini fs6" data-act="black">🚫 拉黑</button><button class="fa-mini fs7" data-act="del">🗑️ 删除</button></div>`+
-          `<div class="fc-lands"></div></div>`;
-      }).join('');
-      box.querySelectorAll('.friend-card').forEach(c=>c.addEventListener('click',e=>{
-        if(e.target.closest('button')) return;
-        c.classList.toggle('open');
-        const lands=c.querySelector('.fc-lands');
-        if(c.classList.contains('open') && lands && !lands.children.length) fcLandFill(lands);
-      }));
+      renderFriendCards(box, friendDataCache);
     }).catch(()=>{});
   }
   else if(sub==='blacklist'){
@@ -1774,7 +1767,26 @@ function loadFriendSub(sub){
       const cnt=document.getElementById('blkCount'); if(cnt) cnt.textContent=list.length;
       const box=document.getElementById('blackList'); if(!box) return;
       if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">黑名单为空</p>'; return; }
-      box.innerHTML=list.map(b=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${b.avatar||'🤖'}</div><div class="f-info"><h4>${b.name||''} <small class="fc-id">(${b.uid})</small></h4><p>${b.reason||'无记录'} · ${b.addedAt||''}</p></div></div></div>`).join('');
+      box.innerHTML=list.map(b=>{
+        const gid=Number(b.uid);
+        return `<div class="friend-card" data-uid="${gid}"><div class="fc-head"><div class="f-av">${b.avatar||'🤖'}</div><div class="f-info"><h4>${b.name||''} <small class="fc-id">(${b.uid})</small></h4><p>${b.reason||'无记录'} · ${b.addedAt||''}</p></div></div>`+
+          `<div class="fc-actions" style="grid-template-columns:repeat(2,1fr)">`+
+          `<label class="f-toggle"><input type="checkbox" data-bl="steal" ${b.skipSteal?'checked':''}> 不偷</label>`+
+          `<label class="f-toggle"><input type="checkbox" data-bl="help" ${b.skipHelp?'checked':''}> 不帮忙</label>`+
+          `</div>`+
+          `<div class="fc-more-actions" style="display:grid"><button class="fa-mini fs6" data-rmblk>🚫 移出黑名单</button></div></div>`;
+      }).join('');
+      box.querySelectorAll('.f-toggle input').forEach(cb=>cb.addEventListener('change', async ()=>{
+        const gid=Number(cb.closest('.friend-card').dataset.uid);
+        const payload={gid:String(gid)}; payload[cb.dataset.bl==='steal'?'skipSteal':'skipHelp']=cb.checked;
+        await postJSON('/api/friend-blacklist/update?accountId='+friendAccId(), payload);
+        loadFriendSub('blacklist');
+      }));
+      box.querySelectorAll('[data-rmblk]').forEach(btn=>btn.addEventListener('click', async ()=>{
+        const gid=Number(btn.closest('.friend-card').dataset.uid);
+        await postJSON('/api/friend-blacklist/toggle?accountId='+friendAccId(),{gid:String(gid)});
+        loadFriendSub('blacklist');
+      }));
     }).catch(()=>{});
   }
   else if(sub==='visitors'){
@@ -1789,10 +1801,16 @@ function loadFriendSub(sub){
   else if(sub==='del'){
     fetch('/api/friends/list?accountId='+acc).then(r=>r.json()).then(d=>{
       if(!(d.ok&&d.data)) return;
-      const list=d.data.friends||[];
+      const list=d.data.friends||[]; friendDataCache=list;
       const box=document.getElementById('delList'); if(!box) return;
       if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>'; return; }
-      box.innerHTML=list.map(f=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div><div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small></h4></div><button class="fa-mini fs7" data-act="del" style="align-self:center">🗑️</button></div></div>`).join('');
+      box.innerHTML=list.map(f=>{
+        const gid=Number(f.uid);
+        const isGuard = Number(f.dogId)===90021;
+        return `<div class="friend-card" data-uid="${gid}" ${isGuard?'data-guard="1"':''}><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div><div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small>${isGuard?' <span class="ripeness fc-dog">护主犬</span>':''}</h4><p>Lv.${f.level||'-'}</p></div><label class="f-toggle"><input type="checkbox" class="del-pick"> 选</label></div></div>`;
+      }).join('');
+      box.querySelectorAll('.del-pick').forEach(cb=>cb.addEventListener('change', updateDelCount));
+      updateDelCount();
     }).catch(()=>{});
   }
 }
@@ -2009,6 +2027,39 @@ async function postJSON(url, body){
   const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   return r.json();
 }
+/* ===== 好友列表缓存 + 渲染（对齐 Node Friends.vue renderFriendCards） ===== */
+var friendDataCache = [];
+var friendDogFilter = 'all';
+function renderFriendCards(box, list){
+  var arr = (list && list.length) ? list : friendDataCache;
+  if(friendDogFilter==='guardDog') arr = arr.filter(function(f){ return Number(f.dogId)===90021; });
+  else if(friendDogFilter==='noGuardDog') arr = arr.filter(function(f){ return Number(f.dogId)!==90021; });
+  var tot=document.getElementById('frTotal'); if(tot) tot.textContent='共 '+arr.length+' 名好友';
+  if(!arr.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>'; return; }
+  box.innerHTML = arr.map(function(f){
+    var dog = f.hasDog ? '<span class="ripeness fc-dog">护主犬</span>' : '';
+    var acts = '';
+    if(f.canSteal) acts += '<button class="fa-mini fs1" data-act="steal">🥷 偷取</button>';
+    if(f.canHelp) acts += '<button class="fa-mini fs2" data-act="water">💧 浇水</button><button class="fa-mini fs3" data-act="weed">🌿 除草</button><button class="fa-mini fs4" data-act="bug">🐛 除虫</button>';
+    return '<div class="friend-card" data-uid="'+f.uid+'"><div class="fc-head"><div class="f-av">'+(f.avatar||'👤')+'</div>'+
+      '<div class="f-info"><h4>'+(f.name||'')+' <small class="fc-id">('+f.uid+')</small> '+dog+'</h4>'+
+      '<p>Lv.'+(f.level||'-')+' · 金币 '+(f.coins||0).toLocaleString()+(f.ripeLands?' · 可收 '+f.ripeLands+' 块':'')+'</p></div><span class="fc-arrow">▾</span></div>'+
+      '<p class="fc-tip">'+(f.tip||'')+'</p>'+
+      '<div class="fc-actions">'+acts+'</div>'+
+      '<div class="fc-more-actions"><button class="fa-mini fs5" data-act="bad">🎭 捣乱</button><button class="fa-mini fs6" data-act="black">🚫 拉黑</button><button class="fa-mini fs7" data-act="del">🗑️ 删除</button></div>'+
+      '<div class="fc-lands"></div></div>';
+  }).join('');
+  box.querySelectorAll('.friend-card').forEach(function(c){ c.addEventListener('click', function(e){
+    if(e.target.closest('button')) return;
+    c.classList.toggle('open');
+    var lands=c.querySelector('.fc-lands');
+    if(c.classList.contains('open') && lands && !lands.children.length) fcLandFill(lands);
+  });});
+}
+function updateDelCount(){
+  var n = document.querySelectorAll('#delList .del-pick:checked').length;
+  var el = document.getElementById('delCount'); if(el) el.textContent = '已选 '+n+' 人';
+}
 document.addEventListener('click', async (e)=>{
   const ab = e.target.closest('[data-act]');
   if(ab){
@@ -2071,23 +2122,54 @@ document.addEventListener('click', async (e)=>{
     });
   });
 
-  // 好友筛选：无护主犬 / 有护主犬
+  // 好友筛选：无护主犬 / 有护主犬（仅 data-dogf 芯片生效）
   const frFilter = document.querySelector('#p-friends .friend-filter');
   if(frFilter){
-    frFilter.querySelectorAll('.chip').forEach(btn=>{
+    frFilter.querySelectorAll('.chip[data-dogf]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         frFilter.querySelectorAll('.chip').forEach(x=>x.classList.remove('on')); btn.classList.add('on');
-        const label = btn.textContent.trim();
-        document.querySelectorAll('#friendList .friend-card').forEach(c=>{
-          const hasDog = (c.textContent||'').includes('护主犬');
-          let show = true;
-          if(label==='无护主犬') show = !hasDog;
-          else if(label==='有护主犬') show = hasDog;
-          c.style.display = show ? '' : 'none';
-        });
+        friendDogFilter = btn.dataset.dogf || 'all';
+        renderFriendCards(document.getElementById('friendList'), friendDataCache);
       });
     });
+    // 🐶 获取狗信息：刷新本地护主犬缓存（对齐 Node fetchFriendsDogInfo）
+    const frDog = document.getElementById('frDogInfo');
+    if(frDog) frDog.addEventListener('click', async ()=>{
+      frDog.disabled = true; const oldTxt = frDog.textContent; frDog.textContent='获取中…';
+      try{
+        const d = await postJSON('/api/friends/fetch-dog-info?accountId='+friendAccId(), {});
+        if(d.ok){ alert('狗信息已更新（护主犬 '+ (d.guardDogCount||0) +' 只）'); loadFriendSub('list'); }
+        else alert('获取失败：'+(d.error||'未知'));
+      }catch(err){ alert('请求失败：'+err.message); }
+      frDog.disabled=false; frDog.textContent=oldTxt;
+    });
   }
+  // 批量删除：等级阈值 + 保留护主犬 + 密码（前端按缓存过滤 gid，后端仅收 gids+password）
+  const delBatchBtn = document.getElementById('delBatchBtn');
+  if(delBatchBtn) delBatchBtn.addEventListener('click', async ()=>{
+    const lvl = parseInt((document.getElementById('delLevel').value||'0'), 10);
+    const skipGuard = document.getElementById('delSkipGuard').checked;
+    const pwd = document.getElementById('delPwd').value||'';
+    let gids = [];
+    if(lvl>0){
+      (friendDataCache||[]).forEach(f=>{
+        if(Number(f.level) > lvl) return;
+        if(skipGuard && Number(f.dogId)===90021) return;
+        gids.push(Number(f.uid));
+      });
+    }
+    document.querySelectorAll('#delList .del-pick:checked').forEach(cb=>{
+      const g = Number(cb.closest('.friend-card').dataset.uid);
+      if(g>0 && gids.indexOf(g)===-1) gids.push(g);
+    });
+    if(!gids.length){ alert('请填写等级阈值或勾选好友'); return; }
+    if(!confirm('确认批量删除 '+gids.length+' 名好友？此操作不可恢复')) return;
+    try{
+      const d = await postJSON('/api/friend/batch-delete?accountId='+friendAccId(), {gids:gids, password:pwd});
+      if(d.ok){ alert('成功 '+ (d.successCount||0) +' / 失败 '+ (d.failedCount||0)); loadFriendSub('del'); }
+      else alert('失败：'+(d.error||'未知'));
+    }catch(err){ alert('请求失败：'+err.message); }
+  });
 })();
 </script>
 

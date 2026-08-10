@@ -101,6 +101,7 @@ func main() {
 	registerCareerAPI(api)
 	registerAccountAPI(api)
 	registerFriendOpsAPI(api)
+	registerFriendExtraAPI(api)
 	registerReconnectAPI(api)
 
 	mux.Handle("/api/", corsHandler(api))

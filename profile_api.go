@@ -347,9 +347,10 @@ func classifyBagCategory(id int64) (category, name string) {
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }
 
-// handleFriendList 真实好友列表：
-// 1. 网关 FriendService/GetAll 拉取全部好友（对齐 Node friend-api.js getAllFriends 微信路径）
-// 2. 逐个 Enter 好友农场取护主犬 + 分析地块 → canSteal/canHelp/canBad/ripeLands
+// handleFriendList 真实好友列表（对齐 Node friend-land-analyzer.js getFriendsList）：
+// 仅调用 FriendService/GetAll（或 QQ 的 GetGameFriends），【不进入任何好友农场】。
+// 护主犬(dogId)来自本地狗信息缓存（由 fetch-dog-info / 巡查时 Enter 收集），
+// 可偷/可帮忙摘要直接取自 GetAll 响应的 friend.plant 字段。
 func handleFriendList(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	c, err := clientPool.Get(accountID)
@@ -370,11 +371,10 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	myGID := c.GID
-	blackList := models.GetAccountConfig(accountID).FriendBlacklist
-	blackSet := map[int64]bool{}
-	for _, g := range blackList {
-		blackSet[g] = true
-	}
+	// 黑名单取自本地文件（与 toggle/blacklist tab 同源），对齐 Node getFriendBlacklistDetails
+	blackMap := readBlacklist(accountID)
+	// 护主犬缓存（对齐 Node readFriendDogInfoCache）
+	dogMap, _ := readDogCache(accountID)
 
 	friends := make([]map[string]interface{}, 0, len(allFriends))
 	for _, f := range allFriends {
@@ -386,56 +386,61 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		name := firstNonEmpty(f.Remark, f.Name, fmt.Sprintf("GID:%d", f.GID))
 		item := map[string]interface{}{
 			"uid":    f.GID,
 			"gid":    f.GID,
-			"name":   firstNonEmpty(f.Remark, f.Name, fmt.Sprintf("GID:%d", f.GID)),
+			"name":   name,
 			"avatar": f.AvatarURL,
 			"level":  f.Level,
 			"coins":  f.Gold,
 			"hasDog": false,
-			"dogStatus": "",
+			"dogId":  int64(0),
+			"dogName": "",
 			"canSteal": false,
 			"canHelp":  false,
-			"canBad":   false,
+			"canBad":   true,
 			"ripeLands": 0,
 			"totalLands": 0,
 			"tip": "",
 		}
 
-		if blackSet[f.GID] {
-			item["tip"] = "已拉黑"
-			friends = append(friends, item)
-			continue
+		// 护主犬：本地缓存优先（对齐 Node getFriendsList 的 dogInfoCache）
+		if d, ok := dogMap[f.GID]; ok {
+			item["hasDog"] = d.DogID > 0
+			item["dogId"] = d.DogID
+			item["dogName"] = d.DogName
 		}
 
-		// 逐个 Enter 好友农场：取护主犬 + 分析地块（对齐 Node getFriendDogInfo + analyzeFriendLands）
-		_, er2, errE := enterFriendFarm(c, f.GID, 2, "")
-		if errE == nil && er2 != nil {
-			cacheFriendDog(f.GID, er2)
-			item["hasDog"] = er2.DogID > 0
-			item["dogStatus"] = er2.DogName
-			a := analyzeFriendLands(er2.Lands, myGID)
-			item["canSteal"] = len(a.Stealable) > 0
-			item["canHelp"] = len(a.NeedWater)+len(a.NeedWeed)+len(a.NeedBug) > 0
-			item["canBad"] = len(a.CanPutBug)+len(a.CanPutWeed) > 0
-			item["ripeLands"] = countRipeLands(er2.Lands)
-			item["totalLands"] = len(er2.Lands)
-			if len(a.Stealable) > 0 {
-				item["tip"] = fmt.Sprintf("可偷 %d 块", len(a.Stealable))
-			} else if len(a.NeedWater)+len(a.NeedWeed)+len(a.NeedBug) > 0 {
+		// 地块摘要：直接取自 GetAll 响应的 plant 字段（不进农场）
+		if f.Plant != nil {
+			steal := f.Plant.StealPlantNum
+			dry := f.Plant.DryNum
+			weed := f.Plant.WeedNum
+			insect := f.Plant.InsectNum
+			item["plant"] = map[string]interface{}{
+				"stealNum":  steal,
+				"dryNum":    dry,
+				"weedNum":   weed,
+				"insectNum": insect,
+			}
+			item["ripeLands"] = steal
+			item["canSteal"] = steal > 0
+			item["canHelp"] = (dry + weed + insect) > 0
+			if steal > 0 {
+				item["tip"] = fmt.Sprintf("可偷 %d 块", steal)
+			} else if (dry + weed + insect) > 0 {
 				item["tip"] = "可帮忙"
-			} else if len(a.CanPutBug)+len(a.CanPutWeed) > 0 {
-				item["tip"] = "可放虫/草"
 			} else {
 				item["tip"] = "暂无可操作"
 			}
-			// 若 Enter 返回的 avatar 更完整则覆盖
-			if er2.Basic != nil && er2.Basic.AvatarURL != "" {
-				item["avatar"] = er2.Basic.AvatarURL
-			}
-			leaveFriendFarm(c, f.GID)
 		}
+
+		if _, blacklisted := blackMap[f.GID]; blacklisted {
+			item["tip"] = "已拉黑"
+			item["blacklisted"] = true
+		}
+
 		friends = append(friends, item)
 	}
 
@@ -497,16 +502,18 @@ func handleFriendLandsRoute(w http.ResponseWriter, r *http.Request) {
 
 func handleFriendBlacklist(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
-	// 本地黑名单库（对齐 Node getFriendBlacklist 前端展示 name/avatar/reason/addedAt）
+	// 本地黑名单库（对齐 Node getFriendBlacklist 前端展示 name/avatar/reason/addedAt + skip 开关）
 	entries := getBlacklistEntries(accountID)
 	out := make([]map[string]interface{}, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, map[string]interface{}{
-			"uid":     e.GID,
-			"name":    e.Name,
-			"avatar":  "",
-			"reason":  e.Reason,
-			"addedAt": e.AddedAt,
+			"uid":       e.GID,
+			"name":      e.Name,
+			"avatar":    "",
+			"reason":    e.Reason,
+			"addedAt":   e.AddedAt,
+			"skipSteal": e.SkipSteal,
+			"skipHelp":  e.SkipHelp,
 		})
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})

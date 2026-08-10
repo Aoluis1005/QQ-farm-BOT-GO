@@ -116,14 +116,16 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID, "message": "催熟完成"})
 }
 
-// POST /api/friend-blacklist/toggle  body: { gid }   —— 拉黑/取消拉黑（本地持久化黑名单库）
+// POST /api/friend-blacklist/toggle  body: { gid, skipSteal?, skipHelp? }   —— 拉黑/取消拉黑（本地持久化黑名单库）
 func handleFriendBlacklistToggle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
 		return
 	}
 	var req struct {
-		GID string `json:"gid"`
+		GID      string `json:"gid"`
+		SkipSteal bool   `json:"skipSteal"`
+		SkipHelp  bool   `json:"skipHelp"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, 400, "bad json")
@@ -139,6 +141,22 @@ func handleFriendBlacklistToggle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "无可用账号")
 		return
 	}
+	// 拉黑时默认跳过偷菜与帮忙（skipSteal=skipHelp=true），与 Node 一致
+	skipSteal, skipHelp := true, true
+	if b, e := json.Marshal(req); e == nil {
+		var probe struct {
+			SkipSteal *bool `json:"skipSteal"`
+			SkipHelp  *bool `json:"skipHelp"`
+		}
+		if json.Unmarshal(b, &probe) == nil {
+			if probe.SkipSteal != nil {
+				skipSteal = *probe.SkipSteal
+			}
+			if probe.SkipHelp != nil {
+				skipHelp = *probe.SkipHelp
+			}
+		}
+	}
 	// 名称：尽力从网关取，取不到用 GID 兜底
 	name := fmt.Sprintf("好友%d", gid)
 	if c, err := clientPool.Get(accountID); err == nil {
@@ -146,9 +164,38 @@ func handleFriendBlacklistToggle(w http.ResponseWriter, r *http.Request) {
 			name = b.Name
 		}
 	}
-	blacklisted, _ := toggleBlacklist(accountID, gid, name)
+	blacklisted, _ := toggleBlacklist(accountID, gid, name, skipSteal, skipHelp)
 	appendOpLog(accountID, "blacklist", fmt.Sprintf("%s好友 %d (%s)", map[bool]string{true: "拉黑", false: "取消拉黑"}[blacklisted], gid, name))
 	writeJSON(w, map[string]interface{}{"ok": true, "gid": gid, "blacklisted": blacklisted, "message": "已切换黑名单"})
+}
+
+// POST /api/friend-blacklist/update  body: { gid, skipSteal, skipHelp }   —— 更新黑名单条目的跳过开关
+func handleFriendBlacklistUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	var req struct {
+		GID      string `json:"gid"`
+		SkipSteal bool   `json:"skipSteal"`
+		SkipHelp  bool   `json:"skipHelp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, 400, "bad json")
+		return
+	}
+	gid, err := strconv.ParseInt(req.GID, 10, 64)
+	if req.GID == "" || err != nil || gid <= 0 {
+		writeError(w, 400, "missing/invalid gid")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	if accountID == "" {
+		writeError(w, 400, "无可用账号")
+		return
+	}
+	updated := updateBlacklistItem(accountID, gid, req.SkipSteal, req.SkipHelp)
+	writeJSON(w, map[string]interface{}{"ok": true, "updated": updated, "gid": gid})
 }
 
 // POST /api/friend/{gid}/op   body: { opType }  opType: steal/water/weed/bug/bad

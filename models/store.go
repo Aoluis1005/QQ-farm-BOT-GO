@@ -218,6 +218,30 @@ func SetFriendBlacklist(accountID string, gids []int64) error {
 	return saveGlobalConfig()
 }
 
+// SetKnownFriendGids 设置已知好友 GID 列表（对齐 Node store.js setKnownFriendGids），
+// 用于 QQ 平台 GetGameFriends 批量拉取；去重排序后写回。
+func SetKnownFriendGids(accountID string, gids []int64) error {
+	mu.Lock()
+	defer mu.Unlock()
+	cfg, ok := globalConfig.AccountConfigs[accountID]
+	if !ok {
+		cfg = globalConfig.DefaultAccountConfig
+	}
+	seen := map[int64]bool{}
+	out := make([]int64, 0, len(gids))
+	for _, g := range gids {
+		if g <= 0 || seen[g] {
+			continue
+		}
+		seen[g] = true
+		out = append(out, g)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	cfg.KnownFriendGIDs = out
+	globalConfig.AccountConfigs[accountID] = cfg
+	return saveGlobalConfig()
+}
+
 // ToggleFriendBlacklist 切换某一好友拉黑状态；返回操作后的 gid 列表与是否新增（true=已拉黑）。
 func ToggleFriendBlacklist(accountID string, gid int64) ([]int64, bool, error) {
 	cfg := GetAccountConfig(accountID)
