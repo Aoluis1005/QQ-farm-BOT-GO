@@ -265,6 +265,7 @@ body{
 }
 .friend:active{ transform:scale(.98); }
 .friend .f-av{ width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft); }
+.friend .f-av img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
 .friend .f-info{ flex:1; min-width:0; }
 .friend .f-info h4{ font-size:14px; font-weight:600; }
 .friend .f-info p{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
@@ -1773,7 +1774,7 @@ function loadFriendSub(sub){
       if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">黑名单为空</p>'; return; }
       box.innerHTML=list.map(b=>{
         const gid=Number(b.uid);
-        return `<div class="friend-card" data-uid="${gid}"><div class="fc-head"><div class="f-av">${b.avatar||'🤖'}</div><div class="f-info"><h4>${b.name||''} <small class="fc-id">(${b.uid})</small></h4><p>${b.reason||'无记录'} · ${b.addedAt||''}</p></div></div>`+
+        return `<div class="friend-card" data-uid="${gid}"><div class="fc-head"><div class="f-av">${favHtml(b.avatar,'🤖')}</div><div class="f-info"><h4>${b.name||''} <small class="fc-id">(${b.uid})</small></h4><p>${b.reason||'无记录'} · ${b.addedAt||''}</p></div></div>`+
           `<div class="fc-actions" style="grid-template-columns:repeat(2,1fr)">`+
           `<label class="f-toggle"><input type="checkbox" data-bl="steal" ${b.skipSteal?'checked':''}> 不偷</label>`+
           `<label class="f-toggle"><input type="checkbox" data-bl="help" ${b.skipHelp?'checked':''}> 不帮忙</label>`+
@@ -1799,7 +1800,7 @@ function loadFriendSub(sub){
       const list=d.data;
       const box=document.getElementById('visitorList'); if(!box) return;
       if(!list.length){ box.innerHTML='<p style="text-align:center;color:var(--muted);margin-top:24px">暂无访客记录</p>'; return; }
-      box.innerHTML=list.map(v=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${v.avatar||'🚶'}</div><div class="f-info"><h4>${v.name||''}</h4><p>${v.action||''} · ${v.time||''}</p></div></div></div>`).join('');
+      box.innerHTML=list.map(v=>`<div class="friend-card"><div class="fc-head"><div class="f-av">${favHtml(v.avatar,'🚶')}</div><div class="f-info"><h4>${v.name||''}</h4><p>${v.action||''} · ${v.time||''}</p></div></div></div>`).join('');
     }).catch(()=>{});
   }
   else if(sub==='del'){
@@ -1811,7 +1812,7 @@ function loadFriendSub(sub){
       box.innerHTML=list.map(f=>{
         const gid=Number(f.uid);
         const isGuard = Number(f.dogId)===90021;
-        return `<div class="friend-card" data-uid="${gid}" ${isGuard?'data-guard="1"':''}><div class="fc-head"><div class="f-av">${f.avatar||'👤'}</div><div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small>${isGuard?' <span class="ripeness fc-dog">护主犬</span>':''}</h4><p>Lv.${f.level||'-'}</p></div><label class="f-toggle"><input type="checkbox" class="del-pick"> 选</label></div></div>`;
+        return `<div class="friend-card" data-uid="${gid}" ${isGuard?'data-guard="1"':''}><div class="fc-head"><div class="f-av">${favHtml(f.avatar,'👤')}</div><div class="f-info"><h4>${f.name||''} <small class="fc-id">(${f.uid})</small>${isGuard?' <span class="ripeness fc-dog">护主犬</span>':''}</h4><p>Lv.${f.level||'-'}</p></div><label class="f-toggle"><input type="checkbox" class="del-pick"> 选</label></div></div>`;
       }).join('');
       box.querySelectorAll('.del-pick').forEach(cb=>cb.addEventListener('change', updateDelCount));
       updateDelCount();
@@ -2034,6 +2035,11 @@ async function postJSON(url, body){
 /* ===== 好友列表缓存 + 渲染（对齐 Node Friends.vue renderFriendCards） ===== */
 var friendDataCache = [];
 var friendDogFilter = 'all';
+function favHtml(av, fb){
+  if(/^(https?:)?\/\//i.test(av||'')) return '<img src="'+esc(av||'')+'" alt="">';
+  return fb||'👤';
+}
+
 function renderFriendCards(box, list){
   var arr = (list && list.length) ? list : friendDataCache;
   if(friendDogFilter==='guardDog') arr = arr.filter(function(f){ return Number(f.dogId)===90021; });
@@ -2045,7 +2051,7 @@ function renderFriendCards(box, list){
     var acts = '';
     if(f.canSteal) acts += '<button class="fa-mini fs1" data-act="steal">🥷 偷取</button>';
     if(f.canHelp) acts += '<button class="fa-mini fs2" data-act="water">💧 浇水</button><button class="fa-mini fs3" data-act="weed">🌿 除草</button><button class="fa-mini fs4" data-act="bug">🐛 除虫</button>';
-    return '<div class="friend-card" data-uid="'+f.uid+'"><div class="fc-head"><div class="f-av">'+(f.avatar||'👤')+'</div>'+
+    return '<div class="friend-card" data-uid="'+f.uid+'"><div class="fc-head"><div class="f-av">'+(favHtml(f.avatar,'👤'))+'</div>'+
       '<div class="f-info"><h4>'+(f.name||'')+' <small class="fc-id">('+f.uid+')</small> '+dog+'</h4>'+
       '<p>Lv.'+(f.level||'-')+' · 金币 '+(f.coins||0).toLocaleString()+(f.ripeLands?' · 可收 '+f.ripeLands+' 块':'')+'</p></div><span class="fc-arrow">▾</span></div>'+
       '<p class="fc-tip">'+(f.tip||'')+'</p>'+
