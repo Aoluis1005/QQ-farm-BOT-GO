@@ -2208,7 +2208,7 @@ function refreshAccount(){
     const accList = document.getElementById('accManage');
     if(!accList) return;
     accList.innerHTML = d.data.map((a,i) =>
-      `<button class="acc-row ${i===0?'active':''}"><div class="a-av">🐰</div><div class="a-info"><b>${a.name||'未命名'}</b><span>${a.platform||'qq'} · ${a.status||'offline'}</span></div><span class="check">${i===0?'✓':''}</span></button>`
+      `<button class="acc-row ${i===0?'active':''}"><div class="a-av">🐰</div><div class="a-info"><b>${a.name||'未命名'}</b><span>${a.platform||'qq'} · ${({online:'在线',offline:'离线'})[a.status]||(a.status||'离线')}</span></div><span class="check">${i===0?'✓':''}</span></button>`
     ).join('');
   }).catch(()=>{});
 };
@@ -2702,7 +2702,7 @@ document.addEventListener('click', async (e)=>{
   }
   function renderRow(a,cur){
     const act=a.id===cur;
-    return `<div class="acc-row ${act?'active':''}" data-id="${a.id}"><div class="a-av">🐰</div><div class="a-info"><b>${_esc(a.name)||'未命名'}</b><span>${a.platform||'qq'} · ${a.status||'offline'}</span></div><span class="check">${act?'✓':''}</span></div>`;
+    return `<div class="acc-row ${act?'active':''}" data-id="${a.id}"><div class="a-av">🐰</div><div class="a-info"><b>${_esc(a.name)||'未命名'}</b><span>${a.platform||'qq'} · ${({online:'在线',offline:'离线'})[a.status]||(a.status||'离线')}</span></div><span class="check">${act?'✓':''}</span></div>`;
   }
   function editAccount(id){
     const newName=(prompt('修改备注名称（留空不变）：')||'').trim();
@@ -2743,7 +2743,7 @@ document.addEventListener('click', async (e)=>{
           var b=document.createElement('button');
           b.className='acc'+(a.id===cur?' active':'');
           b.dataset.id=a.id;
-          b.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(a.status||'offline')+'</span></div><span class="check">'+(a.id===cur?'✓':'')+'</span>';
+          b.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(({online:'在线',offline:'离线'})[a.status]||(a.status||'离线'))+'</span></div><span class="check">'+(a.id===cur?'✓':'')+'</span>';
           b.addEventListener('click',()=>switchTo(a.id));
           if(closeBtn) sh.insertBefore(b,closeBtn); else sh.appendChild(b);
         });
@@ -2769,7 +2769,7 @@ document.addEventListener('click', async (e)=>{
         ad.data.forEach(function(a){
           var row=document.createElement('div'); row.className='acc-row';
           row.style.cssText='position:relative;padding-right:70px;margin-bottom:8px';
-          row.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(a.status||'offline')+' · '+(a.code?('code '+a.code.slice(0,6)+'…'):'无 code')+'</span></div><span class="check"></span>';
+          row.innerHTML='<div class="a-av">🐰</div><div class="a-info"><b>'+_esc(a.name||'未命名')+'</b><span>'+a.platform+' · '+(({online:'在线',offline:'离线'})[a.status]||(a.status||'离线'))+' · '+(a.code?('code '+a.code.slice(0,6)+'…'):'无 code')+'</span></div><span class="check"></span>';
           var eb=document.createElement('button'); eb.textContent='✏️'; eb.title='编辑/刷新code'; eb.style.cssText='position:absolute;right:36px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer'; eb.addEventListener('click',function(ev){ev.stopPropagation();editAccount(a.id);});
           var db=document.createElement('button'); db.textContent='🗑️'; db.title='删除账号'; db.style.cssText='position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer'; db.addEventListener('click',function(ev){ev.stopPropagation();delAccount(a.id);});
           row.appendChild(eb); row.appendChild(db);
