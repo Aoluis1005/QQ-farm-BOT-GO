@@ -4089,24 +4089,39 @@ async function loadShopMystery(){
   var acc=shopAcc(); var box=document.getElementById('s-mystery-box'); if(!box) return;
   box.innerHTML='<p class="shop-empty">加载中…</p>';
   if(!acc){ box.innerHTML='<p class="shop-empty">请先选择账号</p>'; return; }
+  var abOn=false;
+  try{ var ds=await (await fetch('/api/settings?accountId='+encodeURIComponent(acc))).json(); abOn=!!(ds&&ds.data&&ds.data.automation&&ds.data.automation.mystery_auto_buy); }catch(e){}
+  box.innerHTML='<div class="act-card" style="max-width:340px"><div class="auto-item"><span>🛒 神秘商人自动购买</span><div class="switch'+(abOn?' on':'')+'" data-mystery-ab="1"></div></div><div class="act-hint">开启后每 60 分钟自动购买当前在约商品（仅用所选货币结算）</div></div>';
+  // 事件委托：box 上监听，命中开关才处理（避免动态渲染时机的绑定问题）
+  box.onclick=function(ev){
+    var t=ev&&ev.target&&ev.target.closest?ev.target.closest('[data-mystery-ab]'):null;
+    if(!t) return;
+    t.classList.toggle('on');
+    var a2=shopAcc(); if(!a2){ t.classList.toggle('on'); toast('请先选择账号',false); return; }
+    fetch('/api/settings?accountId='+encodeURIComponent(a2)).then(function(x){return x.json();}).then(function(d){
+      var aut=(d&&d.data&&d.data.automation)||{};
+      aut.mystery_auto_buy=t.classList.contains('on');
+      return postJSON('/api/automation?accountId='+encodeURIComponent(a2), aut);
+    }).then(function(r){ if(r&&r.ok) toast('神秘商人自动购买已'+(t.classList.contains('on')?'开启':'关闭'),true); else toast((r&&(r.error||'保存失败'))||'保存失败',false); }).catch(function(){ toast('保存失败',false); });
+  };
   try{
     var d=await (await fetch('/api/shop/mystery?accountId='+encodeURIComponent(acc))).json();
-    if(!(d&&d.ok)){ box.innerHTML='<p class="shop-empty">'+actEsc(d&&d.error||'加载失败')+'</p>'; return; }
+    if(!(d&&d.ok)){ box.innerHTML+='<p class="shop-empty">'+actEsc(d&&d.error||'加载失败')+'</p>'; return; }
     var o=d.data||{};
-    if(!o.active){ box.innerHTML='<p class="shop-empty">🧙 神秘商人暂未出现，请稍后刷新看看。</p>'; return; }
+    if(!o.active){ box.innerHTML+='<p class="shop-empty">🧙 神秘商人暂未出现，请稍后刷新看看。</p>'; return; }
     var endTxt='';
     if(o.endTime){ var dt=new Date(o.endTime*1000); var mm=('0'+(dt.getMonth()+1)).slice(-2), dd=('0'+dt.getDate()).slice(-2), hh=('0'+dt.getHours()).slice(-2), mi=('0'+dt.getMinutes()).slice(-2); endTxt='<div class="act-limit">⏰ '+mm+'/'+dd+' '+hh+':'+mi+' 离开</div>'; }
     var orig= (o.originalPrice>o.price)?'<span style="text-decoration:line-through;opacity:.6">'+o.originalPrice+'</span> ' : '';
     var dis=(o.discount>0)?' · '+actNum(o.discount/10)+' 折':'';
     var buyBtn=shopBuyBtn('💎 购买','data-mybuy="1" data-npc="'+o.npcId+'"',false);
     var abdBtn=shopBuyBtn('请离','data-myabandon="1"',false);
-    box.innerHTML='<div class="act-card" style="max-width:340px"><div class="act-card-hd"><h4>🧙 神秘商人</h4><span class="act-badge">限时'+dis+'</span></div>'
+    box.innerHTML+='<div class="act-card" style="max-width:340px"><div class="act-card-hd"><h4>🧙 神秘商人</h4><span class="act-badge">限时'+dis+'</span></div>'
       +'<div class="act-item" style="margin:0">'+shopImg({image:o.itemImage})+'<div class="nm">'+actEsc(o.itemName)+(o.itemCount>1?' ×'+o.itemCount:'')+'</div>'
       +'<div class="ct">'+actEsc(o.currencyName)+' '+orig+actNum(o.price)+'</div>'+endTxt
       +'<div style="display:flex;gap:8px;margin-top:8px">'+buyBtn+abdBtn+'</div></div></div>';
     var bb=box.querySelector('[data-mybuy]'); if(bb) bb.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/buy',{npcId:Number(this.dataset.npc)},loadShopMystery, (o.itemName||'神秘商人')+' 购买成功'); });
     var ab=box.querySelector('[data-myabandon]'); if(ab) ab.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/abandon',{},loadShopMystery,'已请离神秘商人'); });
-  }catch(e){ box.innerHTML='<p class="shop-empty">加载失败</p>'; }
+  }catch(e){ box.innerHTML+='<p class="shop-empty">加载失败</p>'; }
 }
 function loadShop(seg){
   if(!seg){ var a=document.querySelector('#page-shop .seg-btn.active'); seg=a?a.dataset.seg:'s-seed'; }
