@@ -47,7 +47,7 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	items := ParseActivityList(body)
@@ -129,7 +129,7 @@ func handleActivityGroup(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	node := ParseActivityGroup(body)
@@ -163,7 +163,7 @@ func handleActivitySeason(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, seasonSvc, "GetSeasonInfo", []byte{}, 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "data": ParseSeason(body)})
@@ -177,7 +177,7 @@ func handleActivitySolar(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, solarSvc, "GetSolarTerms", []byte{}, 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "data": ParseSolar(body)})
@@ -192,7 +192,7 @@ func handleActivitySeasonClaim(w http.ResponseWriter, r *http.Request) {
 	// before（用于算领取档位数差）
 	beforeBody, err := rpcRequest(ctx, accountID, seasonSvc, "GetSeasonInfo", []byte{}, 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	before := ParseSeason(beforeBody)
@@ -203,7 +203,7 @@ func handleActivitySeasonClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := rpcRequest(ctx, accountID, seasonSvc, "ClaimBattlePassRewards", []byte{}, 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	res := ParseSeasonClaim(body)
@@ -245,7 +245,7 @@ func handleActivitySolarClaim(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, solarSvc, "ClaimSolarTerms", b.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	res := ParseSolarClaim(body)
@@ -276,7 +276,7 @@ func handleActivityGuanxing(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "data": ParseConstellation(body)})
@@ -295,7 +295,7 @@ func handleActivityGuanxingClaim(w http.ResponseWriter, r *http.Request) {
 	gb.FieldString(2, q.Get("uid"))
 	beforeBody, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	before := ParseConstellation(beforeBody)
@@ -306,7 +306,7 @@ func handleActivityGuanxingClaim(w http.ResponseWriter, r *http.Request) {
 	ob.FieldBytes(guanxingExtField, []byte{})
 	_, err = rpcRequest(ctx, accountID, actSvc, "Operate", ob.Bytes(), 15*time.Second)
 	if err != nil {
-		es := err.Error()
+		es := actErrMsg(err)
 		if !strings.Contains(es, itoa(guanxingNoReward)) && !strings.Contains(es, "无可领取") {
 			writeJSONMap(w, "ok", false, "error", es)
 			return
@@ -381,6 +381,23 @@ func actFindShopItems(node *ActivityNode) []*ShopItem {
 	return nil
 }
 
+// actErrMsg 归一化 RPC 错误为简洁中文提示：
+// "gamepb.activitypb.ActivityService.Operate code=1000019 星砂不足" -> "星砂不足"
+func actErrMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	if i := strings.Index(s, "code="); i >= 0 {
+		if j := strings.IndexByte(s[i:], ' '); j >= 0 {
+			if tail := strings.TrimSpace(s[i+j:]); tail != "" {
+				return tail
+			}
+		}
+	}
+	return s
+}
+
 func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	accountID := resolveAccountID(q.Get("accountId"))
@@ -395,7 +412,7 @@ func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	node := ParseActivityGroup(body)
@@ -438,7 +455,7 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	_, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 15*time.Second)
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", err.Error())
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
 	// 刷新余额 + 商店

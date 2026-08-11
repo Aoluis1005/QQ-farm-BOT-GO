@@ -3743,7 +3743,7 @@ async function renderShop(ctx){
         '<div class="act-limit">限购 '+lim+' 个 · 单价 '+price+' '+actEsc(cur)+'</div>';
     } else {
       actions=owned?'<span class="act-badge off">已拥有</span>':
-        '<button class="act-btn act-sm'+(canBuy?'':' disabled')+'" data-ex="'+it.id+'"'+(canBuy?'':' disabled')+'>'+(s===3?'已售':(afford?'兑换':'余额不足'))+'</button>';
+        '<button class="act-btn act-sm'+(canBuy?'':' disabled')+'" data-ex="'+it.id+'" data-price="'+price+'"'+(canBuy?'':' disabled')+'>'+(s===3?'已售':(afford?'兑换':'余额不足'))+'</button>';
     }
     return '<div class="act-item'+((!rep&&owned)?' act-done':'')+'"><div class="ic">🌾</div><div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div>'+
       '<div class="ct">💰 '+price+' '+actEsc(cur)+'</div>'+actions+'</div>';
@@ -3757,6 +3757,8 @@ async function renderShop(ctx){
   el.bx.querySelectorAll('button[data-ex]').forEach(btn=>btn.addEventListener('click', async function(){
     el.ld.style.display='block';
     let cnt=1; const inp=this.parentElement.querySelector('input[data-qnum]'); if(inp) cnt=(parseInt(inp.value||'1',10)||1);
+    const price=parseInt(this.dataset.price||'0',10);
+    if(price*cnt>bal){ el.ld.style.display='none'; alert('星砂不足：需 '+price*cnt+'，当前 '+bal); return; }
     try{
       const d2=await (await fetch('/api/activity/shop/exchange?accountId='+encodeURIComponent(acc)+'&id='+shopId+'&slotId='+this.dataset.ex+'&count='+cnt, {method:'POST'})).json();
       el.ld.style.display='none';
