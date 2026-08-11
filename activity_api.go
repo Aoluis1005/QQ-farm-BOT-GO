@@ -654,7 +654,7 @@ func handleQingmei(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 复用 qingmeiActIDs 已拉取的 group 根节点解析状态（避免二次 GetGroup）
-	var claimStatus, claimEnabled int64 = 0, 1
+	var claimStatus int64 = 0
 	wineTitle := "青酿换万金"
 	startTime := int64(0)
 	endTime := int64(0)
@@ -666,9 +666,6 @@ func handleQingmei(w http.ResponseWriter, r *http.Request) {
 			}
 			if n.Info.ID == claimID {
 				claimStatus = n.Info.Status
-				if !n.Info.Enabled {
-					claimEnabled = 0
-				}
 			}
 			if n.Info.ID == wineID {
 				if n.Info.Title != "" {
@@ -688,8 +685,8 @@ func handleQingmei(w http.ResponseWriter, r *http.Request) {
 	for _, m := range mats {
 		total += m.Count
 	}
-	claimed := claimStatus == 3
-	claimable := !claimed && claimEnabled != 0
+	claimed := claimStatus == 3 || qingmeiClaimedToday(accountID)
+	claimable := !claimed
 
 	seedName := itemDisplayName(qingmeiSeedItemID)
 	if seedName == "" {
@@ -731,11 +728,31 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
+	// 调试：允许 query 覆盖 cmd 与 type。默认 cmd=4、type=3（本期实测；Node 上期为 type=2）
+	var cmd int64 = qingmeiClaimCmd
+	if v := r.URL.Query().Get("cmd"); v != "" {
+		if n, e := strconv.ParseInt(v, 10, 64); e == nil {
+			cmd = n
+		}
+	}
+	tp := int32(3)
+	if v := r.URL.Query().Get("type"); v != "" {
+		if n, e := strconv.ParseInt(v, 10, 32); e == nil {
+			tp = int32(n)
+		}
+	}
 	sub := proto.NewBuilder()
-	sub.FieldInt32(1, 2) // QingmeiClaimParams.type=2
-	body, err := qingmeiOperate(ctx, accountID, claimID, qingmeiClaimCmd, qingmeiClaimParamF, sub.Bytes())
+	sub.FieldInt32(1, tp) // QingmeiClaimParams.type
+	body, err := qingmeiOperate(ctx, accountID, claimID, cmd, qingmeiClaimParamF, sub.Bytes())
 	if err != nil {
-		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		es := actErrMsg(err)
+		// 今日已领过：标记并返回成功语义（对齐 Node isAlreadyClaimedError → markQingmeiClaimedToday）
+		if strings.Contains(es, "已领取") {
+			qingmeiMarkClaimed(accountID)
+			writeJSONMap(w, "ok", true, "account", accountID, "claimed_count", int64(0), "already_claimed", true, "reward_item_id", qingmeiSeedItemID)
+			return
+		}
+		writeJSONMap(w, "ok", false, "error", es)
 		return
 	}
 	// 解析礼包物品（qingmei_claim=104 -> items=1）
@@ -756,8 +773,9 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 	if claimed == 0 {
 		claimed = qingmeiSeedReward
 	}
-	// 领种子后活动树状态变化，清除 group 缓存让后续立即反映已领状态
+	// 领种子后：清 group 缓存并标记今日已领，让状态/按钮立即反映
 	actCacheDel(actGroupCacheKey(accountID, rootID))
+	qingmeiMarkClaimed(accountID)
 	writeJSONMap(w, "ok", true, "account", accountID, "claimed_count", claimed, "reward_item_id", qingmeiSeedItemID, "items", items)
 }
 
@@ -915,4 +933,26 @@ func actCacheDel(key string) {
 	actCacheMu.Lock()
 	defer actCacheMu.Unlock()
 	delete(actCache, key)
+}
+
+// ===== 青梅每日领种子内存标记 =====
+// 对齐 Node activity.js qingmeiClaimedDateByAccount：服务端 status 领后不变(0)，无法据活动树判断当日是否已领。
+// 这里用内存记录「账号今日已领」，重启丢失（与 Node 一致，可接受）。
+var (
+	qingmeiClaimedMu   sync.Mutex
+	qingmeiClaimedDate = map[string]string{} // accountID -> YYYYMMDD
+)
+
+func qingmeiTodayKey() string { return time.Now().Format("20060102") }
+
+func qingmeiClaimedToday(accountID string) bool {
+	qingmeiClaimedMu.Lock()
+	defer qingmeiClaimedMu.Unlock()
+	return qingmeiClaimedDate[accountID] == qingmeiTodayKey()
+}
+
+func qingmeiMarkClaimed(accountID string) {
+	qingmeiClaimedMu.Lock()
+	defer qingmeiClaimedMu.Unlock()
+	qingmeiClaimedDate[accountID] = qingmeiTodayKey()
 }
