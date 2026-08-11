@@ -3792,7 +3792,10 @@ async function renderQingmei(ctx){
   const a=d.activity||{}, rw=d.reward||{}, mt=d.material||{};
   const claimable=!!a.claimable, claimed=!!a.claimed;
   const matc=actNum(mt.item_count);
-  let h='<div class="act-card"><div class="act-card-hd"><h4>🍶 青酿换万金</h4><span class="act-badge">活动进行中</span></div>'+
+  const stt=actNum(a.start_time), endt=actNum(a.end_time);
+  const fmtD=function(s){ if(!s) return ''; var x=new Date(s*1000); return (x.getMonth()+1)+'月'+x.getDate()+'日'; };
+  const dur=(stt&&endt)?(fmtD(stt)+' — '+fmtD(endt)):'';
+  let h='<div class="act-card"><div class="act-card-hd"><h4>🍶 青酿换万金</h4><span class="act-badge">'+actEsc(dur||'活动进行中')+'</span></div>'+
     '<div class="act-hint">每日领青梅种子 → 种植/偷菜得青梅 → 酿制并出售青梅酿，可触发价格翻倍暴击</div></div>';
   h+='<div class="act-card"><div class="act-card-hd"><h4>🌱 每日领种子</h4><span class="act-badge">'+actNum(rw.item_count)+' 颗</span></div>'+
     '<div class="act-stats"><span>奖品 <b>'+actEsc(rw.item_name||'青梅种子')+' ×'+actNum(rw.item_count)+'</b></span></div>'+

@@ -554,11 +554,11 @@ func qingmeiMaterialItems(ctx context.Context, accountID string) []qingmeiMat {
 }
 
 // qingmeiActIDs 动态定位当前在期的青梅活动组根、领种子结点(claim,type4)、酿制结点(wine,type12 或 payload 含 QingMei)
-func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, err error) {
+func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, root *ActivityNode, err error) {
 	if rootID == 0 {
 		body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
 		if e != nil {
-			return 0, 0, 0, e
+			return 0, 0, 0, nil, e
 		}
 		now := time.Now().Unix()
 		for _, it := range ParseActivityList(body) {
@@ -573,7 +573,7 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 			}
 		}
 		if rootID == 0 {
-			return 0, 0, 0, fmt.Errorf("青梅活动（青酿换万金）当前未在进行中")
+			return 0, 0, 0, nil, fmt.Errorf("青梅活动（青酿换万金）当前未在进行中")
 		}
 	}
 	gb := proto.NewBuilder()
@@ -581,11 +581,11 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	gb.FieldString(2, "")
 	body, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
 	if e != nil {
-		return 0, 0, 0, e
+		return 0, 0, 0, nil, e
 	}
-	root := ParseActivityGroup(body)
+	root = ParseActivityGroup(body)
 	if root == nil {
-		return rootID, 0, 0, fmt.Errorf("青梅活动分组解析失败")
+		return rootID, 0, 0, root, fmt.Errorf("青梅活动分组解析失败")
 	}
 	var walk func(n *ActivityNode)
 	walk = func(n *ActivityNode) {
@@ -608,9 +608,9 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	}
 	walk(root)
 	if claimID == 0 || wineID == 0 {
-		return rootID, claimID, wineID, fmt.Errorf("未找到青梅领种子/酿制结点")
+		return rootID, claimID, wineID, root, fmt.Errorf("未找到青梅领种子/酿制结点")
 	}
-	return rootID, claimID, wineID, nil
+	return rootID, claimID, wineID, root, nil
 }
 
 // qingmeiOperate 组装青梅 Operate 请求（id/cmd + 可选扩展字段），返回原始回包 body
@@ -633,46 +633,42 @@ func subFieldBytes(body []byte, field int) []byte {
 
 func handleQingmei(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	rootID, claimID, wineID, err := qingmeiActIDs(ctx, accountID)
+	rootID, claimID, wineID, root, err := qingmeiActIDs(ctx, accountID)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
-	// 领种子结点状态由 GetGroup 树中 claim 结点提供（Node 用 claim.status/enabled）
-	gb := proto.NewBuilder()
-	gb.FieldInt64(1, rootID)
-	gb.FieldString(2, "")
-	gbody, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
+	// 复用 qingmeiActIDs 已拉取的 group 根节点解析状态（避免二次 GetGroup）
 	var claimStatus, claimEnabled int64 = 0, 1
 	wineTitle := "青酿换万金"
+	startTime := int64(0)
 	endTime := int64(0)
-	if e == nil {
-		if root := ParseActivityGroup(gbody); root != nil {
-			var walk func(n *ActivityNode)
-			walk = func(n *ActivityNode) {
-				if n == nil || n.Info == nil {
-					return
-				}
-				if n.Info.ID == claimID {
-					claimStatus = n.Info.Status
-					if !n.Info.Enabled {
-						claimEnabled = 0
-					}
-				}
-				if n.Info.ID == wineID {
-					if n.Info.Title != "" {
-						wineTitle = n.Info.Title
-					}
-					endTime = n.Info.EndTime
-				}
-				for _, ch := range n.Children {
-					walk(ch)
+	if root != nil {
+		var walk func(n *ActivityNode)
+		walk = func(n *ActivityNode) {
+			if n == nil || n.Info == nil {
+				return
+			}
+			if n.Info.ID == claimID {
+				claimStatus = n.Info.Status
+				if !n.Info.Enabled {
+					claimEnabled = 0
 				}
 			}
-			walk(root)
+			if n.Info.ID == wineID {
+				if n.Info.Title != "" {
+					wineTitle = n.Info.Title
+				}
+				startTime = n.Info.StartTime
+				endTime = n.Info.EndTime
+			}
+			for _, ch := range n.Children {
+				walk(ch)
+			}
 		}
+		walk(root)
 	}
 	mats := qingmeiMaterialItems(ctx, accountID)
 	total := int64(0)
@@ -698,6 +694,7 @@ func handleQingmei(w http.ResponseWriter, r *http.Request) {
 			"claim_activity_id": claimID,
 			"wine_activity_id": wineID,
 			"wine_title": wineTitle,
+			"start_time": startTime,
 			"end_time": endTime,
 			"status": claimStatus, "claimed": claimed, "claimable": claimable,
 		},
@@ -716,7 +713,7 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	_, claimID, _, err := qingmeiActIDs(ctx, accountID)
+	_, claimID, _, _, err := qingmeiActIDs(ctx, accountID)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
@@ -753,7 +750,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	_, _, wineID, err := qingmeiActIDs(ctx, accountID)
+	_, _, wineID, _, err := qingmeiActIDs(ctx, accountID)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
