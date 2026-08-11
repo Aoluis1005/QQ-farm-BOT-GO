@@ -116,6 +116,7 @@ func main() {
 	registerSettingsAPI(api)
 	registerIllustratedAPI(api)
 	registerAnalyticsAPI(api)
+	registerActivityAPI(api)
 
 	mux.Handle("/api/", corsHandler(api))
 

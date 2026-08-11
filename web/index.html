@@ -729,6 +729,30 @@ body{
 .strat-card .bcmeta{ font-size:10.5px; color:var(--muted); }
 .strat-card .val{ margin-top:8px; padding:8px 10px; border-radius:9px; background:color-mix(in srgb,var(--bg-hi) 60%,transparent); display:flex; align-items:baseline; justify-content:space-between; font-size:11px; color:var(--muted); }
 .strat-card .val b{ font-size:17px; font-weight:800; }
+/* ===== 活动中心 (page-event) ===== */
+.act-empty{ text-align:center; color:var(--muted); padding:30px 12px; font-size:12.5px; line-height:1.8; }
+.act-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+.act-card-hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.act-card-hd h4{ font-size:14px; margin:0; font-weight:700; }
+.act-hint{ font-size:10.5px; color:var(--muted); }
+.act-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; }
+.act-item{ background:var(--card-strong); border:1px solid var(--border); border-radius:14px; padding:10px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+.act-item .ic{ width:48px; height:48px; border-radius:14px; background:var(--primary-soft); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.act-item .ic img{ width:100%; height:100%; object-fit:cover; }
+.act-item .nm{ font-size:11px; color:var(--foreground); line-height:1.35; height:30px; display:flex; align-items:center; justify-content:center; }
+.act-item .ct{ font-size:10.5px; color:var(--muted); }
+.act-badge{ font-size:10px; padding:2px 8px; border-radius:999px; background:var(--primary-soft); color:var(--primary); font-weight:600; }
+.act-badge.off{ background:var(--border); color:var(--muted); }
+.bar-track{ height:8px; background:var(--border); border-radius:999px; overflow:hidden; margin:8px 0 4px; }
+.bar-fill{ height:100%; background:linear-gradient(90deg,var(--primary),var(--primary-soft)); border-radius:999px; transition:width .4s var(--ease); }
+.act-tier{ display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px dashed var(--border); font-size:12px; }
+.act-tier:last-child{ border-bottom:none; }
+.act-tier .lv{ width:56px; color:var(--primary); font-weight:700; flex-shrink:0; }
+.act-tier .rw{ color:var(--muted); font-size:11px; flex:1; line-height:1.5; }
+.act-stats{ display:flex; flex-wrap:wrap; gap:8px 16px; font-size:12px; color:var(--muted); margin-bottom:6px; }
+.act-stats b{ color:var(--primary); }
+.act-row{ display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--muted); }
+
 </style>
 </head>
 <body data-theme="dark">
@@ -1473,48 +1497,10 @@ body{
   <!-- ============ 活动占位 ============ -->
   <section class="page" id="page-event">
     <h3 style="font-size:20px;font-weight:700;margin:2px 2px 14px">活动中心</h3>
-    <div class="seg seg-4">
-      <button class="seg-btn active" data-seg="e-story">千星游记</button>
-      <button class="seg-btn" data-seg="e-shop">星沙商店</button>
-      <button class="seg-btn" data-seg="e-gift">观星礼录</button>
-      <button class="seg-btn" data-seg="e-solar">节气小扎</button>
-    </div>
-
-    <div class="seg-pane active" id="e-story">
-      <div class="placeholder">
-        <div class="big">🌟</div>
-        <h3>千星游记</h3>
-        <p>活动进度与任务<br>接入数据源后开放</p>
-        <span class="badge">占位</span>
-      </div>
-    </div>
-
-    <div class="seg-pane" id="e-shop">
-      <div class="placeholder">
-        <div class="big">🛍️</div>
-        <h3>星沙商店</h3>
-        <p>活动兑换商店<br>待接入数据源</p>
-        <span class="badge">占位</span>
-      </div>
-    </div>
-
-    <div class="seg-pane" id="e-gift">
-      <div class="placeholder">
-        <div class="big">🎁</div>
-        <h3>观星礼录</h3>
-        <p>活动奖励记录</p>
-        <span class="badge">占位</span>
-      </div>
-    </div>
-
-    <div class="seg-pane" id="e-solar">
-      <div class="placeholder">
-        <div class="big">🌿</div>
-        <h3>节气小扎</h3>
-        <p>节气活动与任务</p>
-        <span class="badge">占位</span>
-      </div>
-    </div>
+    <div id="actGroupBar" class="dtab-bar" style="display:none"></div>
+    <div id="actTabsBar" class="seg" style="display:none;margin-top:12px"></div>
+    <div id="actContent" style="margin-top:12px"></div>
+    <div id="actLoading" class="placeholder"><div class="big">🌟</div><h3>正在加载活动数据...</h3></div>
   </section>
 
   <!-- ============ 设置占位 ============ -->
@@ -3572,7 +3558,96 @@ function bindAnalysis(){
     });
   });
 }
-document.addEventListener('DOMContentLoaded', function(){ bindCodex(); bindAnalysis(); });
+function actEsc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c] || c; }); }
+/* ============ 活动中心 (全动态，对齐 Node activity.js 数据结构) ============ */
+let ACT_GROUP_INDEX = 0, ACT_LAST = '';
+function actDefAcc(){ return fetch('/api/accounts').then(r=>r.json()).then(d=>(d&&d.data&&d.data[0]&&d.data[0].id)||''); }
+function actAcc(){ return new URLSearchParams(location.search).get('accountId')||''; }
+function actEls(){ return {bx:document.getElementById('actContent'), bar:document.getElementById('actGroupBar'), tb:document.getElementById('actTabsBar'), ld:document.getElementById('actLoading')}; }
+function actNum(v){ return v==null?0:Number(v)||0; }
+function actNodeInfo(n){ const i=(n&&n.info)||{}; return {id:i.id||0,type:actNum(i.type),title:i.title||'',payload:i.payload||''}; }
+function actShortPayload(s){ if(!s) return ''; try{ const o=JSON.parse(s); const txt=(o&&o.tips&&o.tips.txt)||[]; return (Array.isArray(txt)?txt.join(' '):'').slice(0,170); }catch(e){ return s.slice(0,170); } }
+function actShopStatus(st){ return {100:'可兑换',130:'限购中',3:'已售'}[st]||('状态'+st); }
+async function loadActivity(){
+  const el=actEls(); if(!el.bx||!el.ld) return;
+  const acc = actAcc() || await actDefAcc();
+  const key = acc+'|'+ACT_GROUP_INDEX;
+  if(key===ACT_LAST) return; ACT_LAST=key;
+  el.ld.style.display='block';
+  try{
+    const d = await (await fetch('/api/activity/list?accountId='+encodeURIComponent(acc)+'&scope=ongoing')).json();
+    el.ld.style.display='none';
+    if(!(d&&d.ok)){ el.bx.innerHTML='<div class="act-empty">'+(actEsc((d&&d.error)||'加载失败'))+'</div>'; return; }
+    const groups=(d.items||[]).filter(i=>i.group);
+    if(!groups.length){ el.bx.innerHTML='<div class="act-empty">当前没有进行中的活动</div>'; el.bar.style.display='none'; el.tb.style.display='none'; return; }
+    let gi=ACT_GROUP_INDEX; if(gi<0||gi>=groups.length) gi=0;
+    el.bar.style.display='flex';
+    el.bar.innerHTML=groups.map((g,i)=>'<button class="dtab'+(i===gi?' active':'')+'" data-ai="'+i+'">'+actEsc(g.title)+'</button>').join('');
+    el.bar.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{ ACT_GROUP_INDEX=+btn.dataset.ai; ACT_LAST=''; el.bar.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===btn)); renderActivityGroup(acc, groups[+btn.dataset.ai]); }));
+    renderActivityGroup(acc, groups[gi]);
+  }catch(e){ el.ld.style.display='none'; el.bx.innerHTML='<div class="act-empty">加载失败：'+(actEsc((e&&e.message)||e))+'</div>'; }
+}
+async function renderActivityGroup(acc, group){
+  const el=actEls(); el.ld.style.display='block';
+  let gd=null,sd=null,od=null;
+  try{
+    const [g,s,o]=await Promise.all([
+      fetch('/api/activity/group?accountId='+encodeURIComponent(acc)+'&id='+group.id).then(r=>r.json()),
+      fetch('/api/activity/season?accountId='+encodeURIComponent(acc)).then(r=>r.json()),
+      fetch('/api/activity/solar?accountId='+encodeURIComponent(acc)).then(r=>r.json())
+    ]);
+    gd=g; sd=s; od=o;
+  }catch(e){ el.ld.style.display='none'; el.bx.innerHTML='<div class="act-empty">'+(actEsc((e&&e.message)||e))+'</div>'; return; }
+  el.ld.style.display='none';
+  const tree=(gd&&gd.tree)||null;
+  const season=(sd&&sd.ok)?(sd.data||null):null;
+  const solar=(od&&od.ok)?(od.data||null):null;
+  let shopNode=null, giftNode=null;
+  (function walk(n){ if(!n) return; const inf=n.info||{}; if(actNum(inf.type)===13 && !giftNode) giftNode=n; if((n.exchange_shop&&n.exchange_shop.length)&& !shopNode) shopNode=n; (n.children||[]).forEach(walk); })(tree);
+  const panels=[];
+  if(season && season.passport) panels.push({key:'season',title:(season.passport.title||'千星游记'),icon:'🗺️'});
+  if(shopNode && shopNode.exchange_shop && shopNode.exchange_shop.length) panels.push({key:'shop',title:(actNodeInfo(shopNode).title||'活动商店'),icon:'🛍️'});
+  if(giftNode) panels.push({key:'gift',title:(actNodeInfo(giftNode).title||'观星礼录'),icon:'🌟'});
+  if(solar && solar.terms && solar.terms.length) panels.push({key:'solar',title:'节令小礼',icon:'🌿'});
+  if(!panels.length){ el.bx.innerHTML='<div class="act-empty">该活动暂无可展示的面板</div>'; el.tb.style.display='none'; return; }
+  let pi=el._ai||0; if(pi<0||pi>=panels.length) pi=0;
+  el.tb.style.display='flex';
+  el.tb.innerHTML=panels.map((p,i)=>'<button class="seg-btn'+(i===pi?' active':'')+'" data-ai="'+i+'">'+p.icon+' '+actEsc(p.title)+'</button>').join('');
+  el.tb.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{ const idx=+btn.dataset.ai; el._ai=idx; el.tb.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===btn)); renderPanel(panels[idx],{season,shopNode,giftNode,solar}); }));
+  renderPanel(panels[pi],{season,shopNode,giftNode,solar});
+}
+function renderPanel(p, ctx){
+  const el=actEls(); let h='';
+  try{
+    if(p.key==='season'){
+      const s=ctx.season||{}, pp=s.passport||{};
+      const max=actNum(pp.max_level), cur=actNum(pp.current_level), pct=max>0?Math.min(100,Math.round(cur/max*100)):0;
+      h='<div class="act-card"><div class="act-card-hd"><h4>🗺️ '+actEsc(pp.title||'千星游记')+'</h4><span class="act-badge">等级 '+cur+'/'+max+'</span></div>'+
+        '<div class="act-stats"><span>积分 <b>'+actNum(pp.score)+'</b></span><span>可领 <b>'+actNum(pp.claimable_levels)+'</b></span><span>进度 <b>'+actNum(pp.current_progress)+'</b></span></div>'+
+        '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
+        '<div class="act-hint">距下一级还需 '+actNum(pp.next_level_need)+' 积分</div></div>';
+      const tiers=(pp.reward_tiers||[]);
+      if(tiers.length){ h+='<div class="act-card"><div class="act-card-hd"><h4>🎁 奖励梯度</h4></div>'+
+        tiers.slice(0,20).map(t=>'<div class="act-tier"><span class="lv">Lv.'+actNum(t.level)+'</span><span class="rw">'+(((t.free_rewards||[]).map(rw=>rw.name).filter(Boolean).join('、'))||'—')+'</span></div>').join('')+
+        (tiers.length>20?'<div class="act-hint" style="margin-top:6px">仅显示前 20 档</div>':'')+'</div>'; }
+    } else if(p.key==='shop'){
+      const items=(ctx.shopNode&&ctx.shopNode.exchange_shop)||[];
+      h='<div class="act-card"><div class="act-card-hd"><h4>🛍️ '+actEsc(p.title)+'</h4><span class="act-badge">'+items.length+' 件</span></div>'+
+        '<div class="act-grid">'+items.map(it=>'<div class="act-item"><div class="ic">🌾</div><div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div><span class="act-badge'+(actNum(it.status)===3?' off':'')+'">'+actShopStatus(actNum(it.status))+'</span></div>').join('')+'</div></div>';
+    } else if(p.key==='gift'){
+      const inf=actNodeInfo(ctx.giftNode);
+      h='<div class="act-card"><div class="act-card-hd"><h4>🌟 '+actEsc(inf.title||'观星礼录')+'</h4><span class="act-badge">星宿</span></div>'+
+        '<div style="font-size:12px;color:var(--muted);line-height:1.7">'+(actShortPayload(inf.payload)||'暂无活动说明')+'</div></div>';
+    } else if(p.key==='solar'){
+      const s=ctx.solar||{}, terms=s.terms||[];
+      h='<div class="act-card"><div class="act-card-hd"><h4>🌿 节令小礼</h4><span class="act-badge">'+actNum(s.claimable_count)+' 可领</span></div>'+
+        '<div class="act-grid">'+terms.map(t=>'<div class="act-item"><div class="ic">📅</div><div class="nm">'+actEsc(t.title||('节气'+t.id))+'</div><span class="act-badge'+(actNum(t.status)!==2?' off':'')+'">'+actEsc(t.status_label||'')+'</span></div>').join('')+'</div></div>';
+    }
+  }catch(e){ h='<div class="act-empty">渲染失败：'+(actEsc((e&&e.message)||e))+'</div>'; }
+  el.bx.innerHTML=h;
+}
+document.addEventListener('DOMContentLoaded', function(){ bindCodex(); bindAnalysis(); loadActivity(); });
+document.querySelectorAll('[data-tab="page-event"]').forEach(b=>b.addEventListener('click',()=>{ loadActivity(); }));
 </script>
 </body>
 </html>
