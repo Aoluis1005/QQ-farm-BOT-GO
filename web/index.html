@@ -3887,26 +3887,38 @@ function shopBuyBtn(label, extra, disabled){
   return '<button class="act-btn act-sm'+(disabled?' disabled':'')+'" '+extra+'>'+label+'</button>';
 }
 /* 通用购买下发 */
-async function doShopBuy(url, body, refresh){
-  var acc=shopAcc(); if(!acc){ alert('请先选择账号'); return; }
+function toast(msg, ok){
+  var box=document.getElementById('toastBox');
+  if(!box){ box=document.createElement('div'); box.id='toastBox'; box.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;'; document.body.appendChild(box); }
+  var el=document.createElement('div'); el.textContent=msg;
+  el.style.cssText='padding:10px 16px;border-radius:10px;background:#25303c;color:#eef2f6;box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:13px;font-weight:600;border-left:3px solid '+(ok?'#34c759':'#ff5a4e')+';max-width:80vw;';
+  box.appendChild(el);
+  setTimeout(function(){ el.style.transition='opacity .35s'; el.style.opacity='0'; setTimeout(function(){ el.remove(); }, 370); }, 2000);
+}
+async function doShopBuy(url, body, refresh, okMsg){
+  var acc=shopAcc(); if(!acc){ toast('请先选择账号', false); return; }
   var btn=event&&event.target; if(btn&&btn.classList) btn.disabled=true;
   try{
     var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
-    if(!(d&&d.ok)){ alert(actEsc((d&&d.error)||'操作失败')); if(btn) btn.disabled=false; return; }
+    if(!(d&&d.ok)){ toast((d&&d.error)||'操作失败', false); if(btn) btn.disabled=false; return; }
     if(btn) btn.disabled=false;
+    toast(okMsg||'操作成功', true);
     if(refresh) refresh();
-  }catch(e){ alert('操作失败'); if(btn) btn.disabled=false; }
+  }catch(e){ toast('操作失败', false); if(btn) btn.disabled=false; }
 }
 function qtyOf(btn){
   var inp=btn.closest('.act-item').querySelector('input[data-qnum]');
   return inp ? (parseInt(inp.value||'1',10)||1) : 1;
 }
-function shopBind(items, refreshFn, kindFns){
+function shopBind(items, refreshFn){
   items.querySelectorAll('button[data-buy]').forEach(function(b){ b.addEventListener('click',function(){
-    var kind=b.dataset.buy; var gid=Number(b.dataset.gid||0), price=Number(b.dataset.price||0);
+    var kind=b.dataset.buy; var gid=Number(b.dataset.gid||0), price=Number(b.dataset.price||0); var q=qtyOf(b);
+    var card=b.closest('.act-item'); var nm=card?card.querySelector('.nm'):null;
+    var name=nm?nm.textContent.trim():'商品';
     doShopBuy(kind==='mall'?'/api/shop/mall/buy':'/api/shop/buy',
-      kind==='mall'?{goodsId:gid,count:qtyOf(b)}:{goodsId:gid,num:qtyOf(b),price:price}, refreshFn);
+      kind==='mall'?{goodsId:gid,count:q}:{goodsId:gid,num:q,price:price}, refreshFn,
+      name+' ×'+q+(kind==='mall'&&price===0?' 领取成功':' 购买成功'));
   }); });
 }
 /* 账号资源条 */
@@ -4038,8 +4050,8 @@ async function loadShopMystery(){
       +'<div class="act-item" style="margin:0">'+shopImg({image:o.itemImage})+'<div class="nm">'+actEsc(o.itemName)+(o.itemCount>1?' ×'+o.itemCount:'')+'</div>'
       +'<div class="ct">'+actEsc(o.currencyName)+' '+orig+actNum(o.price)+'</div>'+endTxt
       +'<div style="display:flex;gap:8px;margin-top:8px">'+buyBtn+abdBtn+'</div></div></div>';
-    var bb=box.querySelector('[data-mybuy]'); if(bb) bb.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/buy',{npcId:Number(this.dataset.npc)},loadShopMystery); });
-    var ab=box.querySelector('[data-myabandon]'); if(ab) ab.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/abandon',{},loadShopMystery); });
+    var bb=box.querySelector('[data-mybuy]'); if(bb) bb.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/buy',{npcId:Number(this.dataset.npc)},loadShopMystery, (o.itemName||'神秘商人')+' 购买成功'); });
+    var ab=box.querySelector('[data-myabandon]'); if(ab) ab.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/abandon',{},loadShopMystery,'已请离神秘商人'); });
   }catch(e){ box.innerHTML='<p class="shop-empty">加载失败</p>'; }
 }
 function loadShop(seg){
