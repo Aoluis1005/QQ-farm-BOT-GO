@@ -16,6 +16,10 @@ type ClientPool struct {
 	mu sync.Mutex
 	m  map[string]*gw.Client // accountID -> 已登录连接
 
+	// 单飞连接：同一账号同时只进行一个 connect（前端并发 Get / onKick / scanAutoReconnect
+	// 共享这一次登录结果），杜绝多连接并发登录触发游戏“账号已在其他地方登录”自踢死循环。
+	inflight map[string]chan connectResult
+
 	// 掉线自动重连状态（accountID -> 状态）
 	offlineSince     map[string]time.Time // 首次检测到断线的时间
 	reconnectAttempts map[string]int      // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
@@ -23,8 +27,15 @@ type ClientPool struct {
 	kickBackoffUntil  map[string]time.Time // 被踢后重连防抖：下次允许重连的最早时间（避免与别处登录互踢自旋）
 }
 
+// connectResult 单飞连接的返回（连接或错误）
+type connectResult struct {
+	c   *gw.Client
+	err error
+}
+
 var clientPool = &ClientPool{
 	m:                 map[string]*gw.Client{},
+	inflight:          map[string]chan connectResult{},
 	offlineSince:      map[string]time.Time{},
 	reconnectAttempts: map[string]int{},
 	stopped:           map[string]bool{},
@@ -59,6 +70,10 @@ func (p *ClientPool) cached(accountID string) *gw.Client {
 func (p *ClientPool) store(accountID string, c *gw.Client) {
 	c.SetKickHook(func() { p.onKick(accountID) })
 	p.mu.Lock()
+	if old, ok := p.m[accountID]; ok && old != nil && old != c && !old.IsClosed() {
+		// 替换旧连接时关闭它，避免泄漏（被踢的旧连接通常已关闭，此处幂等）
+		old.Close()
+	}
 	p.m[accountID] = c
 	p.mu.Unlock()
 }
@@ -80,18 +95,16 @@ func (p *ClientPool) onKick(accountID string) {
 	if acc == nil {
 		return
 	}
-	// 优先 YYB 刷新 code（账号须有 openid）
+	// 优先 YYB 刷新 code（账号须有 openid）；刷新失败则用旧 code 尝试
 	if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
 		acc.Code = newCode
 		models.AddOrUpdateAccount(*acc)
 	}
-	c, err := connect(acc)
-	if err != nil {
+	// 单飞连接：若此刻已有其他路径在连同一账号，复用其结果，避免自踢
+	if _, err := p.connectLocked(acc); err != nil {
 		log.Printf("[pool] 账号 %s 被踢后重连失败: %v", accountID, err)
 		return
 	}
-	loadAssetsAsync(accountID, c)
-	p.store(accountID, c)
 	log.Printf("[pool] 账号 %s 被踢后已重连（第 %d 次）", accountID, p.reconnectAttempts[accountID])
 }
 
@@ -121,6 +134,43 @@ func refreshCodeFromYyb(acc *models.Account) (string, error) {
 	return getCodeFromYyb(apiBase, apiKey, acc.OpenID, "")
 }
 
+// connectLocked 单飞连接：同一账号同时只有一个 connect 在进行（对齐 Node 单线程登录语义）。
+// 并发调用方（前端多请求 Get / onKick / scanAutoReconnect / 手动重试）共享同一次登录结果，
+// 避免多连接并发登录触发游戏“账号已在其他地方登录”自踢死循环。
+// 连接失败且 code 疑似过期时，用 openid 自动刷新一次后重试（对齐 Node refreshYybCodeIfNeeded）。
+func (p *ClientPool) connectLocked(acc *models.Account) (*gw.Client, error) {
+	p.mu.Lock()
+	if ch, ok := p.inflight[acc.ID]; ok {
+		// 已有连接在进行中，挂等其结果（不新建第二个连接）
+		p.mu.Unlock()
+		res := <-ch
+		return res.c, res.err
+	}
+	ch := make(chan connectResult, 1)
+	p.inflight[acc.ID] = ch
+	p.mu.Unlock()
+
+	c, err := connect(acc)
+	if err != nil {
+		// code 过期 → 用持久 openid 自动刷新重试一次
+		if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
+			acc.Code = newCode
+			models.AddOrUpdateAccount(*acc)
+			c, err = connect(acc)
+		}
+	}
+	if err == nil {
+		loadAssetsAsync(acc.ID, c)
+		p.store(acc.ID, c)
+	}
+
+	p.mu.Lock()
+	delete(p.inflight, acc.ID)
+	p.mu.Unlock()
+	ch <- connectResult{c, err}
+	return c, err
+}
+
 // resolveAccountID：空/"default" 解析为默认账号（活跃或第一个）
 func resolveAccountID(accountID string) string {
 	if accountID == "" || accountID == "default" {
@@ -148,24 +198,8 @@ func (p *ClientPool) Get(accountID string) (*gw.Client, error) {
 		return nil, fmt.Errorf("账号 %s 未配置登录 code", accountID)
 	}
 
-	c, err := connect(acc)
-	if err == nil {
-		loadAssetsAsync(accountID, c)
-		p.store(accountID, c)
-		return c, nil
-	}
-
-	// code 过期 → 使用持久 openid 自动刷新重试
-	if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
-		acc.Code = newCode
-		models.AddOrUpdateAccount(*acc)
-		if c2, err2 := connect(acc); err2 == nil {
-			loadAssetsAsync(accountID, c2)
-			p.store(accountID, c2)
-			return c2, nil
-		}
-	}
-	return nil, err
+	// 单飞连接：并发的 Get 调用共享这一次登录，避免自踢
+	return p.connectLocked(acc)
 }
 
 // UpdateCodeAndRelink 更新账号 code 并重建连接

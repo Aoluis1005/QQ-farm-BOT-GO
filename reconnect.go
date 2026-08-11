@@ -124,7 +124,8 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 		log.Printf("[reconnect] 账号 %s 换 code 失败（将用旧 code 尝试）: %v", accountID, cerr)
 	}
 
-	c, err := connect(acc)
+	// 单飞连接：同一账号同时只连一个，避免与前端 Get / onKick 并发登录造成自踢
+	c, err := p.connectLocked(acc)
 	if err != nil {
 		// 失败：计数已在调度时累加，这里保持计数，等待下一轮重试
 		p.mu.Lock()
@@ -134,9 +135,7 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 		return
 	}
 
-	// 成功：更新连接，清断线/停止态；**保留重连计数**（对齐 Node）
-	p.store(accountID, c)
-	loadAssetsAsync(accountID, c)
+	// 成功：清断线/停止态；**保留重连计数**（对齐 Node）。连接与资产已在 connectLocked 内完成。
 	p.mu.Lock()
 	delete(p.offlineSince, accountID)
 	delete(p.stopped, accountID)
