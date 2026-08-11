@@ -1036,49 +1036,70 @@ body{
         </div>
       </div>
 
-      <!-- 第二优先策略 -->
-      <div class="auto-item col" style="border:none;padding:12px 9px">
-        <div class="f-label">第二优先策略</div>
+      <!-- 策略选种预览/第二优先策略预览：对齐 Node，非 preferred 且非(bag_priority+preferred)时显示 -->
+      <div class="auto-item col" style="border:none;padding:6px 9px 4px" id="mStrategyPreviewBox">
+        <div class="f-label" id="mStrategyPreviewLabel">策略选种预览</div>
         <div class="strategy-row">
-          <div class="sel-wrap">
-            <select class="field" id="mFallbackStrategy">
-              <option value="level">最高等级作物</option>
-              <option value="max_exp">最大经验/时</option>
-              <option value="max_fert_exp">最大普通肥经验/时</option>
-              <option value="max_profit">最大净利润/时</option>
-              <option value="max_fert_profit">最大普通肥净利润/时</option>
-              <option value="preferred">优先种植种子</option>
-            </select>
+          <div class="sel-wrap" style="pointer-events:none">
+            <div class="field" id="mStrategyPreview" style="display:flex;align-items:center;justify-content:space-between;opacity:.82">加载中… <span style="opacity:.6;margin-left:6px">▾</span></div>
           </div>
         </div>
       </div>
 
-      <!-- 背包种子优先地块 -->
-      <div class="auto-item col" style="border:none;padding:12px 9px">
-        <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
-        <div class="chips" id="mBagLandTypes">
-          <button class="chip on" data-land="purple">紫土地</button>
-          <button class="chip on" data-land="gold">金土地</button>
-          <button class="chip on" data-land="black">黑土地</button>
-          <button class="chip on" data-land="red">红土地</button>
-          <button class="chip on" data-land="normal">普通地</button>
+      <!-- 优先种植种子(对齐 Node preferred)：仅 plantingStrategy=preferred 或 (bag_priority+fallback=preferred) 时显示 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px" id="mPreferredSeedBox" hidden>
+        <div class="f-label">优先种植种子</div>
+        <div class="strategy-row">
+          <div class="sel-wrap"><select class="field" id="mPreferredSeed"></select></div>
         </div>
       </div>
 
-      <!-- 2x2 作物优先 -->
-      <div class="auto-item col" style="border:none;padding:12px 9px">
-        <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
-        <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="m2x2"></div></div>
-      </div>
-
-      <!-- 背包种子优先顺序 -->
-      <div class="auto-item col" style="border:none;padding:12px 9px 14px">
-        <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-          <button class="chip" id="mBagSeedsReset">↺ 重置顺序</button>
+      <!-- bag_priority 块（对齐 Node v-if=bag_priority）：第二优先策略 + 背包地块 + 2x2 + 背包顺序 -->
+      <div id="mBagPriorityGroup">
+        <!-- 第二优先策略 -->
+        <div class="auto-item col" style="border:none;padding:12px 9px">
+          <div class="f-label">第二优先策略</div>
+          <div class="strategy-row">
+            <div class="sel-wrap">
+              <select class="field" id="mFallbackStrategy">
+                <option value="level">最高等级作物</option>
+                <option value="max_exp">最大经验/时</option>
+                <option value="max_fert_exp">最大普通肥经验/时</option>
+                <option value="max_profit">最大净利润/时</option>
+                <option value="max_fert_profit">最大普通肥净利润/时</option>
+                <option value="preferred">优先种植种子</option>
+              </select>
+            </div>
+          </div>
         </div>
-        <div class="menu" id="mBagSeedsList">
-          <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
+
+        <!-- 背包种子优先地块 -->
+        <div class="auto-item col" style="border:none;padding:12px 9px">
+          <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
+          <div class="chips" id="mBagLandTypes">
+            <button class="chip on" data-land="purple">紫土地</button>
+            <button class="chip on" data-land="gold">金土地</button>
+            <button class="chip on" data-land="black">黑土地</button>
+            <button class="chip on" data-land="red">红土地</button>
+            <button class="chip on" data-land="normal">普通地</button>
+          </div>
+        </div>
+
+        <!-- 2x2 作物优先 -->
+        <div class="auto-item col" style="border:none;padding:12px 9px">
+          <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="m2x2"></div></div>
+        </div>
+
+        <!-- 背包种子优先顺序 -->
+        <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+          <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <button class="chip" id="mBagSeedsReset">↺ 重置顺序</button>
+          </div>
+          <div class="menu" id="mBagSeedsList">
+            <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
+          </div>
         </div>
       </div>
 
@@ -1174,34 +1195,53 @@ body{
               </select></div>
             </div>
           </div>
-          <div class="auto-item col" style="border:none;padding:12px 9px">
-            <div class="f-label">第二优先策略</div>
+          <!-- 策略选种预览/第二优先策略预览：对齐 Node，非 preferred 且非(bag_priority+preferred)时显示 -->
+          <div class="auto-item col" style="border:none;padding:6px 9px 4px" id="dStrategyPreviewBox">
+            <div class="f-label" id="dStrategyPreviewLabel">策略选种预览</div>
             <div class="strategy-row">
-              <div class="sel-wrap"><select class="field" id="dFallbackStrategy">
-                <option value="level">最高等级作物</option><option value="max_exp">最大经验/时</option>
-                <option value="max_fert_exp">最大普通肥经验/时</option><option value="max_profit">最大净利润/时</option><option value="max_fert_profit">最大普通肥净利润/时</option>
-                <option value="preferred">优先种植种子</option>
-              </select></div>
+              <div class="sel-wrap" style="pointer-events:none">
+                <div class="field" id="dStrategyPreview" style="display:flex;align-items:center;justify-content:space-between;opacity:.82">加载中… <span style="opacity:.6;margin-left:6px">▾</span></div>
+              </div>
             </div>
           </div>
-          <div class="auto-item col" style="border:none;padding:12px 9px">
-            <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
-            <div class="chips" id="dBagLandTypes">
-              <button class="chip on" data-land="purple">紫土地</button><button class="chip on" data-land="gold">金土地</button>
-              <button class="chip" data-land="black">黑土地</button><button class="chip" data-land="red">红土地</button><button class="chip" data-land="normal">普通地</button>
+          <!-- 优先种植种子(对齐 Node preferred)：仅 plantingStrategy=preferred 或 (bag_priority+fallback=preferred) 时显示 -->
+          <div class="auto-item col" style="border:none;padding:12px 9px" id="dPreferredSeedBox" hidden>
+            <div class="f-label">优先种植种子</div>
+            <div class="strategy-row">
+              <div class="sel-wrap"><select class="field" id="dPreferredSeed"></select></div>
             </div>
           </div>
-          <div class="auto-item col" style="border:none;padding:12px 9px">
-            <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
-            <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="d2x2"></div></div>
-          </div>
-          <div class="auto-item col" style="border:none;padding:12px 9px 14px">
-            <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-              <button class="chip" id="dBagSeedsReset">↺ 重置顺序</button>
+          <!-- bag_priority 三块：第二优先策略 + 背包地块 + 背包顺序 + 2x2（对齐 Node v-if=bag_priority） -->
+          <div id="dBagPriorityGroup">
+            <div class="auto-item col" style="border:none;padding:12px 9px">
+              <div class="f-label">第二优先策略</div>
+              <div class="strategy-row">
+                <div class="sel-wrap"><select class="field" id="dFallbackStrategy">
+                  <option value="level">最高等级作物</option><option value="max_exp">最大经验/时</option>
+                  <option value="max_fert_exp">最大普通肥经验/时</option><option value="max_profit">最大净利润/时</option><option value="max_fert_profit">最大普通肥净利润/时</option>
+                  <option value="preferred">优先种植种子</option>
+                </select></div>
+              </div>
             </div>
-            <div class="menu" id="dBagSeedsList">
-              <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
+            <div class="auto-item col" style="border:none;padding:12px 9px">
+              <div class="f-label">背包种子优先地块<small>仅在勾选的品质地块上按背包种子优先级种植；未勾选地块、以及背包种子用完后剩余的空地，都会按上方“第二优先策略”种植。默认全选表示不限制。</small></div>
+              <div class="chips" id="dBagLandTypes">
+                <button class="chip on" data-land="purple">紫土地</button><button class="chip on" data-land="gold">金土地</button>
+                <button class="chip on" data-land="black">黑土地</button><button class="chip on" data-land="red">红土地</button><button class="chip on" data-land="normal">普通地</button>
+              </div>
+            </div>
+            <div class="auto-item col" style="border:none;padding:12px 9px">
+              <div class="f-label">优先种植 2×2 作物<small>开启后会根据背包中的四格种子预留完整 2×2 区域；预留区收获后暂不补种普通作物，四块全部空闲时自动种植。四格种子不会从商城购买。</small></div>
+              <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" id="d2x2"></div></div>
+            </div>
+            <div class="auto-item col" style="border:none;padding:12px 9px 14px">
+              <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+              <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+                <button class="chip" id="dBagSeedsReset">↺ 重置顺序</button>
+              </div>
+              <div class="menu" id="dBagSeedsList">
+                <p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">加载中…</p>
+              </div>
             </div>
           </div>
         </div>
@@ -3120,6 +3160,9 @@ window.loadLogs();
     numSet('mStealDelay', d.stealDelaySeconds ?? 1);
     window.__bagPriority = Array.isArray(d.bagSeedPriority) ? d.bagSeedPriority.slice() : [];
     renderBagSeeds('mBagSeedsList', window.__bagPriority);
+    // 填充 preferredSeedId 并触发策略可见性+预览
+    fillPreferredSeedSelect('mPreferredSeed', d.preferredSeedId || 0);
+    updateStrategyVisibility('m');
   }
   function collectStrategy(){
     return {
@@ -3143,6 +3186,7 @@ window.loadLogs();
       plantDelaySeconds: numVal('mPlantDelay', 2),
       stealDelaySeconds: numVal('mStealDelay', 1),
       bagSeedPriority: (window.__bagPriority || []).slice(),
+      preferredSeedId: (() => { const v = selVal('mPreferredSeed', '0'); return v ? (parseInt(v, 10) || 0) : 0; })(),
     };
   }
 
@@ -3225,6 +3269,9 @@ window.loadLogs();
     numSet('dFertSeconds', aut.fertilizer_smart_seconds ?? 300);
     window.__dBagPriority = Array.isArray(cfg.bagSeedPriority) ? cfg.bagSeedPriority.slice() : [];
     renderBagSeeds('dBagSeedsList', window.__dBagPriority);
+    // 填充 preferredSeedId 并触发策略可见性+预览
+    fillPreferredSeedSelect('dPreferredSeed', cfg.preferredSeedId || 0);
+    updateStrategyVisibility('d');
   }
   function collectDefault(){
     const plan = {
@@ -3248,6 +3295,7 @@ window.loadLogs();
       plantDelaySeconds: numVal('dPlantDelay', 2),
       stealDelaySeconds: numVal('dStealDelay', 1),
       bagSeedPriority: (window.__dBagPriority || []).slice(),
+      preferredSeedId: (() => { const v = selVal('dPreferredSeed', '0'); return v ? (parseInt(v, 10) || 0) : 0; })(),
       autoAcceptFriendMinLevel: numVal('dAutoFriendMinLevel', 0),
       automation: (function(){
         const dauto = document.getElementById('d-auto');
@@ -3275,6 +3323,160 @@ window.loadLogs();
       if(d && d.ok) fillDefault(d.data);
     }).catch(() => {});
   }
+
+  // ---- 策略选种预览 / 第二优先策略预览（对齐 Node StrategySettingsTab.vue + useStrategySettings.ts）----
+  // 三块条件显示规则：
+  //   plantingStrategy='preferred'                 → 显示 preferredSeedId 下拉，隐藏预览框
+  //   plantingStrategy='bag_priority' 且 fallback='preferred' → 显示预览框(label="第二优先策略预览") + preferredSeedId 下拉
+  //   plantingStrategy='bag_priority' 其它 fallback  → 显示预览框(label="策略选种预览") + bag_priority 三块（地块/2x2/顺序）
+  //   其它 strategy                                → 显示预览框(label="策略选种预览")，隐藏 bag_priority 三块
+
+  // 缓存 /api/seeds 与 userLevel（避免每次切策略都请求）
+  let __seedsCache = null;        // { ts, data: [{seedId,name,requiredLevel,...}] }
+  let __userLevel = null;
+  function getUserLevel(){ return __userLevel || 0; }
+  function fetchUserLevel(){
+    return fetch('/api/home/profile?accountId=' + accId()).then(r => r.json()).then(d => {
+      __userLevel = (d && d.data && d.data.level) ? parseInt(d.data.level, 10) || 0 : 0;
+      return __userLevel;
+    }).catch(() => 0);
+  }
+  function getSeedsCache(){
+    if(__seedsCache && Date.now() - __seedsCache.ts < 60000) return Promise.resolve(__seedsCache.data);
+    return fetch('/api/seeds?accountId=' + accId()).then(r => r.json()).then(d => {
+      const arr = (d && d.ok && Array.isArray(d.data)) ? d.data : [];
+      __seedsCache = { ts: Date.now(), data: arr };
+      return arr;
+    }).catch(() => []);
+  }
+  function fillPreferredSeedSelect(selId, currentId){
+    const sel = document.getElementById(selId); if(!sel) return;
+    getSeedsCache().then(seeds => {
+      const opts = ['<option value="0">（不指定）</option>'].concat(seeds.map(s => {
+        const selAttr = (s.seedId === currentId) ? ' selected' : '';
+        return '<option value="' + s.seedId + '"' + selAttr + '>' + esc(s.name || ('种子' + s.seedId)) + '（' + (s.requiredLevel || 0) + '级）</option>';
+      }));
+      sel.innerHTML = opts.join('');
+    }).catch(() => {});
+  }
+  // 预览计算：level 直接找最高级 ≤ userLevel；sort 模式走 /api/analytics 找匹配
+  const SORT_TO_ANALYTICS = { max_exp:'exp', max_fert_exp:'fert', max_profit:'profit', max_fert_profit:'fert_profit' };
+  function computeStrategyPreview(prefix, strategy, fallback, preferredId){
+    const lblEl = document.getElementById(prefix + 'StrategyPreviewLabel');
+    const boxEl = document.getElementById(prefix + 'StrategyPreview');
+    const preferredBox = document.getElementById(prefix + 'PreferredSeedBox');
+    const bagGroup = document.getElementById(prefix + 'BagPriorityGroup');
+    if(!boxEl) return;
+
+    // 1) 显示规则
+    let showPreview = true, showPreferred = false, showBagGroup = false, previewLabel = '策略选种预览';
+    if(strategy === 'preferred'){
+      showPreview = false; showPreferred = true; showBagGroup = false;
+    } else if(strategy === 'bag_priority'){
+      showBagGroup = true;
+      if(fallback === 'preferred'){
+        previewLabel = '第二优先策略预览';
+        showPreview = true; showPreferred = true;
+      } else {
+        previewLabel = '策略选种预览';
+        showPreview = true; showPreferred = false;
+      }
+    } else {
+      showPreview = true; showPreferred = false; showBagGroup = false;
+    }
+    const previewBoxOuter = document.getElementById(prefix + 'StrategyPreviewBox');
+    if(previewBoxOuter) previewBoxOuter.hidden = !showPreview;
+    if(lblEl) lblEl.textContent = previewLabel;
+    if(preferredBox) preferredBox.hidden = !showPreferred;
+    if(bagGroup) bagGroup.hidden = !showBagGroup;
+
+    if(!showPreview){ boxEl.textContent = ''; return; }
+
+    boxEl.textContent = '加载中…';
+
+    // 2) 计算预览文案
+    if(strategy === 'bag_priority' && fallback === 'preferred'){
+      // 优先种子模式（fallback=preferred）：显示 preferredId 对应种子
+      getSeedsCache().then(seeds => {
+        if(!preferredId || preferredId <= 0){ boxEl.textContent = '未选择优先种子'; return; }
+        const seed = seeds.find(s => s.seedId === preferredId);
+        boxEl.textContent = seed ? (seed.requiredLevel || 0) + '级 ' + (seed.name || ('种子' + seed.seedId)) : '未选择优先种子';
+      });
+      return;
+    }
+
+    // 其它 strategy：level 取最高级可用；sort 调 analytics
+    getSeedsCache().then(seeds => {
+      const lvl = getUserLevel();
+      const available = seeds.filter(s => (s.requiredLevel || 0) <= lvl);
+      if(available.length === 0){
+        // 没缓存到 userLevel 时异步拉一次再算
+        if(!__userLevel && !window.__pvFetched){
+          window.__pvFetched = true;
+          fetchUserLevel().then(() => computeStrategyPreview(prefix, strategy, fallback, preferredId));
+        }
+        boxEl.textContent = '暂无可用种子';
+        return;
+      }
+      if(strategy === 'level'){
+        const best = available.slice().sort((a,b) => (b.requiredLevel||0) - (a.requiredLevel||0))[0];
+        boxEl.textContent = best ? (best.requiredLevel||0) + '级 ' + (best.name || ('种子'+best.seedId)) : '暂无可用种子';
+        return;
+      }
+      const sortBy = SORT_TO_ANALYTICS[strategy];
+      if(!sortBy){ boxEl.textContent = '暂无可用种子'; return; }
+      fetch('/api/analytics?accountId=' + accId() + '&sort=' + encodeURIComponent(sortBy))
+        .then(r => r.json())
+        .then(res => {
+          const rankings = (res && res.ok && Array.isArray(res.data)) ? res.data : [];
+          if(rankings.length === 0){ boxEl.textContent = '暂无匹配种子'; return; }
+          const seedIds = new Set(available.map(s => s.seedId));
+          const match = rankings.find(r => seedIds.has(parseInt(r.seedId, 10) || 0));
+          if(match){
+            const seed = available.find(s => s.seedId === (parseInt(match.seedId, 10) || 0));
+            boxEl.textContent = seed ? (seed.requiredLevel||0) + '级 ' + (seed.name || ('种子'+seed.seedId)) : '暂无匹配种子';
+          } else {
+            boxEl.textContent = '暂无匹配种子';
+          }
+        }).catch(() => { boxEl.textContent = '暂无匹配种子'; });
+    });
+  }
+
+  function updateStrategyVisibility(prefix){
+    // prefix: 'm' 手动策略页 / 'd' 默认方案页
+    const stratSel = document.getElementById(prefix + 'PlantStrategy');
+    const fallSel = document.getElementById(prefix + 'FallbackStrategy');
+    if(!stratSel) return;
+    const strategy = stratSel.value || 'max_exp';
+    let fallback = 'level';
+    if(strategy === 'bag_priority' && fallSel) fallback = fallSel.value || 'level';
+    const preferredIdEl = document.getElementById(prefix + 'PreferredSeed');
+    const preferredId = preferredIdEl ? (parseInt(preferredIdEl.value, 10) || 0) : 0;
+    computeStrategyPreview(prefix, strategy, fallback, preferredId);
+  }
+
+  // 挂接 change 事件（手动 + 默认两份）
+  [['m','mFallbackStrategy'], ['d','dFallbackStrategy']].forEach(([_, fid]) => {
+    const f = document.getElementById(fid); if(!f) return;
+    f.addEventListener('change', () => {
+      const prefix = fid[0]; // 'm' or 'd'
+      updateStrategyVisibility(prefix);
+    });
+  });
+  ['mPlantStrategy','dPlantStrategy'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.addEventListener('change', () => {
+      const prefix = id[0];
+      updateStrategyVisibility(prefix);
+    });
+  });
+  ['mPreferredSeed','dPreferredSeed'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.addEventListener('change', () => {
+      const prefix = id[0];
+      updateStrategyVisibility(prefix);
+    });
+  });
 
   // ---- 保存 ----
   function postJSON(url, body){
