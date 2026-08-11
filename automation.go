@@ -110,6 +110,15 @@ func farmAutomationLoop(accountID string, stop chan struct{}) {
 				runFarmOnce(accountID, c, cfg)
 			}
 		}
+		// 自动填充化肥（对齐 Node worker.js:312 farmCheckLoop 内
+		// `if (autoConfig.fertilizer_gift) await openFertilizerGiftPacksSilently()`；
+		// 每日一次由 runFertilizerGiftOnce 内部防重）
+		cfg = models.GetAccountConfig(accountID)
+		if cfg.Automation.FertilizerGift {
+			if c, err := clientPool.Get(accountID); err == nil && c != nil {
+				runFertilizerGiftOnce(accountID, c)
+			}
+		}
 		cfg = models.GetAccountConfig(accountID)
 		iv := farmInterval(cfg.Intervals)
 		select {

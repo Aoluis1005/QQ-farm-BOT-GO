@@ -120,3 +120,27 @@ func EncodeSellRequest(items []SellItem) []byte {
 	}
 	return b.Bytes()
 }
+
+// EncodeBatchUseRequest 对齐 Node itempb.proto BatchUseRequest{items=1} 每项 corepb.Item{id=1,count=2,uid=6}
+// （对齐 Node warehouse.js batchUseItems：id/count/uid 均为 int64，uid 缺省 0）
+func EncodeBatchUseRequest(items []SellItem) []byte {
+	b := NewBuilder()
+	for _, it := range items {
+		sub := NewBuilder()
+		sub.FieldInt64(1, it.ID)
+		sub.FieldInt64(2, it.Count)
+		sub.FieldInt64(6, it.UID)
+		b.FieldMessage(1, sub.Bytes())
+	}
+	return b.Bytes()
+}
+
+// IsFertilizerContainerFullError 对齐 Node warehouse.js isFertilizerContainerFullError：
+// code=1003002 或容器已满文案 → 静默返回（视为"已满，无需填充"）
+func IsFertilizerContainerFullError(msg string) bool {
+	return strings.Contains(msg, "code=1003002") ||
+		strings.Contains(msg, "普通化肥容器已达到上限") ||
+		strings.Contains(msg, "普通化肥容器已满") ||
+		strings.Contains(msg, "有机化肥容器已达到上限") ||
+		strings.Contains(msg, "有机化肥容器已满")
+}
