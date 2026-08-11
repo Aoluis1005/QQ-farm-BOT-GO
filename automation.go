@@ -331,16 +331,18 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		}
 		// 一组地（1x1 单块 / 2x2 四块）一次 Plant RPC 种完，服务端按 footprint 合并消耗 1 颗种子，
 		// 对齐 Node plantFromShop：plantCount = floor(landIds/footprint)，每组买 1 颗。
-		if err := ensureSeedOwned(c, seedID, goodsID, price, 1); err != nil {
+		realSeed, err := ensureSeedOwned(c, seedID, goodsID, price, 1)
+		if err != nil || realSeed <= 0 {
 			appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
 			continue
 		}
-		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(seedID, g.ids)); err != nil {
-			appendOpLog(accountID, "farm", fmt.Sprintf("种植 %d 失败: %v", seedID, err))
+		// 每组地一次 Plant RPC，仅传主地 ID（对齐 Node plantSeeds：首块 [landId] 种下整组 2x2，消耗 1 颗）
+		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{g.ids[0]})); err != nil {
+			appendOpLog(accountID, "farm", fmt.Sprintf("种植 %d 失败: %v", realSeed, err))
 			continue
 		}
 		recordOperation(accountID, "plant", int64(len(g.ids)))
-		appendOpLog(accountID, "farm", fmt.Sprintf("种植种子 %d → %d 块地", seedID, len(g.ids)))
+		appendOpLog(accountID, "farm", fmt.Sprintf("种植种子 %d → %d 块地", realSeed, len(g.ids)))
 		delay := time.Duration(cfg.PlantDelaySeconds) * time.Second
 		if delay <= 0 {
 			delay = 2 * time.Second
@@ -406,15 +408,48 @@ func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64)
 			}
 		}
 	}
-	if err := ensureSeedOwned(c, seedID, 0, 0, len(fullIDs)); err != nil {
+	// 按 2x2 分组（主地+从属地 = 一次 Plant RPC，消耗 1 颗种子），对齐 Node plantSeeds
+	type pg struct{ ids []int64 }
+	var pgroups []pg
+	seenG := map[int64]bool{}
+	for _, id := range fullIDs {
+		if seenG[id] {
+			continue
+		}
+		l := landByID[id]
+		g := pg{ids: []int64{id}}
+		if l != nil && l.LandSize > 1 && len(l.SlaveLandIDs) > 0 {
+			g.ids = append(g.ids, l.SlaveLandIDs...)
+			for _, s := range l.SlaveLandIDs {
+				seenG[s] = true
+			}
+		}
+		seenG[id] = true
+		pgroups = append(pgroups, g)
+	}
+	// 购买：每组 1 颗（2x2 一组消耗 1 颗，对齐 Node plantCount=floor(landIds/footprint)）
+	realSeed, err := ensureSeedOwned(c, seedID, 0, 0, len(pgroups))
+	if err != nil || realSeed <= 0 {
 		return 0, err
 	}
-	if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(seedID, fullIDs)); err != nil {
-		return 0, err
+	planted := 0
+	for _, g := range pgroups {
+		// 枯死地块先铲除（仅主地）
+		if l := landByID[g.ids[0]]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
+			if ph := currentPhase(l.Plant.Phases, time.Now().Unix()); ph != nil && ph.Phase == proto.PhaseDead {
+				_ = execFarmOp(c, "RemovePlant", proto.EncodeRemovePlantRequest([]int64{g.ids[0]}))
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{g.ids[0]})); err != nil {
+			appendOpLog(accountID, "plant", fmt.Sprintf("手动种植 %d 失败: %v", realSeed, err))
+			continue
+		}
+		planted += len(g.ids)
+		recordOperation(accountID, "plant", int64(len(g.ids)))
 	}
-	recordOperation(accountID, "plant", int64(len(fullIDs)))
-	appendOpLog(accountID, "plant", fmt.Sprintf("手动种植种子 %d → %d 块地", seedID, len(fullIDs)))
-	return len(fullIDs), nil
+	appendOpLog(accountID, "plant", fmt.Sprintf("手动种植种子 %d → %d 块地", realSeed, planted))
+	return planted, nil
 }
 
 // seedCand 商店候选种子（对齐 Node findBestSeed 的 candidate）
@@ -579,12 +614,14 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 	return seeds[0].seedID, true
 }
 
-// ensureSeedOwned 背包种子不足时从商店购买（对齐 Node buyGoods）
-func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) error {
+// ensureSeedOwned 背包种子不足时从商店购买（对齐 Node buyGoods/plantFromShop）。
+// 返回值为实际应种植的种子 ID：购买成功时优先用 buyResult.get_items[0].id
+// （部分礼包商品实际产出种子 ID 与 goods.item_id 不同），未购买（背包已有）时返回入参 seedID。
+func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int64, error) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	have := int64(0)
 	for _, it := range proto.DecodeBagReply(rep.Body).Items {
@@ -593,14 +630,14 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) error
 		}
 	}
 	if have >= int64(need) {
-		return nil
+		return seedID, nil // 背包已够，无需购买
 	}
 	buy := int64(need) - have
 	if goodsID <= 0 || price <= 0 {
 		shop, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "ShopInfo",
 			proto.EncodeShopInfoRequest(2), 15*time.Second)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		for _, g := range proto.DecodeShopInfoReply(shop.Body).GoodsList {
 			if g.ItemID == seedID {
@@ -610,13 +647,18 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) error
 		}
 	}
 	if goodsID <= 0 {
-		return errNoSeed
+		return 0, errNoSeed
 	}
-	if _, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "BuyGoods",
-		proto.EncodeBuyGoodsRequest(goodsID, buy, price), 12*time.Second); err != nil {
-		return err
+	brep, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "BuyGoods",
+		proto.EncodeBuyGoodsRequest(goodsID, buy, price), 12*time.Second)
+	if err != nil {
+		return 0, err
 	}
-	return nil
+	// 对齐 Node plantFromShop：从购买结果取真实种子 ID
+	if got := proto.DecodeBuyGoodsReply(brep.Body); got != nil && len(got.GetItems) > 0 && got.GetItems[0].ID > 0 {
+		return got.GetItems[0].ID, nil
+	}
+	return seedID, nil
 }
 
 // ── 智能施肥（对齐 Node farm-fertilizer.js runFertilizerByConfig） ──
