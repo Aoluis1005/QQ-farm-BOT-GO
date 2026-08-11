@@ -274,6 +274,8 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 				rec(int64(len(analysis.NeedBug)), "helpBug")
 			}
 		}
+		// 帮忙后检测经验是否已满（对齐 Node help* 的 checkExpLimit：用服务端 operation_limits 判定）
+		checkHelpExpLimitReached()
 		if total == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
 		}
@@ -284,11 +286,15 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 	}
 }
 
-// execFriendOp 执行好友农场操作
+// execFriendOp 执行好友农场操作；成功后从 reply 解析 operation_limits 刷新每日限制缓存
+// （对齐 Node friend-operation-limits.js updateOperationLimits：偷=Harvest 在字段4，其余在字段2）
 func execFriendOp(c *gw.Client, method string, body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	_, err := c.Request(ctx, plantService, method, body, 12*time.Second)
+	rep, err := c.Request(ctx, plantService, method, body, 12*time.Second)
+	if err == nil && rep != nil {
+		updateOperationLimits(proto.DecodeOperationLimits(rep.Body))
+	}
 	return err
 }
 

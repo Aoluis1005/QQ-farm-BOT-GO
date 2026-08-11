@@ -69,6 +69,8 @@ type PlantInfo struct {
 	Stealable    bool
 	LeftFruitNum int64
 	IsNudged     bool
+	LeftInorcFertTimes    int64 // 剩余有机肥次数（plantpb.proto left_inorc_fert_times=17）
+	HasLeftInorcFertTimes bool  // 服务端是否下发该字段（proto3 默认0无法区分有无）
 	WeedNum      int64 // 有草地块数（当前 proto 未下发，默认0；friend_service 依赖字段存在）
 	InsectNum    int64 // 有虫地块数
 }
@@ -110,6 +112,9 @@ func (p *PlantInfo) decode(buf []byte) {
 			p.GrowSec = r.ReadInt64()
 		case 16:
 			p.Stealable = r.ReadInt64() != 0
+		case 17:
+			p.LeftInorcFertTimes = r.ReadInt64()
+			p.HasLeftInorcFertTimes = true
 		case 18:
 			p.LeftFruitNum = r.ReadInt64()
 		case 20:
@@ -366,6 +371,69 @@ func DecodeOpsLandList(buf []byte) []*LandInfo {
 			l := &LandInfo{}
 			l.decode(r.ReadBytes())
 			out = append(out, l)
+		} else {
+			r.Skip(wire)
+		}
+		return true
+	})
+	return out
+}
+
+// ============ 操作每日限制（对齐 proto/plantpb.proto OperationLimit） ============
+// 出现在各农场/好友操作 Reply 的 operation_limits（repeated，字段 2 或 4）：
+//   WaterLandReply/WeedOutReply/InsecticideReply/PutInsectsReply/PutWeedsReply/FarmingReply
+//   /PlantReply/RemovePlantReply/FertilizeReply = 字段 2；
+//   HarvestReply（偷菜也走 Harvest）= 字段 4。
+
+// OperationLimit 单种操作的每日限制（id 见 friend-operation-limits.js OP_NAMES）
+type OperationLimit struct {
+	ID               int64 // 操作类型ID（10001帮浇水/10002帮除虫/10003帮除草/10004偷/10005放虫/10006放草）
+	DayTimes         int64 // 今日已操作次数（day_times）
+	DayTimesLimit    int64 // 每日操作上限（day_times_lt）
+	DayShareID       int64 // 分享ID（day_share_id）
+	DayExpTimes      int64 // 今日已获得经验次数（day_exp_times）
+	DayExpTimesLimit int64 // 每日可获得经验上限（day_ex_times_lt）
+	DayExpShareID    int64 // 经验分享ID（day_exp_share_id）
+}
+
+func (o *OperationLimit) decode(buf []byte) {
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		switch field {
+		case 1:
+			o.ID = r.ReadInt64()
+		case 2:
+			o.DayTimes = r.ReadInt64()
+		case 3:
+			o.DayTimesLimit = r.ReadInt64()
+		case 4:
+			o.DayShareID = r.ReadInt64()
+		case 5:
+			o.DayExpTimes = r.ReadInt64()
+		case 6:
+			o.DayExpTimesLimit = r.ReadInt64()
+		case 7:
+			o.DayExpShareID = r.ReadInt64()
+		default:
+			r.Skip(wire)
+		}
+		return true
+	})
+}
+
+// DecodeOperationLimits 从农场/好友操作 reply 解析 operation_limits。
+// 同时扫描字段 2 与字段 4（repeated OperationLimit），按各 reply 实际位置合并。
+func DecodeOperationLimits(buf []byte) []OperationLimit {
+	out := []OperationLimit{}
+	if len(buf) == 0 {
+		return out
+	}
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		if (field == 2 || field == 4) && wire == WireLen {
+			o := OperationLimit{}
+			o.decode(r.ReadBytes())
+			out = append(out, o)
 		} else {
 			r.Skip(wire)
 		}

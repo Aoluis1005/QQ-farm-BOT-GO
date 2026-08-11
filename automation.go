@@ -707,12 +707,12 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 			normalTargets = filterByType(basePool)
 		}
 	case "organic":
-		organicTargets = filterByType(basePool)
+		organicTargets = filterByType(getOrganicFertilizerTargetsFromLands(standalone))
 	case "both":
 		if !skipNormal {
 			normalTargets = filterByType(basePool)
 		}
-		organicTargets = filterByType(basePool)
+		organicTargets = filterByType(getOrganicFertilizerTargetsFromLands(standalone))
 	case "smart":
 		// 普通(显式快成熟) + 有机(快成熟)，对齐 Node smart 分支
 		if !skipNormal {
@@ -754,7 +754,8 @@ func standaloneIDs(lands []*proto.LandInfo) []int64 {
 	return out
 }
 
-// getFastMatureLands 对齐 Node getFastMatureLands：MATURE begin_time 在 [0, threshold] 内且未枯死
+// getFastMatureLands 对齐 Node getFastMatureLands：MATURE begin_time 在 [0, threshold] 内且未枯死，
+// 且 left_inorc_fert_times > 0（无有机肥余次的地块不进入候选）
 func getFastMatureLands(lands []*proto.LandInfo, thresholdSec, now int64) []int64 {
 	out := make([]int64, 0, len(lands))
 	for _, l := range lands {
@@ -763,6 +764,9 @@ func getFastMatureLands(lands []*proto.LandInfo, thresholdSec, now int64) []int6
 		}
 		ph := currentPhase(l.Plant.Phases, now)
 		if ph == nil || ph.Phase == proto.PhaseDead || ph.Phase == proto.PhaseMature {
+			continue
+		}
+		if l.Plant.HasLeftInorcFertTimes && l.Plant.LeftInorcFertTimes <= 0 {
 			continue
 		}
 		for _, p := range l.Plant.Phases {
@@ -777,12 +781,40 @@ func getFastMatureLands(lands []*proto.LandInfo, thresholdSec, now int64) []int6
 	return out
 }
 
-// getFinalStageLands 对齐 Node getFinalStageLands：当前阶段恰为 MATURE 前一阶段
+// getOrganicFertilizerTargetsFromLands 对齐 Node farm-fertilizer.js getOrganicFertilizerTargetsFromLands：
+// 仅挑选"还能再施有机肥"的地块（left_inorc_fert_times > 0）。HasLeftInorcFertTimes=false 时
+// 视为服务端未下发该字段，按 Node Object.hasOwn 语义包含（不跳过）。
+func getOrganicFertilizerTargetsFromLands(lands []*proto.LandInfo) []int64 {
+	out := []int64{}
+	for _, l := range lands {
+		if l == nil || l.ID <= 0 || !l.Unlocked || l.MasterLandID > 0 {
+			continue
+		}
+		p := l.Plant
+		if p == nil || len(p.Phases) == 0 {
+			continue
+		}
+		ph := currentPhase(p.Phases, time.Now().Unix())
+		if ph == nil || ph.Phase == proto.PhaseDead {
+			continue
+		}
+		if p.HasLeftInorcFertTimes && p.LeftInorcFertTimes <= 0 {
+			continue
+		}
+		out = append(out, l.ID)
+	}
+	return out
+}
+
+// getFinalStageLands 对齐 Node getFinalStageLands：当前阶段恰为 MATURE 前一阶段；
+// organicOnly 时仅保留 left_inorc_fert_times > 0 的地块
 func getFinalStageLands(lands []*proto.LandInfo, organicOnly bool, now int64) []int64 {
-	_ = organicOnly // Go 侧未下发 left_inorc_fert_times，有机/普通统一按阶段筛选
 	out := make([]int64, 0, len(lands))
 	for _, l := range lands {
 		if l == nil || l.Plant == nil || len(l.Plant.Phases) == 0 {
+			continue
+		}
+		if organicOnly && l.Plant.HasLeftInorcFertTimes && l.Plant.LeftInorcFertTimes <= 0 {
 			continue
 		}
 		phases := append([]*proto.PlantPhaseInfo{}, l.Plant.Phases...)
