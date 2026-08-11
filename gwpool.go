@@ -99,7 +99,7 @@ func (p *ClientPool) Get(accountID string) (*gw.Client, error) {
 	if accountID == "" {
 		return nil, fmt.Errorf("没有可用的账号，请先在账号页添加/切换")
 	}
-	if c := p.cached(accountID); c != nil {
+	if c := p.cached(accountID); c != nil && !c.IsClosed() {
 		return c, nil
 	}
 

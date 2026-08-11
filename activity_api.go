@@ -388,6 +388,7 @@ func actErrMsg(err error) string {
 		return ""
 	}
 	s := err.Error()
+	// 优先保留协议返回的业务消息（通常为中文，最友好）
 	if i := strings.Index(s, "code="); i >= 0 {
 		if j := strings.IndexByte(s[i:], ' '); j >= 0 {
 			if tail := strings.TrimSpace(s[i+j:]); tail != "" {
@@ -395,7 +396,24 @@ func actErrMsg(err error) string {
 			}
 		}
 	}
-	return s
+	// 其余底层英文错误 → 映射为中文友好提示；若已是中文业务消息则直接原样返回
+	for _, r := range s {
+		if r > 0x2E80 { // CJK 表意文字起始
+			return s
+		}
+	}
+	low := strings.ToLower(s)
+	switch {
+	case strings.Contains(low, "connection refused"), strings.Contains(low, "connect") && strings.Contains(low, "refused"), strings.Contains(low, "no such host"):
+		return "连接失败：账号可能已离线或网络异常"
+	case strings.Contains(low, "deadline"), strings.Contains(low, "timeout"), strings.Contains(low, "timed out"), strings.Contains(low, "i/o timeout"):
+		return "请求超时，请稍后重试"
+	case strings.Contains(low, "permission"), strings.Contains(low, "forbidden"), strings.Contains(low, "unauthorized"):
+		return "无权限执行此操作"
+	case strings.Contains(low, "offline"), strings.Contains(low, "disconnected"), strings.Contains(low, "closed"):
+		return "账号已离线，请先上线再操作"
+	}
+	return "活动数据获取失败，请稍后重试"
 }
 
 func handleActivityShop(w http.ResponseWriter, r *http.Request) {
