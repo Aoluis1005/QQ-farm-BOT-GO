@@ -35,6 +35,8 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/solar/claim", handleActivitySolarClaim)
 	api.HandleFunc("/api/activity/guanxing", handleActivityGuanxing)
 	api.HandleFunc("/api/activity/guanxing/claim", handleActivityGuanxingClaim)
+	api.HandleFunc("/api/activity/shop", handleActivityShop)
+	api.HandleFunc("/api/activity/shop/exchange", handleActivityShopExchange)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -333,5 +335,129 @@ func handleActivityGuanxingClaim(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"claimed_rewards": claimed, "data": n,
+	})
+}
+
+// ----- 星砂商店：商品列表（含价格） + 星砂余额 -----
+
+const (
+	actExchangeActID = 2026072702 // 星纱商店活动（HELU_EXCHANGE_ACTIVITY_ID）
+	actStarSandID    = 1023       // 星砂（活动通用货币）
+	actExchangeCmd   = 1          // 兑换命令（HELU_EXCHANGE_CMD）
+)
+
+// starSandBalance 查询账号背包中星砂(1023)数量（对齐 Node getHeluBalance）
+func starSandBalance(ctx context.Context, accountID string) int64 {
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		return 0
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		return 0
+	}
+	br := proto.DecodeBagReply(rep.Body)
+	for _, it := range br.Items {
+		if it.ID == actStarSandID && it.Count > 0 {
+			return it.Count
+		}
+	}
+	return 0
+}
+
+// actFindShopItems 遍历分组树找第一个含 exchange_shop 的节点
+func actFindShopItems(node *ActivityNode) []*ShopItem {
+	if node == nil {
+		return nil
+	}
+	if len(node.ExchangeShop) > 0 {
+		return node.ExchangeShop
+	}
+	for _, c := range node.Children {
+		if it := actFindShopItems(c); it != nil {
+			return it
+		}
+	}
+	return nil
+}
+
+func handleActivityShop(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	accountID := resolveAccountID(q.Get("accountId"))
+	id, _ := strconv.ParseInt(q.Get("id"), 10, 64)
+	if id == 0 {
+		id = actExchangeActID
+	}
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	b.FieldString(2, q.Get("uid"))
+	ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	node := ParseActivityGroup(body)
+	items := actFindShopItems(node)
+	if items == nil {
+		items = []*ShopItem{}
+	}
+	bal := starSandBalance(ctx, accountID)
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID, "id": id, "items": items,
+		"balance": map[string]interface{}{"item_id": actStarSandID, "currency_name": itemDisplayName(actStarSandID), "count": bal},
+	})
+}
+
+// handleActivityShopExchange 兑换星砂商店商品（Operate cmd=1, exchange_shop_operate{id,count}）
+func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	accountID := resolveAccountID(q.Get("accountId"))
+	id, _ := strconv.ParseInt(q.Get("id"), 10, 64)
+	if id == 0 {
+		id = actExchangeActID
+	}
+	slotID, _ := strconv.ParseInt(q.Get("slotId"), 10, 64)
+	if slotID <= 0 {
+		writeJSONMap(w, "ok", false, "error", "slotId required")
+		return
+	}
+	count := int64(1)
+	if c, _ := strconv.ParseInt(q.Get("count"), 10, 64); c > 0 {
+		count = c
+	}
+	sub := proto.NewBuilder()
+	sub.FieldInt64(1, slotID)
+	sub.FieldInt64(2, count)
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	b.FieldInt64(2, actExchangeCmd)
+	b.FieldMessage(101, sub.Bytes())
+	ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)
+	defer cancel()
+	_, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	// 刷新余额 + 商店
+	bal := starSandBalance(ctx, accountID)
+	var items []*ShopItem
+	{
+		rgb := proto.NewBuilder()
+		rgb.FieldInt64(1, id)
+		rgb.FieldString(2, q.Get("uid"))
+		if gb, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", rgb.Bytes(), 15*time.Second); e == nil {
+			items = actFindShopItems(ParseActivityGroup(gb))
+		}
+	}
+	if items == nil {
+		items = []*ShopItem{}
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID, "slot_id": slotID, "count": count,
+		"balance": map[string]interface{}{"item_id": actStarSandID, "currency_name": itemDisplayName(actStarSandID), "count": bal},
+		"items":   items,
 	})
 }

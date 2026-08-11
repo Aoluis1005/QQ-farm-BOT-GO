@@ -750,6 +750,7 @@ body{
 .act-actions{ display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
 .act-btn{ border:none; background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 75%,#000)); color:#fff; font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:999px; cursor:pointer; box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 35%,transparent); }
 .act-btn:disabled{ opacity:.5; cursor:not-allowed; }
+.act-btn.act-sm{ padding:5px 10px; font-size:11px; }
 .act-btn:hover{ filter:brightness(1.05); }
 .act-term{ display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px dashed var(--border); font-size:12px; flex-wrap:wrap; }
 .act-term .t-info{ display:flex; align-items:center; gap:8px; }
@@ -3646,9 +3647,10 @@ function renderPanel(p, ctx){
       if(tiers.length){ h+='<div class="act-card"><div class="act-card-hd"><h4>🎁 奖励梯度（共 '+tiers.length+' 档）</h4></div>'+
         tiers.map(t=>'<div class="act-tier"><span class="lv">Lv.'+actNum(t.level)+'</span><span class="rw">'+(((t.free_rewards||[]).map(rw=>rw.name).filter(Boolean).join('、'))||'—')+'</span></div>').join('')+'</div>'; }
     } else if(p.key==='shop'){
-      const items=(ctx.shopNode&&ctx.shopNode.exchange_shop)||[];
-      h='<div class="act-card"><div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">'+items.length+' 件</span></div>'+
-        '<div class="act-grid">'+items.map(it=>'<div class="act-item"><div class="ic">🌾</div><div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div><span class="act-badge'+(actNum(it.status)===3?' off':'')+'">'+actShopStatus(actNum(it.status))+'</span></div>').join('')+'</div></div>';
+      h='<div class="act-card"><div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">加载中…</span></div><div class="act-hint">正在获取商品与星砂余额…</div></div>';
+      el.bx.innerHTML=h;
+      renderShop(ctx);
+      return;
     } else if(p.key==='gift'){
       h='<div class="act-card"><div class="act-card-hd"><h4>🌟 观星礼录</h4><span class="act-badge">加载中…</span></div><div class="act-hint">正在获取二十八星宿数据…</div></div>';
       el.bx.innerHTML=h;
@@ -3708,6 +3710,38 @@ async function actRefreshSolar(acc){
     ACT_CACHE.solar = (d&&d.data)||null;
   }catch(e){}
   el.ld.style.display='none';
+}
+async function renderShop(ctx){
+  const el=actEls(); const acc=ctx.acc;
+  const shopId=(ctx.shopNode&&ctx.shopNode.info&&ctx.shopNode.info.id)||2026072702;
+  let d;
+  try{ d=await (await fetch('/api/activity/shop?accountId='+encodeURIComponent(acc)+'&id='+shopId)).json(); }
+  catch(e){ el.bx.innerHTML='<div class="act-empty">商店加载失败</div>'; return; }
+  if(!(d&&d.ok)){ el.bx.innerHTML='<div class="act-empty">'+(actEsc((d&&d.error)||'加载失败'))+'</div>'; return; }
+  const items=d.items||[]; const bal=actNum((d.balance||{}).count); const cur=(d.balance||{}).currency_name||'星砂';
+  let h='<div class="act-card"><div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">'+items.length+' 件</span></div>'+
+    '<div class="act-stats"><span>💰 '+actEsc(cur)+'余额 <b>'+bal+'</b></span></div></div>';
+  if(!items.length){ h+='<div class="act-empty">暂无可兑换商品</div>'; }
+  h+='<div class="act-grid">'+items.map(it=>{
+    const price=actNum(it.price); const owned=!!it.owned; const s=actNum(it.status);
+    const afford=price>0?bal>=price:true;
+    const canBuy=!owned && s!==3 && afford;
+    return '<div class="act-item'+(owned?' act-done':'')+'"><div class="ic">🌾</div><div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div>'+
+      '<div class="ct">💰 '+price+' '+actEsc(cur)+'</div>'+
+      (owned?'<span class="act-badge off">已拥有</span>':
+        '<button class="act-btn act-sm'+(canBuy?'':' disabled')+'" data-ex="'+it.id+'"'+(canBuy?'':' disabled')+'>'+(s===3?'已售':(afford?'兑换':'余额不足'))+'</button>')+
+      '</div>';
+  }).join('')+'</div>';
+  el.bx.innerHTML=h;
+  el.bx.querySelectorAll('button[data-ex]').forEach(btn=>btn.addEventListener('click', async function(){
+    el.ld.style.display='block';
+    try{
+      const d2=await (await fetch('/api/activity/shop/exchange?accountId='+encodeURIComponent(acc)+'&id='+shopId+'&slotId='+this.dataset.ex+'&count=1', {method:'POST'})).json();
+      el.ld.style.display='none';
+      if(!(d2&&d2.ok)){ alert('兑换失败：'+(actEsc((d2&&d2.error)||'未知错误'))); return; }
+      renderShop(ctx); // 兑换成功：刷新面板（余额/已拥有即时反馈，不弹窗避免阻塞）
+    }catch(e){ el.ld.style.display='none'; alert('兑换失败：'+(actEsc((e&&e.message)||e))); }
+  }));
 }
 async function renderGift(ctx){
   const el=actEls(); const acc=ctx.acc;

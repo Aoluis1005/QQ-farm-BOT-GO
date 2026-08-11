@@ -138,14 +138,19 @@ type ActivityInfo struct {
 	Enabled   bool   `json:"enabled"`
 }
 
-// ShopItem 兑换/随机商店商品项
+// ShopItem 兑换/随机商店商品项（对齐 Node normalizeExchangeShopItem / ActivityExchangeShopInfo）
 type ShopItem struct {
-	ID     int64  `json:"id"`
-	Name   string `json:"name"`
-	Sort   int64  `json:"sort"`
-	Status int64  `json:"status"`
-	ItemID int64  `json:"item_id,omitempty"`
-	Count  int64  `json:"count,omitempty"`
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Sort         int64  `json:"sort"`
+	Status       int64  `json:"status"`
+	StatusLabel  string `json:"status_label,omitempty"`
+	Owned        bool   `json:"owned"`
+	ItemID       int64  `json:"item_id,omitempty"`
+	Count        int64  `json:"count,omitempty"`
+	CurrencyID   int64  `json:"currency_id,omitempty"` // cost.itemId（星砂=1023）
+	CurrencyName string `json:"currency_name,omitempty"`
+	Price        int64  `json:"price,omitempty"`        // cost.count
 }
 
 // ActivityNode 分组树节点
@@ -198,7 +203,7 @@ func parseExchangeItems(shopRaw []byte) []*ShopItem {
 	return items
 }
 
-// parseShopItemFull 解析 ExchangeShopItem：1 id,2 item(corepb.Item),4 status,6 sort,7 name
+// parseShopItemFull 解析 ExchangeShopItem：1 id, 2 item(corepb.Item), 3 cost(价格 Item), 4 status, 5 owned, 6 sort, 7 name
 func parseShopItemFull(raw []byte) *ShopItem {
 	if len(raw) == 0 {
 		return nil
@@ -208,7 +213,33 @@ func parseShopItemFull(raw []byte) *ShopItem {
 	if itemBytes := actBytes(fs, 2); len(itemBytes) > 0 {
 		it.ItemID, it.Count = parseShopItem(readActFields(itemBytes))
 	}
+	if costBytes := actBytes(fs, 3); len(costBytes) > 0 {
+		cf := readActFields(costBytes)
+		it.CurrencyID = actNum(cf, 1)
+		it.Price = actNum(cf, 2)
+	}
+	it.Owned = actNum(fs, 5) != 0
+	if it.CurrencyID > 0 {
+		it.CurrencyName = itemDisplayName(it.CurrencyID)
+	}
+	it.StatusLabel = exchangeShopStatusLabel(it)
 	return it
+}
+
+func exchangeShopStatusLabel(it *ShopItem) string {
+	if it.Owned {
+		return "已拥有"
+	}
+	switch it.Status {
+	case 3:
+		return "已售"
+	case 5:
+		return "特殊商品"
+	case 100, 120, 130:
+		return "可兑换"
+	default:
+		return "可兑换"
+	}
 }
 
 // ParseActivityList 解析 ActivityService.List 返回：
