@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/proto"
@@ -125,16 +126,22 @@ func handleActivityGroup(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", "id required")
 		return
 	}
-	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）。对齐 Node sendMsgAsync 默认 20s
+	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）。对齐 Node sendMsgAsync 默认 20s；结果短缓存避免每次重拉大树
 	b := proto.NewBuilder()
 	b.FieldInt64(1, id)
 	b.FieldString(2, q.Get("uid"))
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 20*time.Second)
-	if err != nil {
-		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
-		return
+	key := actGroupCacheKey(accountID, id)
+	body, ok := actCacheGet(key, 30*time.Second)
+	if !ok {
+		var err error
+		body, err = rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 20*time.Second)
+		if err != nil {
+			writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+			return
+		}
+		actCacheSet(key, body, 30*time.Second)
 	}
 	node := ParseActivityGroup(body)
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "tree": node})
@@ -579,11 +586,17 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	gb := proto.NewBuilder()
 	gb.FieldInt64(1, rootID)
 	gb.FieldString(2, "")
-	body, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
-	if e != nil {
-		return 0, 0, 0, nil, e
+	ck := actGroupCacheKey(accountID, rootID)
+	gbody, ok := actCacheGet(ck, 30*time.Second)
+	if !ok {
+		var e error
+		gbody, e = rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
+		if e != nil {
+			return 0, 0, 0, nil, e
+		}
+		actCacheSet(ck, gbody, 30*time.Second)
 	}
-	root = ParseActivityGroup(body)
+	root = ParseActivityGroup(gbody)
 	if root == nil {
 		return rootID, 0, 0, root, fmt.Errorf("青梅活动分组解析失败")
 	}
@@ -713,7 +726,7 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	_, claimID, _, _, err := qingmeiActIDs(ctx, accountID)
+	rootID, claimID, _, _, err := qingmeiActIDs(ctx, accountID)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
@@ -743,6 +756,8 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 	if claimed == 0 {
 		claimed = qingmeiSeedReward
 	}
+	// 领种子后活动树状态变化，清除 group 缓存让后续立即反映已领状态
+	actCacheDel(actGroupCacheKey(accountID, rootID))
 	writeJSONMap(w, "ok", true, "account", accountID, "claimed_count", claimed, "reward_item_id", qingmeiSeedItemID, "items", items)
 }
 
@@ -862,3 +877,42 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 }
 
 func max64(a, b int64) int64 { if a > b { return a }; return b }
+
+// ===== 活动 GetGroup 短缓存 =====
+// 游戏 GetGroup 返回整棵活动树，量大且相对稳定；每次切页/取状态都重拉容易把 RPC 链路拖垮导致超时。
+// 这里做短 TTL 内存缓存（仅缓存 GetGroup 的原始 body）。List 保持实时，仍支持前端「获取新活动」。
+var (
+	actCacheMu sync.Mutex
+	actCache   = map[string]actCacheItem{}
+)
+
+type actCacheItem struct {
+	data []byte
+	exp  time.Time
+}
+
+func actGroupCacheKey(accountID string, actID int64) string {
+	return "actgroup:" + accountID + ":" + strconv.FormatInt(actID, 10)
+}
+
+func actCacheGet(key string, ttl time.Duration) ([]byte, bool) {
+	actCacheMu.Lock()
+	defer actCacheMu.Unlock()
+	if it, ok := actCache[key]; ok && time.Now().Before(it.exp) {
+		return it.data, true
+	}
+	delete(actCache, key)
+	return nil, false
+}
+
+func actCacheSet(key string, data []byte, ttl time.Duration) {
+	actCacheMu.Lock()
+	defer actCacheMu.Unlock()
+	actCache[key] = actCacheItem{data: data, exp: time.Now().Add(ttl)}
+}
+
+func actCacheDel(key string) {
+	actCacheMu.Lock()
+	defer actCacheMu.Unlock()
+	delete(actCache, key)
+}
