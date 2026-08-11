@@ -77,6 +77,9 @@ func main() {
 	// 启动后台掉线自动重连扫描（增强：不破坏现有懒重连，Get() 仍可用）
 	clientPool.StartAutoReconnect(context.Background())
 
+	// 启动神秘商人自动购买（对齐 Node mystery-scheduler.js，60 分钟一轮）
+	startMysteryAutoBuyLoop(context.Background())
+
 	// 启动时为所有已配置账号建立初始连接（对齐 Node 启动即 startWorker，保证账号列表在线状态准确）。
 	// 后台异步执行，不阻塞 HTTP 启动；失败仅记录（重连/懒连接兜底）。
 	go func() {
