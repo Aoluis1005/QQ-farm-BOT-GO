@@ -1036,22 +1036,9 @@ body{
         </div>
       </div>
 
-      <!-- 策略选种预览/第二优先策略预览：对齐 Node，非 preferred 且非(bag_priority+preferred)时显示 -->
-      <div class="auto-item col" style="border:none;padding:6px 9px 4px" id="mStrategyPreviewBox">
-        <div class="f-label" id="mStrategyPreviewLabel">策略选种预览</div>
-        <div class="strategy-row">
-          <div class="sel-wrap" style="pointer-events:none">
-            <div class="field" id="mStrategyPreview" style="display:flex;align-items:center;justify-content:space-between;opacity:.82">加载中… <span style="opacity:.6;margin-left:6px">▾</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 优先种植种子(对齐 Node preferred)：仅 plantingStrategy=preferred 或 (bag_priority+fallback=preferred) 时显示 -->
-      <div class="auto-item col" style="border:none;padding:12px 9px" id="mPreferredSeedBox" hidden>
-        <div class="f-label">优先种植种子</div>
-        <div class="strategy-row">
-          <div class="sel-wrap"><select class="field" id="mPreferredSeed"></select></div>
-        </div>
+      <!-- 策略预览/优先种子下拉（对齐 Node v-if/v-else-if/v-else 三选一互斥）：单容器由 JS innerHTML 渲染三种之一 -->
+      <div class="auto-item col" style="border:none;padding:12px 9px">
+        <div id="mStrategyContent">加载中…</div>
       </div>
 
       <!-- bag_priority 块（对齐 Node v-if=bag_priority）：第二优先策略 + 背包地块 + 2x2 + 背包顺序 -->
@@ -1195,21 +1182,9 @@ body{
               </select></div>
             </div>
           </div>
-          <!-- 策略选种预览/第二优先策略预览：对齐 Node，非 preferred 且非(bag_priority+preferred)时显示 -->
-          <div class="auto-item col" style="border:none;padding:6px 9px 4px" id="dStrategyPreviewBox">
-            <div class="f-label" id="dStrategyPreviewLabel">策略选种预览</div>
-            <div class="strategy-row">
-              <div class="sel-wrap" style="pointer-events:none">
-                <div class="field" id="dStrategyPreview" style="display:flex;align-items:center;justify-content:space-between;opacity:.82">加载中… <span style="opacity:.6;margin-left:6px">▾</span></div>
-              </div>
-            </div>
-          </div>
-          <!-- 优先种植种子(对齐 Node preferred)：仅 plantingStrategy=preferred 或 (bag_priority+fallback=preferred) 时显示 -->
-          <div class="auto-item col" style="border:none;padding:12px 9px" id="dPreferredSeedBox" hidden>
-            <div class="f-label">优先种植种子</div>
-            <div class="strategy-row">
-              <div class="sel-wrap"><select class="field" id="dPreferredSeed"></select></div>
-            </div>
+          <!-- 策略预览/优先种子下拉（对齐 Node v-if/v-else-if/v-else 三选一互斥）：单容器由 JS innerHTML 渲染三种之一 -->
+          <div class="auto-item col" style="border:none;padding:12px 9px">
+            <div id="dStrategyContent">加载中…</div>
           </div>
           <!-- bag_priority 三块：第二优先策略 + 背包地块 + 背包顺序 + 2x2（对齐 Node v-if=bag_priority） -->
           <div id="dBagPriorityGroup">
@@ -3160,9 +3135,8 @@ window.loadLogs();
     numSet('mStealDelay', d.stealDelaySeconds ?? 1);
     window.__bagPriority = Array.isArray(d.bagSeedPriority) ? d.bagSeedPriority.slice() : [];
     renderBagSeeds('mBagSeedsList', window.__bagPriority);
-    // 填充 preferredSeedId 并触发策略可见性+预览
-    fillPreferredSeedSelect('mPreferredSeed', d.preferredSeedId || 0);
-    updateStrategyVisibility('m');
+    // 触发策略内容区渲染（对齐 Node 三选一互斥）
+    fetchUserLevel().then(() => updateStrategyVisibility('m'));
   }
   function collectStrategy(){
     return {
@@ -3269,9 +3243,8 @@ window.loadLogs();
     numSet('dFertSeconds', aut.fertilizer_smart_seconds ?? 300);
     window.__dBagPriority = Array.isArray(cfg.bagSeedPriority) ? cfg.bagSeedPriority.slice() : [];
     renderBagSeeds('dBagSeedsList', window.__dBagPriority);
-    // 填充 preferredSeedId 并触发策略可见性+预览
-    fillPreferredSeedSelect('dPreferredSeed', cfg.preferredSeedId || 0);
-    updateStrategyVisibility('d');
+    // 触发策略内容区渲染（对齐 Node 三选一互斥）
+    fetchUserLevel().then(() => updateStrategyVisibility('d'));
   }
   function collectDefault(){
     const plan = {
@@ -3362,62 +3335,90 @@ window.loadLogs();
   // 预览计算：level 直接找最高级 ≤ userLevel；sort 模式走 /api/analytics 找匹配
   const SORT_TO_ANALYTICS = { max_exp:'exp', max_fert_exp:'fert', max_profit:'profit', max_fert_profit:'fert_profit' };
   function computeStrategyPreview(prefix, strategy, fallback, preferredId){
-    const lblEl = document.getElementById(prefix + 'StrategyPreviewLabel');
-    const boxEl = document.getElementById(prefix + 'StrategyPreview');
-    const preferredBox = document.getElementById(prefix + 'PreferredSeedBox');
+    const contentEl = document.getElementById(prefix + 'StrategyContent');
     const bagGroup = document.getElementById(prefix + 'BagPriorityGroup');
-    if(!boxEl) return;
+    if(!contentEl) return;
 
-    // 1) 显示规则（对齐 Node StrategySettingsTab.vue v-if/v-else-if/v-else 三选一）：
-    //    - preferred                  → 显示 preferredSeedId 下拉，隐藏预览框
-    //    - bag_priority+preferred     → 显示 preferredSeedId 下拉，隐藏预览框
-    //    - 其它（level/max_*/bag_priority 非 preferred） → 显示预览框，隐藏 preferredSeedId 下拉
-    let showPreview = true, showPreferred = false, showBagGroup = false, previewLabel = '策略选种预览';
-    if(strategy === 'preferred'){
-      showPreview = false; showPreferred = true; showBagGroup = false;
-    } else if(strategy === 'bag_priority'){
-      showBagGroup = true;
-      if(fallback === 'preferred'){
-        showPreview = false; showPreferred = true;
-      } else {
-        showPreview = true; showPreferred = false;
-      }
-    } else {
-      showPreview = true; showPreferred = false; showBagGroup = false;
-    }
-    const previewBoxOuter = document.getElementById(prefix + 'StrategyPreviewBox');
-    if(previewBoxOuter) previewBoxOuter.hidden = !showPreview;
-    if(lblEl) lblEl.textContent = previewLabel;
-    if(preferredBox) preferredBox.hidden = !showPreferred;
-    if(bagGroup) bagGroup.hidden = !showBagGroup;
+    // 1) bag_priorityGroup 显隐（对齐 Node v-if=bag_priority）
+    if(bagGroup) bagGroup.hidden = (strategy !== 'bag_priority');
 
-    if(!showPreview){ boxEl.textContent = ''; return; }
-
-    boxEl.textContent = '加载中…';
-
-    // 2) 计算预览文案：对齐 Node useStrategySettings.ts:224-286
-    //    bag_priority 时把 strategy 替换为 fallback（fallback 再走 level/sort/preferred）
+    // 2) 内容区三选一互斥（对齐 Node v-if/v-else-if/v-else）：单一 div 用 innerHTML 渲染三种之一
+    //    a) preferred                 → 优先种植种子 select
+    //    b) bag_priority+preferred    → 优先种植种子 select（label "第二优先预览" 上下文）
+    //    c) 其它                       → 策略选种预览框（label 随 bag_priority 切换）
+    let html = '';
     let effective = strategy;
     if(strategy === 'bag_priority') effective = fallback || 'level';
 
+    if(strategy === 'preferred'){
+      html = renderPreferredSelect(prefix, preferredId, '');
+    } else if(strategy === 'bag_priority' && fallback === 'preferred'){
+      html = renderPreferredSelect(prefix, preferredId, '第二优先预览');
+    } else {
+      const previewLabel = (strategy === 'bag_priority') ? '第二优先预览' : '策略选种预览';
+      html = renderPreviewBox(prefix, previewLabel);
+    }
+    contentEl.innerHTML = html;
+
+    // 3) 填充种子选项（preferredSeed 下拉）
+    if(strategy === 'preferred' || (strategy === 'bag_priority' && fallback === 'preferred')){
+      const sel = document.getElementById(prefix + 'PreferredSeed');
+      if(sel) getSeedsCache().then(seeds => fillPreferredOptions(sel, seeds, preferredId));
+      const selEl = document.getElementById(prefix + 'PreferredSeed');
+      if(selEl) selEl.addEventListener('change', () => {
+        const v = parseInt(selEl.value, 10) || 0;
+        // 收集时通过 selVal 拿 value，change 不重渲染（避免抖动）
+      });
+    }
+
+    // 4) 异步计算预览文本（写入 mStrategyPreview 元素）
+    if(strategy !== 'preferred' && !(strategy === 'bag_priority' && fallback === 'preferred')){
+      computePreviewText(prefix, effective, preferredId);
+    }
+  }
+
+  function renderPreferredSelect(prefix, currentId, extraLabel){
+    const extra = extraLabel ? `<small style="color:var(--muted);font-weight:500;margin-left:6px">${extraLabel}</small>` : '';
+    return `<div class="f-label">优先种植种子${extra}</div>
+      <div class="strategy-row"><div class="sel-wrap"><select class="field" id="${prefix}PreferredSeed"><option value="0">（不指定）</option></select></div></div>`;
+  }
+  function renderPreviewBox(prefix, label){
+    return `<div class="f-label">${label}</div>
+      <div class="strategy-row"><div class="sel-wrap" style="pointer-events:none"><div class="field" id="${prefix}StrategyPreview" style="display:flex;align-items:center;justify-content:space-between;opacity:.82">加载中… <span style="opacity:.6;margin-left:6px">▾</span></div></div></div>`;
+  }
+  function fillPreferredOptions(sel, seeds, currentId){
+    const opts = ['<option value="0">（不指定）</option>'].concat(seeds.map(s => {
+      const selAttr = (s.seedId === currentId) ? ' selected' : '';
+      return '<option value="' + s.seedId + '"' + selAttr + '>' + esc(s.name || ('种子' + s.seedId)) + '（' + (s.requiredLevel || 0) + '级）</option>';
+    }));
+    sel.innerHTML = opts.join('');
+  }
+
+  // 异步计算预览文本（写入 #StrategyPreview 元素）
+  function computePreviewText(prefix, effective, preferredId){
+    const boxEl = document.getElementById(prefix + 'StrategyPreview');
+    if(!boxEl) return;
+    boxEl.textContent = '加载中…';
     if(effective === 'preferred'){
-      // bag_priority+fallback=preferred 路径，但显示规则上已走 preferredSeedId 下拉分支
-      // 此处理论上不会触发（v-if/v-else-if 互斥），保留兜底
       getSeedsCache().then(seeds => {
         const seed = preferredId ? seeds.find(s => s.seedId === preferredId) : null;
         boxEl.textContent = seed ? (seed.requiredLevel||0)+'级 '+(seed.name||('种子'+seed.seedId)) : '未选择优先种子';
       });
       return;
     }
-
-    // 其它：level / sort
     getSeedsCache().then(seeds => {
       const lvl = getUserLevel();
       const available = seeds.filter(s => (s.requiredLevel || 0) <= lvl);
       if(available.length === 0){
+        // userLevel 可能还没拉到（lvl=0 时所有 level=0 都通过）→ 触发异步拉取
         if(!__userLevel && !window.__pvFetched){
           window.__pvFetched = true;
-          fetchUserLevel().then(() => computeStrategyPreview(prefix, strategy, fallback, preferredId));
+          fetchUserLevel().then(() => { window.__pvFetched = false; computePreviewText(prefix, effective, preferredId); });
+        }
+        // 兜底：lvl=0 时也要至少显示一个真实种子（最高级 ≤ 0）
+        if(lvl === 0 && available.length === 0){
+          const lvl0 = seeds.filter(s => (s.requiredLevel || 0) === 0);
+          if(lvl0.length > 0){ showBestSeed(boxEl, lvl0, false); return; }
         }
         boxEl.textContent = '暂无可用种子';
         return;
@@ -3445,6 +3446,10 @@ window.loadLogs();
         }).catch(() => { boxEl.textContent = '暂无匹配种子'; });
     });
   }
+  function showBestSeed(boxEl, available, isOrganic){
+    const best = available.slice().sort((a,b) => (b.requiredLevel||0) - (a.requiredLevel||0))[0];
+    boxEl.textContent = best ? (best.requiredLevel||0) + '级 ' + (best.name || ('种子'+best.seedId)) : '暂无可用种子';
+  }
 
   function updateStrategyVisibility(prefix){
     // prefix: 'm' 手动策略页 / 'd' 默认方案页
@@ -3454,12 +3459,12 @@ window.loadLogs();
     const strategy = stratSel.value || 'max_exp';
     let fallback = 'level';
     if(strategy === 'bag_priority' && fallSel) fallback = fallSel.value || 'level';
-    const preferredIdEl = document.getElementById(prefix + 'PreferredSeed');
-    const preferredId = preferredIdEl ? (parseInt(preferredIdEl.value, 10) || 0) : 0;
+    const preferredSel = document.getElementById(prefix + 'PreferredSeed');
+    const preferredId = preferredSel ? (parseInt(preferredSel.value, 10) || 0) : 0;
     computeStrategyPreview(prefix, strategy, fallback, preferredId);
   }
 
-  // 挂接 change 事件（手动 + 默认两份）
+  // 挂接 change 事件（手动 + 默认两份，preferredSeed 动态创建不挂）
   [['m','mFallbackStrategy'], ['d','dFallbackStrategy']].forEach(([_, fid]) => {
     const f = document.getElementById(fid); if(!f) return;
     f.addEventListener('change', () => {
@@ -3468,13 +3473,6 @@ window.loadLogs();
     });
   });
   ['mPlantStrategy','dPlantStrategy'].forEach(id => {
-    const el = document.getElementById(id); if(!el) return;
-    el.addEventListener('change', () => {
-      const prefix = id[0];
-      updateStrategyVisibility(prefix);
-    });
-  });
-  ['mPreferredSeed','dPreferredSeed'].forEach(id => {
     const el = document.getElementById(id); if(!el) return;
     el.addEventListener('change', () => {
       const prefix = id[0];
