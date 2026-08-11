@@ -763,6 +763,9 @@ body{
 .act-qty{ display:flex; align-items:center; gap:4px; margin:4px 0; }
 .act-num{ width:42px; text-align:center; background:rgba(255,255,255,.06); color:var(--t,#eaf2ff); border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:3px 0; font-size:12px; }
 .act-limit{ font-size:11px; opacity:.75; color:#ffd76a; margin-top:3px; }
+.shop-res{ display:flex; flex-wrap:wrap; gap:6px 14px; padding:10px 12px; margin:12px 0; background:var(--card-strong); border:1px solid var(--border); border-radius:var(--radius-lg); font-size:12.5px; color:var(--muted); box-shadow:var(--shadow-sm); }
+.shop-res b{ color:var(--t,#eaf2ff); font-weight:700; }
+.shop-empty{ text-align:center; padding:28px 12px; color:var(--muted); font-size:13px; }
 .act-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
 .act-grid .act-item{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
 .act-term{ display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px dashed var(--border); font-size:12px; flex-wrap:wrap; }
@@ -1518,21 +1521,12 @@ body{
       <button class="seg-btn" data-seg="s-prop">🎒 道具</button>
       <button class="seg-btn" data-seg="s-mystery">🧙 神秘商人</button>
     </div>
-    <div class="seg-pane active" id="s-seed">
-      <div class="placeholder"><div class="big">🌱</div><h3>种子商店</h3><p>各类作物种子售卖<br>接入数据源后开放</p><span class="badge">占位</span></div>
-    </div>
-    <div class="seg-pane" id="s-pet">
-      <div class="placeholder"><div class="big">🐶</div><h3>宠物商店</h3><p>宠物购买与喂养道具<br>接入数据源后开放</p><span class="badge">占位</span></div>
-    </div>
-    <div class="seg-pane" id="s-decor">
-      <div class="placeholder"><div class="big">🎨</div><h3>装扮商店</h3><p>农场场景·建筑·装饰<br>接入数据源后开放</p><span class="badge">占位</span></div>
-    </div>
-    <div class="seg-pane" id="s-prop">
-      <div class="placeholder"><div class="big">🎒</div><h3>道具商店</h3><p>化肥·加速·功能道具<br>接入数据源后开放</p><span class="badge">占位</span></div>
-    </div>
-    <div class="seg-pane" id="s-mystery">
-      <div class="placeholder"><div class="big">🧙</div><h3>神秘商人</h3><p>限时神秘商品·每日刷新<br>接入数据源后开放</p><span class="badge">占位</span></div>
-    </div>
+    <div class="shop-res" id="shopRes" style="display:none"></div>
+    <div class="seg-pane active" id="s-seed"><div class="act-grid" id="s-seed-grid"></div><div class="shop-empty" id="s-seed-empty" style="display:none"></div></div>
+    <div class="seg-pane" id="s-pet"><div class="act-grid" id="s-pet-grid"></div><div class="shop-empty" id="s-pet-empty" style="display:none"></div></div>
+    <div class="seg-pane" id="s-decor"><div class="act-grid" id="s-decor-grid"></div><div class="shop-empty" id="s-decor-empty" style="display:none"></div></div>
+    <div class="seg-pane" id="s-prop"><div class="act-grid" id="s-prop-grid"></div><div class="shop-empty" id="s-prop-empty" style="display:none"></div></div>
+    <div class="seg-pane" id="s-mystery"><div id="s-mystery-box"></div></div>
   </section>
 
   <!-- ============ 活动占位 ============ -->
@@ -3833,6 +3827,205 @@ async function renderGift(ctx){
 }
 document.addEventListener('DOMContentLoaded', function(){ bindCodex(); bindAnalysis(); loadActivity(); });
 document.querySelectorAll('[data-tab="page-event"]').forEach(b=>b.addEventListener('click',()=>{ loadActivity(); }));
+</script>
+<script>
+/* ============ 商城（种子/宠物/装扮/道具/神秘商人）对齐 Node Shop.vue ============ */
+var SHOP_ACC = '';
+function isShopSeg(seg){ return typeof seg==='string' && seg.charAt(0)==='s-'; }
+function shopAcc(){ return accIdQ(); }
+function shopEmpty(id, show, text){
+  var el=document.getElementById(id); if(!el) return;
+  el.style.display = show?'block':'none';
+  if(text!==undefined) el.textContent=text;
+}
+function shopImg(it){
+  var u=(it.image||'').trim();
+  return u? '<img class="act-ic" src="'+actEsc(u)+'" alt="" loading="lazy" onclick="window.open(this.src)">' : '<div class="ic">🎁</div>';
+}
+function bindShopQty(grid){
+  grid.querySelectorAll('[data-q]').forEach(function(btn){ btn.addEventListener('click',function(){
+    var inp=btn.parentElement.querySelector('input[data-qnum]'); if(!inp) return;
+    var maxn=parseInt(inp.max||'99',10);
+    var v=(parseInt(inp.value||'1',10)||1)+parseInt(btn.dataset.q,10);
+    inp.value=Math.max(1,Math.min(maxn,v));
+  }); });
+}
+function shopQty(it,mx){
+  var m=Math.max(1,Math.min(99,mx||99));
+  return '<div class="act-qty"><button class="act-btn act-sm" data-q="-1">−</button>'
+    +'<input class="act-num" data-qnum="'+it.id+'" value="1" min="1" max="'+m+'" inputmode="numeric">'
+    +'<button class="act-btn act-sm" data-q="1">＋</button></div>';
+}
+function shopBuyBtn(label, extra, disabled){
+  return '<button class="act-btn act-sm'+(disabled?' disabled':'')+'" '+extra+'>'+label+'</button>';
+}
+/* 通用购买下发 */
+async function doShopBuy(url, body, refresh){
+  var acc=shopAcc(); if(!acc){ alert('请先选择账号'); return; }
+  var btn=event&&event.target; if(btn&&btn.classList) btn.disabled=true;
+  try{
+    var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d=await r.json();
+    if(!(d&&d.ok)){ alert(actEsc((d&&d.error)||'操作失败')); if(btn) btn.disabled=false; return; }
+    if(btn) btn.disabled=false;
+    if(refresh) refresh();
+  }catch(e){ alert('操作失败'); if(btn) btn.disabled=false; }
+}
+function qtyOf(btn){
+  var inp=btn.closest('.act-item').querySelector('input[data-qnum]');
+  return inp ? (parseInt(inp.value||'1',10)||1) : 1;
+}
+function shopBind(items, refreshFn, kindFns){
+  items.querySelectorAll('button[data-buy]').forEach(function(b){ b.addEventListener('click',function(){
+    var kind=b.dataset.buy; var gid=Number(b.dataset.gid||0), price=Number(b.dataset.price||0);
+    doShopBuy(kind==='mall'?'/api/shop/mall/buy':'/api/shop/buy',
+      kind==='mall'?{goodsId:gid,count:qtyOf(b)}:{goodsId:gid,num:qtyOf(b),price:price}, refreshFn);
+  }); });
+}
+/* 账号资源条 */
+async function shopProfile(){
+  var acc=shopAcc(); var box=document.getElementById('shopRes'); if(!box) return;
+  if(!acc){ box.style.display='none'; return; }
+  try{
+    var r=await fetch('/api/home/profile?accountId='+encodeURIComponent(acc));
+    var d=await r.json(); var p=d&&d.data||{};
+    box.style.display='flex';
+    box.innerHTML='<span>Lv.<b>'+actEsc(p.level||0)+'</b></span>'
+      +'<span>金币 <b>'+actEsc(p.gold||0)+'</b></span>'
+      +'<span>点券 <b>'+actEsc(p.coupons||0)+'</b></span>'
+      +'<span>金豆豆 <b>'+actEsc(p.goldenBeans||0)+'</b></span>';
+  }catch(e){ box.style.display='none'; }
+}
+/* 种子商店 */
+async function loadShopSeed(){
+  var acc=shopAcc(); var grid=document.getElementById('s-seed-grid'); if(!grid) return;
+  shopEmpty('s-seed-empty',false); grid.innerHTML='<p class="shop-empty">加载中…</p>';
+  if(!acc){ shopEmpty('s-seed-empty',true,'请先选择账号'); grid.innerHTML=''; return; }
+  try{
+    var d=await (await fetch('/api/shop/seed?accountId='+encodeURIComponent(acc))).json();
+    if(!(d&&d.ok)){ shopEmpty('s-seed-empty',true,actEsc(d&&d.error||'加载失败')); grid.innerHTML=''; return; }
+    var items=d.data||[];
+    if(!items.length){ shopEmpty('s-seed-empty',true,'暂无可售种子'); grid.innerHTML=''; return; }
+    SHOP_ACC=acc;
+    grid.innerHTML=items.map(function(it){
+      var btn;
+      if(it.isSoldOut) btn=shopBuyBtn('已售罄','',true);
+      else if(!it.unlocked) btn=shopBuyBtn('未解锁','',true);
+      else if(!it.canBuy) btn=shopBuyBtn('需Lv.'+actNum(it.requiredLevel),'',true);
+      else btn=shopQty(it,99)+shopBuyBtn('💎 购买','data-buy="seed" data-gid="'+it.id+'" data-price="'+it.price+'"',false);
+      return '<div class="act-item">'+shopImg(it)+'<div class="nm">'+actEsc(it.name)+'</div>'
+        +'<div class="ct">💰 '+it.price+'</div>'
+        +'<div class="act-limit">Lv.'+actNum(it.requiredLevel)+' · 每季×'+actNum(it.itemCount)+' · '+(actNum(it.expPerSeason))+'经验'+(it.limitCount>0?' · 限'+actNum(it.limitCount):'')+'</div>'+btn+'</div>';
+    }).join('');
+    bindShopQty(grid); shopBind(grid, loadShopSeed);
+  }catch(e){ shopEmpty('s-seed-empty',true,'加载失败'); grid.innerHTML=''; }
+}
+/* 宠物商店 */
+async function loadShopPet(){
+  var acc=shopAcc(); var grid=document.getElementById('s-pet-grid'); if(!grid) return;
+  shopEmpty('s-pet-empty',false); grid.innerHTML='<p class="shop-empty">加载中…</p>';
+  if(!acc){ shopEmpty('s-pet-empty',true,'请先选择账号'); grid.innerHTML=''; return; }
+  try{
+    var d=await (await fetch('/api/shop/pet?accountId='+encodeURIComponent(acc))).json();
+    if(!(d&&d.ok)){ shopEmpty('s-pet-empty',true,actEsc(d&&d.error||'加载失败')); grid.innerHTML=''; return; }
+    var items=d.data||[];
+    if(!items.length){ shopEmpty('s-pet-empty',true,'暂无可售宠物'); grid.innerHTML=''; return; }
+    grid.innerHTML=items.map(function(it){
+      var cur=it.isGoldenBean?'🫘 金豆豆':'💰 金币';
+      var btn;
+      if(it.isSoldOut) btn=shopBuyBtn('已售罄','',true);
+      else if(!it.unlocked) btn=shopBuyBtn('未解锁','',true);
+      else if(it.canBuy) btn=shopBuyBtn('💎 购买','data-buy="pet" data-gid="'+it.id+'" data-price="'+it.price+'"',false);
+      else btn=shopBuyBtn(it.isGoldenBean?'金豆豆不足':'金币不足','',true);
+      return '<div class="act-item">'+shopImg(it)+'<div class="nm">'+actEsc(it.name)+'</div>'
+        +'<div class="ct">'+cur+' '+it.price+'</div>'
+        +'<div class="act-limit">Lv.'+actNum(it.requiredLevel)+(it.desc?' · '+actEsc(it.desc):'')+'</div>'+btn+'</div>';
+    }).join('');
+    shopBind(grid, loadShopPet);
+  }catch(e){ shopEmpty('s-pet-empty',true,'加载失败'); grid.innerHTML=''; }
+}
+/* 装扮商店 */
+async function loadShopDecoration(){
+  var acc=shopAcc(); var grid=document.getElementById('s-decor-grid'); if(!grid) return;
+  shopEmpty('s-decor-empty',false); grid.innerHTML='<p class="shop-empty">加载中…</p>';
+  if(!acc){ shopEmpty('s-decor-empty',true,'请先选择账号'); grid.innerHTML=''; return; }
+  try{
+    var d=await (await fetch('/api/shop/decoration?accountId='+encodeURIComponent(acc))).json();
+    if(!(d&&d.ok)){ shopEmpty('s-decor-empty',true,actEsc(d&&d.error||'加载失败')); grid.innerHTML=''; return; }
+    var items=d.data||[];
+    if(!items.length){ shopEmpty('s-decor-empty',true,'暂无装扮商品'); grid.innerHTML=''; return; }
+    grid.innerHTML=items.map(function(it){
+      var btn;
+      if(it.canBuy) btn=shopBuyBtn('💎 购买','data-buy="decor" data-gid="'+it.id+'" data-price="'+it.price+'"',false);
+      else btn=shopBuyBtn('金豆豆不足','',true);
+      return '<div class="act-item">'+shopImg(it)+'<div class="nm">'+actEsc(it.name)+'</div>'
+        +'<div class="ct">🫘 金豆豆 '+it.price+'</div>'
+        +'<div class="act-limit">'+actEsc(it.effectDesc||it.desc||'装扮商品')+'</div>'+btn+'</div>';
+    }).join('');
+    shopBind(grid, loadShopDecoration);
+  }catch(e){ shopEmpty('s-decor-empty',true,'加载失败'); grid.innerHTML=''; }
+}
+/* 道具商城 */
+async function loadShopMall(){
+  var acc=shopAcc(); var grid=document.getElementById('s-prop-grid'); if(!grid) return;
+  shopEmpty('s-prop-empty',false); grid.innerHTML='<p class="shop-empty">加载中…</p>';
+  if(!acc){ shopEmpty('s-prop-empty',true,'请先选择账号'); grid.innerHTML=''; return; }
+  try{
+    var d=await (await fetch('/api/shop/mall?accountId='+encodeURIComponent(acc))).json();
+    if(!(d&&d.ok)){ shopEmpty('s-prop-empty',true,actEsc(d&&d.error||'加载失败')); grid.innerHTML=''; return; }
+    var items=d.data||[];
+    if(!items.length){ shopEmpty('s-prop-empty',true,'暂无商城商品'); grid.innerHTML=''; return; }
+    grid.innerHTML=items.map(function(it){
+      var isFert= (it.goodsId===1002||it.goodsId===1003);
+      var priceTxt= it.isFree? '免费' : '🎫 '+it.price+' 点券';
+      var btn;
+      if(it.isSoldOut) btn=shopBuyBtn('已售罄','',true);
+      else if(!it.canBuy) btn=shopBuyBtn('点券不足','',true);
+      else if(isFert) btn=shopQty(it,99)+(it.isFree?shopBuyBtn('立即领取','data-buy="mall" data-gid="'+it.id+'" data-price="'+it.price+'"',false):shopBuyBtn('🎫 兑换','data-buy="mall" data-gid="'+it.id+'" data-price="'+it.price+'"',false));
+      else btn=(it.isFree?shopBuyBtn('立即领取','data-buy="mall" data-gid="'+it.id+'" data-price="0"',false):shopBuyBtn('🎫 兑换','data-buy="mall" data-gid="'+it.id+'" data-price="'+it.price+'"',false));
+      var imgs=(it.images&&it.images.length)?'<img class="act-ic" src="'+actEsc(it.images[0])+'" alt="" loading="lazy">':'<div class="ic">🎁</div>';
+      return '<div class="act-item">'+imgs+'<div class="nm">'+actEsc(it.name)+'</div>'
+        +'<div class="ct">'+priceTxt+'</div>'
+        +'<div class="act-limit">'+(it.discount?'折扣 '+actEsc(it.discount):'')+(it.limitCount>0?' · 限'+actNum(it.limitCount):'')+'</div>'+btn+'</div>';
+    }).join('');
+    bindShopQty(grid); shopBind(grid, loadShopMall);
+  }catch(e){ shopEmpty('s-prop-empty',true,'加载失败'); grid.innerHTML=''; }
+}
+/* 神秘商人 */
+async function loadShopMystery(){
+  var acc=shopAcc(); var box=document.getElementById('s-mystery-box'); if(!box) return;
+  box.innerHTML='<p class="shop-empty">加载中…</p>';
+  if(!acc){ box.innerHTML='<p class="shop-empty">请先选择账号</p>'; return; }
+  try{
+    var d=await (await fetch('/api/shop/mystery?accountId='+encodeURIComponent(acc))).json();
+    if(!(d&&d.ok)){ box.innerHTML='<p class="shop-empty">'+actEsc(d&&d.error||'加载失败')+'</p>'; return; }
+    var o=d.data||{};
+    if(!o.active){ box.innerHTML='<p class="shop-empty">🧙 神秘商人暂未出现，请稍后刷新看看。</p>'; return; }
+    var endTxt='';
+    if(o.endTime){ var dt=new Date(o.endTime*1000); var mm=('0'+(dt.getMonth()+1)).slice(-2), dd=('0'+dt.getDate()).slice(-2), hh=('0'+dt.getHours()).slice(-2), mi=('0'+dt.getMinutes()).slice(-2); endTxt='<div class="act-limit">⏰ '+mm+'/'+dd+' '+hh+':'+mi+' 离开</div>'; }
+    var orig= (o.originalPrice>o.price)?'<span style="text-decoration:line-through;opacity:.6">'+o.originalPrice+'</span> ' : '';
+    var dis=(o.discount>0)?' · '+actNum(o.discount/10)+' 折':'';
+    var buyBtn=shopBuyBtn('💎 购买','data-mybuy="1" data-npc="'+o.npcId+'"',false);
+    var abdBtn=shopBuyBtn('请离','data-myabandon="1"',false);
+    box.innerHTML='<div class="act-card" style="max-width:340px"><div class="act-card-hd"><h4>🧙 神秘商人</h4><span class="act-badge">限时'+dis+'</span></div>'
+      +'<div class="act-item" style="margin:0">'+shopImg({image:o.itemImage})+'<div class="nm">'+actEsc(o.itemName)+(o.itemCount>1?' ×'+o.itemCount:'')+'</div>'
+      +'<div class="ct">'+actEsc(o.currencyName)+' '+orig+actNum(o.price)+'</div>'+endTxt
+      +'<div style="display:flex;gap:8px;margin-top:8px">'+buyBtn+abdBtn+'</div></div></div>';
+    var bb=box.querySelector('[data-mybuy]'); if(bb) bb.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/buy',{npcId:Number(this.dataset.npc)},loadShopMystery); });
+    var ab=box.querySelector('[data-myabandon]'); if(ab) ab.addEventListener('click',function(){ doShopBuy('/api/shop/mystery/abandon',{},loadShopMystery); });
+  }catch(e){ box.innerHTML='<p class="shop-empty">加载失败</p>'; }
+}
+function loadShop(seg){
+  if(!seg){ var a=document.querySelector('#page-shop .seg-btn.active'); seg=a?a.dataset.seg:'s-seed'; }
+  if(seg==='s-seed') loadShopSeed();
+  else if(seg==='s-pet') loadShopPet();
+  else if(seg==='s-decor') loadShopDecoration();
+  else if(seg==='s-prop') loadShopMall();
+  else if(seg==='s-mystery') loadShopMystery();
+  shopProfile();
+}
+document.querySelectorAll('#page-shop .seg-btn').forEach(function(b){ b.addEventListener('click',function(){ if(typeof loadShop==='function') loadShop(b.dataset.seg); }); });
+document.querySelectorAll('[data-tab="page-shop"]').forEach(function(b){ b.addEventListener('click',function(){ if(typeof loadShop==='function') loadShop(); }); });
 </script>
 </body>
 </html>
