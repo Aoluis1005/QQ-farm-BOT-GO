@@ -751,8 +751,15 @@ body{
 .act-btn{ border:none; background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 75%,#000)); color:#fff; font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:999px; cursor:pointer; box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 35%,transparent); }
 .act-btn:disabled{ opacity:.5; cursor:not-allowed; }
 .act-ic{ width:44px; height:44px; object-fit:contain; border-radius:8px; margin-bottom:2px; }
+.act-ic-sm{ width:26px; height:26px; object-fit:contain; border-radius:5px; }
+.act-rw{ display:inline-flex; align-items:center; gap:4px; margin:2px 6px 2px 0; }
+.act-rw i{ font-style:normal; font-size:12px; }
+.act-rw em{ font-style:normal; font-size:11px; opacity:.9; }
+.act-rw-empty{ opacity:.45; }
+.act-rwbox{ width:100%; display:flex; flex-wrap:wrap; gap:8px; margin:3px 0; }
 .act-btn.act-sm{ padding:5px 10px; font-size:11px; }
 .act-btn:hover{ filter:brightness(1.05); }
+.act-refresh{ margin-right:8px; flex-shrink:0; background:linear-gradient(135deg,rgba(80,160,255,.25),rgba(140,120,255,.25)); }
 .act-qty{ display:flex; align-items:center; gap:4px; margin:4px 0; }
 .act-num{ width:42px; text-align:center; background:rgba(255,255,255,.06); color:var(--t,#eaf2ff); border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:3px 0; font-size:12px; }
 .act-limit{ font-size:11px; opacity:.75; color:#ffd76a; margin-top:3px; }
@@ -3601,8 +3608,9 @@ async function loadActivity(){
     if(!groups.length){ el.bx.innerHTML='<div class="act-empty">当前没有进行中的活动</div>'; el.bar.style.display='none'; el.tb.style.display='none'; return; }
     let gi=ACT_GROUP_INDEX; if(gi<0||gi>=groups.length) gi=0;
     el.bar.style.display='flex';
-    el.bar.innerHTML=groups.map((g,i)=>'<button class="dtab'+(i===gi?' active':'')+'" data-ai="'+i+'">'+actEsc(g.title)+'</button>').join('');
-    el.bar.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{ ACT_GROUP_INDEX=+btn.dataset.ai; ACT_LAST=''; el.bar.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===btn)); renderActivityGroup(acc, groups[+btn.dataset.ai]); }));
+    el.bar.innerHTML='<button class="dtab act-refresh" data-refresh="1" title="重新拉取最新活动">🔄 获取新活动</button>'+groups.map((g,i)=>'<button class="dtab'+(i===gi?' active':'')+'" data-ai="'+i+'">'+actEsc(g.title)+'</button>').join('');
+    var rf=el.bar.querySelector('button[data-refresh]'); if(rf) rf.addEventListener('click',function(){ ACT_GROUP_INDEX=0; ACT_LAST=''; loadActivity(); });
+    el.bar.querySelectorAll('button[data-ai]').forEach(btn=>btn.addEventListener('click',()=>{ ACT_GROUP_INDEX=+btn.dataset.ai; ACT_LAST=''; el.bar.querySelectorAll('button[data-ai]').forEach(x=>x.classList.toggle('active',x===btn)); renderActivityGroup(acc, groups[+btn.dataset.ai]); }));
     renderActivityGroup(acc, groups[gi]);
   }catch(e){ el.ld.style.display='none'; el.bx.innerHTML='<div class="act-empty">加载失败：'+(actEsc((e&&e.message)||e))+'</div>'; }
 }
@@ -3651,7 +3659,7 @@ function renderPanel(p, ctx){
       h+='<div class="act-actions"><button class="act-btn'+(cl>0?'':' disabled')+'" data-claim="season"'+(cl>0?'':' disabled')+'>领取可领奖励 ('+cl+' 档)</button></div>';
       const tiers=(pp.reward_tiers||[]).slice();
       if(tiers.length){ h+='<div class="act-card"><div class="act-card-hd"><h4>🎁 奖励梯度（共 '+tiers.length+' 档）</h4></div>'+
-        tiers.map(t=>'<div class="act-tier"><span class="lv">Lv.'+actNum(t.level)+'</span><span class="rw">'+(((t.free_rewards||[]).map(rw=>rw.name).filter(Boolean).join('、'))||'—')+'</span></div>').join('')+'</div>'; }
+        tiers.map(t=>'<div class="act-tier"><span class="lv">Lv.'+actNum(t.level)+'</span><span class="rw">'+actRwHtml(t.free_rewards)+'</span></div>').join('')+'</div>'; }
     } else if(p.key==='shop'){
       h='<div class="act-card"><div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">加载中…</span></div><div class="act-hint">正在获取商品与星砂余额…</div></div>';
       el.bx.innerHTML=h;
@@ -3667,7 +3675,7 @@ function renderPanel(p, ctx){
       h='<div class="act-card"><div class="act-card-hd"><h4>🌿 节令小礼</h4><span class="act-badge">'+actNum(s.claimable_count)+' 可领</span></div>';
       terms.forEach(t=>{
         const claimable=actNum(t.status)===2;
-        h+='<div class="act-term"><div class="t-info"><b>'+actEsc(t.title||('节气'+t.id))+'</b><span class="act-badge'+(claimable?'':' off')+'">'+actEsc(t.status_label||'')+'</span></div><div class="t-rw">'+(((t.rewards||[]).map(rw=>rw.name).filter(Boolean).join('、'))||'—')+'</div></div>';
+        h+='<div class="act-term"><div class="t-info"><b>'+actEsc(t.title||('节气'+t.id))+'</b><span class="act-badge'+(claimable?'':' off')+'">'+actEsc(t.status_label||'')+'</span></div><div class="t-rw">'+actRwHtml(t.rewards)+'</div></div>';
         if(claimable) h+='<div class="act-actions"><button class="act-btn" data-claim="solar" data-id="'+actNum(t.id)+'">领取 '+actEsc(t.title||'')+'</button></div>';
       });
       h+='</div>';
@@ -3768,6 +3776,15 @@ async function renderShop(ctx){
     }catch(e){ el.ld.style.display='none'; alert('兑换失败：'+(actEsc((e&&e.message)||e))); }
   }));
 }
+function actRwOne(rw){
+  if(!rw) return '';
+  var img=rw.image;
+  return '<span class="act-rw">'+(img?'<img class="act-ic-sm" src="'+actEsc(img)+'" alt="" loading="lazy">':'<i>🎁</i>')+'<em>'+actEsc(rw.name||'')+'</em></span>';
+}
+function actRwHtml(rws){
+  if(!(rws&&rws.length)) return '<span class="act-rw-empty">—</span>';
+  return rws.map(actRwOne).join('');
+}
 async function renderGift(ctx){
   const el=actEls(); const acc=ctx.acc;
   let d;
@@ -3783,7 +3800,7 @@ async function renderGift(ctx){
   }
   h+='<div class="act-grid">'+nodes.map(n=>{
     const cls=actNum(n.claimed)===1?'done':actNum(n.claimable)===1?'go':actNum(n.unlocked)===1?'open':'lock';
-    return '<div class="act-item act-'+cls+'"><div class="ic">'+(actNum(n.claimed)===1?'✅':actNum(n.claimable)===1?'⭐':actNum(n.unlocked)===1?'🔓':'🔒')+'</div><div class="nm">'+actEsc(n.name||('第'+n.id+'宿'))+'</div><span class="act-badge">'+actEsc(n.status_label||'')+'</span></div>';
+    return '<div class="act-item act-'+cls+'"><div class="ic">'+(actNum(n.claimed)===1?'✅':actNum(n.claimable)===1?'⭐':actNum(n.unlocked)===1?'🔓':'🔒')+'</div><div class="nm">'+actEsc(n.name||('第'+n.id+'宿'))+'</div>'+(n.rewards&&n.rewards.length?'<div class="act-rwbox">'+actRwHtml(n.rewards)+'</div>':'')+'<span class="act-badge">'+actEsc(n.status_label||'')+'</span></div>';
   }).join('')+'</div>';
   el.bx.innerHTML=h;
   hookClaim(el.bx, ctx, {key:'gift'});
