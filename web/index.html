@@ -3609,7 +3609,16 @@ async function loadActivity(){
     let gi=ACT_GROUP_INDEX; if(gi<0||gi>=groups.length) gi=0;
     el.bar.style.display='flex';
     el.bar.innerHTML='<button class="dtab act-refresh" data-refresh="1" title="重新拉取最新活动">🔄 获取新活动</button>'+groups.map((g,i)=>'<button class="dtab'+(i===gi?' active':'')+'" data-ai="'+i+'">'+actEsc(g.title)+'</button>').join('');
-    var rf=el.bar.querySelector('button[data-refresh]'); if(rf) rf.addEventListener('click',function(){ ACT_GROUP_INDEX=0; ACT_LAST=''; loadActivity(); });
+    var rf=el.bar.querySelector('button[data-refresh]');
+    if(rf) rf.addEventListener('click', function(){
+      var self=this; self.disabled=true; self.textContent='⏳ 获取中…';
+      ACT_GROUP_INDEX=0; ACT_LAST='';
+      Promise.resolve(loadActivity()).catch(function(){}).then(function(){
+        if(!self.isConnected) return;
+        self.disabled=false; self.textContent='✅ 已获取最新活动';
+        setTimeout(function(){ if(self.isConnected) self.textContent='🔄 获取新活动'; },1500);
+      });
+    });
     el.bar.querySelectorAll('button[data-ai]').forEach(btn=>btn.addEventListener('click',()=>{ ACT_GROUP_INDEX=+btn.dataset.ai; ACT_LAST=''; el.bar.querySelectorAll('button[data-ai]').forEach(x=>x.classList.toggle('active',x===btn)); renderActivityGroup(acc, groups[+btn.dataset.ai]); }));
     renderActivityGroup(acc, groups[gi]);
   }catch(e){ el.ld.style.display='none'; el.bx.innerHTML='<div class="act-empty">加载失败：'+(actEsc((e&&e.message)||e))+'</div>'; }
