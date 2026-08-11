@@ -146,6 +146,8 @@ type ShopItem struct {
 	Status       int64  `json:"status"`
 	StatusLabel  string `json:"status_label,omitempty"`
 	Owned        bool   `json:"owned"`
+	IsRepeatable bool   `json:"is_repeatable,omitempty"` // 化肥/道具：可重复兑换（type 7 或 fertilizer/fertilizerpro）
+	ExchangeLimit int64 `json:"exchange_limit,omitempty"`  // 可重复道具=剩余可兑换次数（对齐 Node exchangeLimit）
 	ItemID       int64  `json:"item_id,omitempty"`
 	Count        int64  `json:"count,omitempty"`
 	CurrencyID   int64  `json:"currency_id,omitempty"` // cost.itemId（星砂=1023）
@@ -219,6 +221,11 @@ func parseShopItemFull(raw []byte) *ShopItem {
 		it.Price = actNum(cf, 2)
 	}
 	it.Owned = actNum(fs, 5) != 0
+	it.IsRepeatable = isRepeatableItem(it.ItemID)
+	// 可重复道具（化肥）：status 即剩余可兑换次数，且不因 owned 阻塞（对齐 Node exchangeLimit）
+	if it.IsRepeatable && it.Status > 1 {
+		it.ExchangeLimit = it.Status
+	}
 	if it.CurrencyID > 0 {
 		it.CurrencyName = itemDisplayName(it.CurrencyID)
 	}
@@ -226,17 +233,33 @@ func parseShopItemFull(raw []byte) *ShopItem {
 	return it
 }
 
+// isRepeatableItem 判定可重复兑换道具（对齐 Node：itemType===7 或 interactionType fertilizer/fertilizerpro）
+func isRepeatableItem(itemID int64) bool {
+	if it, ok := itemInfoMap[int(itemID)]; ok {
+		if it.Type == 7 {
+			return true
+		}
+		switch it.InteractionType {
+		case "fertilizer", "fertilizerpro":
+			return true
+		}
+	}
+	return false
+}
+
 func exchangeShopStatusLabel(it *ShopItem) string {
-	if it.Owned {
+	// 可重复道具不限购拥有，始终可兑换；一次性道具（装扮）已拥有则不可再兑
+	if !it.IsRepeatable && it.Owned {
 		return "已拥有"
+	}
+	if it.ExchangeLimit > 0 {
+		return "可兑换"
 	}
 	switch it.Status {
 	case 3:
 		return "已售"
 	case 5:
 		return "特殊商品"
-	case 100, 120, 130:
-		return "可兑换"
 	default:
 		return "可兑换"
 	}
