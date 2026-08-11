@@ -150,6 +150,7 @@ type ShopItem struct {
 	ExchangeLimit int64 `json:"exchange_limit,omitempty"`  // 可重复道具=剩余可兑换次数（对齐 Node exchangeLimit）
 	ItemID       int64  `json:"item_id,omitempty"`
 	Count        int64  `json:"count,omitempty"`
+	Image        string `json:"image,omitempty"`
 	CurrencyID   int64  `json:"currency_id,omitempty"` // cost.itemId（星砂=1023）
 	CurrencyName string `json:"currency_name,omitempty"`
 	Price        int64  `json:"price,omitempty"`        // cost.count
@@ -222,6 +223,7 @@ func parseShopItemFull(raw []byte) *ShopItem {
 	}
 	it.Owned = actNum(fs, 5) != 0
 	it.IsRepeatable = isRepeatableItem(it.ItemID)
+	it.Image = GetItemImageURL(int(it.ItemID))
 	// 可重复道具（化肥）：status 即剩余可兑换次数，且不因 owned 阻塞（对齐 Node exchangeLimit）
 	if it.IsRepeatable && it.Status > 1 {
 		it.ExchangeLimit = it.Status

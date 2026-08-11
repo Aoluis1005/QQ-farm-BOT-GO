@@ -750,6 +750,7 @@ body{
 .act-actions{ display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
 .act-btn{ border:none; background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 75%,#000)); color:#fff; font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:999px; cursor:pointer; box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 35%,transparent); }
 .act-btn:disabled{ opacity:.5; cursor:not-allowed; }
+.act-ic{ width:44px; height:44px; object-fit:contain; border-radius:8px; margin-bottom:2px; }
 .act-btn.act-sm{ padding:5px 10px; font-size:11px; }
 .act-btn:hover{ filter:brightness(1.05); }
 .act-qty{ display:flex; align-items:center; gap:4px; margin:4px 0; }
@@ -3745,7 +3746,7 @@ async function renderShop(ctx){
       actions=owned?'<span class="act-badge off">已拥有</span>':
         '<button class="act-btn act-sm'+(canBuy?'':' disabled')+'" data-ex="'+it.id+'" data-price="'+price+'"'+(canBuy?'':' disabled')+'>'+(s===3?'已售':(afford?'兑换':'余额不足'))+'</button>';
     }
-    return '<div class="act-item'+((!rep&&owned)?' act-done':'')+'"><div class="ic">🌾</div><div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div>'+
+    return '<div class="act-item'+((!rep&&owned)?' act-done':'')+'">'+(it.image?'<img class="act-ic" src="'+actEsc(it.image)+'" alt="" loading="lazy">':'<div class="ic">🌾</div>')+'<div class="nm">'+actEsc(it.name||('商品'+it.id))+'</div>'+
       '<div class="ct">💰 '+price+' '+actEsc(cur)+'</div>'+actions+'</div>';
   }).join('')+'</div>';
   el.bx.innerHTML=h;
