@@ -3678,7 +3678,9 @@ async function renderActivityGroup(acc, group){
   const solar=(od&&od.ok)?(od.data||null):null;
   let shopNode=null, giftNode=null;
   (function walk(n){ if(!n) return; const inf=n.info||{}; if(actNum(inf.type)===13 && !giftNode) giftNode=n; if((n.exchange_shop&&n.exchange_shop.length)&& !shopNode) shopNode=n; (n.children||[]).forEach(walk); })(tree);
+  const isQingmei=(group.title||'').indexOf('青酿')>=0 || (group.title||'').indexOf('青梅')>=0;
   const panels=[];
+  if(isQingmei) panels.push({key:'qingmei',title:'青梅酿',icon:'🍶'});
   if(season && season.passport) panels.push({key:'season',title:'千星游记',icon:'🗺️'});
   if(shopNode && shopNode.exchange_shop && shopNode.exchange_shop.length) panels.push({key:'shop',title:'星砂商店',icon:'🛍️'});
   if(giftNode) panels.push({key:'gift',title:'观星礼录',icon:'🌟'});
@@ -3726,6 +3728,11 @@ function renderPanel(p, ctx){
         if(claimable) h+='<div class="act-actions"><button class="act-btn" data-claim="solar" data-id="'+actNum(t.id)+'">领取 '+actEsc(t.title||'')+'</button></div>';
       });
       h+='</div>';
+    } else if(p.key==='qingmei'){
+      h='<div class="act-card"><div class="act-card-hd"><h4>🍶 青梅酿</h4><span class="act-badge">加载中…</span></div><div class="act-hint">正在获取青梅活动…</div></div>';
+      el.bx.innerHTML=h;
+      renderQingmei(ctx);
+      return;
     }
   }catch(e){ h='<div class="act-empty">渲染失败：'+(actEsc((e&&e.message)||e))+'</div>'; }
   el.bx.innerHTML=h;
@@ -3771,6 +3778,46 @@ async function actRefreshSolar(acc){
     ACT_CACHE.solar = (d&&d.data)||null;
   }catch(e){}
   el.ld.style.display='none';
+}
+async function renderQingmei(ctx){
+  const el=actEls(); const acc=ctx.acc;
+  let d;
+  try{ d=await (await fetch('/api/activity/qingmei?accountId='+encodeURIComponent(acc))).json(); }
+  catch(e){ el.bx.innerHTML='<div class="act-empty">青梅活动加载失败</div>'; return; }
+  if(!(d&&d.ok)){ el.bx.innerHTML='<div class="act-empty">'+(actEsc((d&&d.error)||'加载失败'))+'</div>'; return; }
+  const a=d.activity||{}, rw=d.reward||{}, mt=d.material||{};
+  const claimable=!!a.claimable, claimed=!!a.claimed;
+  const matc=actNum(mt.item_count);
+  let h='<div class="act-card"><div class="act-card-hd"><h4>🍶 青酿换万金</h4><span class="act-badge">活动进行中</span></div>'+
+    '<div class="act-hint">每日领青梅种子 → 种植/偷菜得青梅 → 酿制并出售青梅酿，可触发价格翻倍暴击</div></div>';
+  h+='<div class="act-card"><div class="act-card-hd"><h4>🌱 每日领种子</h4><span class="act-badge">'+actNum(rw.item_count)+' 颗</span></div>'+
+    '<div class="act-stats"><span>奖品 <b>'+actEsc(rw.item_name||'青梅种子')+' ×'+actNum(rw.item_count)+'</b></span></div>'+
+    '<div class="act-actions"><button class="act-btn'+(claimable?'':' disabled')+'" data-qm="claim"'+(claimable?'':' disabled')+'>'+(claimed?'今日已领取':(claimable?'领取青梅种子':'今日不可领'))+'</button></div></div>';
+  h+='<div class="act-card"><div class="act-card-hd"><h4>🍶 酿制出售</h4><span class="act-badge">青梅 '+matc+'</span></div>'+
+    '<div class="act-hint">一次消耗现有全部青梅进行多段精酿并出售，获得金币收益</div>'+
+    '<div class="act-actions"><button class="act-btn'+(matc>0?'':' disabled')+'" data-qm="brew"'+(matc>0?'':' disabled')+'>酿制并出售青梅酿</button></div></div>';
+  el.bx.innerHTML=h;
+  el.bx.querySelectorAll('button[data-qm="claim"]').forEach(btn=>btn.addEventListener('click', async function(){
+    const b=this; b.disabled=true; el.ld.style.display='block';
+    try{
+      const r=await (await fetch('/api/activity/qingmei/claim?accountId='+encodeURIComponent(acc),{method:'POST'})).json();
+      el.ld.style.display='none';
+      if(!(r&&r.ok)){ toast((r&&r.error)||'领取失败', false); b.disabled=false; return; }
+      toast('青梅种子 ×'+actNum(r.claimed_count)+' 领取成功', true);
+      renderQingmei(ctx);
+    }catch(e){ el.ld.style.display='none'; toast('领取失败', false); b.disabled=false; }
+  }));
+  el.bx.querySelectorAll('button[data-qm="brew"]').forEach(btn=>btn.addEventListener('click', async function(){
+    const b=this; b.disabled=true; b.textContent='⏳ 酿制中…'; el.ld.style.display='block';
+    try{
+      const r=await (await fetch('/api/activity/qingmei/wine?accountId='+encodeURIComponent(acc),{method:'POST'})).json();
+      el.ld.style.display='none';
+      if(!(r&&r.ok)){ toast((r&&r.error)||'酿制失败', false); b.disabled=false; b.textContent='酿制并出售青梅酿'; return; }
+      const sl=r.sell||{};
+      toast('青梅酿出售成功，金币 +'+actNum(sl.gold), true);
+      renderQingmei(ctx);
+    }catch(e){ el.ld.style.display='none'; toast('酿制失败', false); b.disabled=false; b.textContent='酿制并出售青梅酿'; }
+  }));
 }
 async function renderShop(ctx){
   const el=actEls(); const acc=ctx.acc;

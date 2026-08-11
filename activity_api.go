@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,9 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/guanxing/claim", handleActivityGuanxingClaim)
 	api.HandleFunc("/api/activity/shop", handleActivityShop)
 	api.HandleFunc("/api/activity/shop/exchange", handleActivityShopExchange)
+	api.HandleFunc("/api/activity/qingmei", handleQingmei)
+	api.HandleFunc("/api/activity/qingmei/claim", handleQingmeiClaim)
+	api.HandleFunc("/api/activity/qingmei/wine", handleQingmeiWine)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -496,3 +500,368 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 		"items":   items,
 	})
 }
+
+// ===== 青梅酿万金（青酿换万金）：领种子 + 酿酒出售 =====
+// 对齐 Node core/src/services/activity.js 青梅段常量与流程。
+//  领种子：Operate cmd=4  qingmei_claim_params{type:2}
+//  酿酒   ：Operate cmd=14(预览 qingmei_wine_start) / 15(精酿 qingmei_wine_brew{}) / 16(出售 qingmei_wine_sell{multiple})
+const (
+	qingmeiSeedItemID    = 21221 // 青梅种子
+	qingmeiFruitItemID   = 41221 // 青梅（酿制材料）
+	qingmeiSeedReward    = 24    // 每次领取种子数
+	qingmeiClaimCmd      = 4
+	qingmeiPreviewCmd    = 14
+	qingmeiBrewCmd       = 15
+	qingmeiSellCmd       = 16
+	qingmeiBrewSteps     = 3
+	qingmeiStepDelay     = 1 * time.Second
+	// OperateRequest 请求字段编号（activitypb.proto）
+	qingmeiClaimParamF   = 103
+	qingmeiWineStartF    = 112
+	qingmeiWineBrewF     = 113
+	qingmeiWineSellF     = 114
+	// OperateReply 回包字段编号
+	qingmeiClaimReplyF   = 104
+	qingmeiPreviewReplyF = 113
+	qingmeiBrewReplyF    = 114
+	qingmeiSellReplyF    = 115
+)
+
+type qingmeiMat struct {
+	UID   int64 `json:"uid"`
+	Count int64 `json:"count"`
+}
+
+// qingmeiMaterialItems 读取背包青梅(41221)材料（对齐 Node getQingmeiWineMaterialItems：需 uid>0 且 count>0，按 uid 排序）
+func qingmeiMaterialItems(ctx context.Context, accountID string) []qingmeiMat {
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		return nil
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		return nil
+	}
+	br := proto.DecodeBagReply(rep.Body)
+	var mats []qingmeiMat
+	for _, it := range br.Items {
+		if it.ID == qingmeiFruitItemID && it.UID > 0 && it.Count > 0 {
+			mats = append(mats, qingmeiMat{UID: it.UID, Count: it.Count})
+		}
+	}
+	sort.Slice(mats, func(i, j int) bool { return mats[i].UID < mats[j].UID })
+	return mats
+}
+
+// qingmeiActIDs 动态定位当前在期的青梅活动组根、领种子结点(claim,type4)、酿制结点(wine,type12 或 payload 含 QingMei)
+func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, err error) {
+	if rootID == 0 {
+		body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
+		if e != nil {
+			return 0, 0, 0, e
+		}
+		now := time.Now().Unix()
+		for _, it := range ParseActivityList(body) {
+			if it.ID%100 != 0 || it.Title != "青酿换万金" {
+				continue
+			}
+			// 有任一在期子活动即视为在期
+			on := it.StartTime > 0 && it.EndTime > 0 && it.StartTime <= now && now <= it.EndTime
+			if on {
+				rootID = it.ID
+				break
+			}
+		}
+		if rootID == 0 {
+			return 0, 0, 0, fmt.Errorf("青梅活动（青酿换万金）当前未在进行中")
+		}
+	}
+	gb := proto.NewBuilder()
+	gb.FieldInt64(1, rootID)
+	gb.FieldString(2, "")
+	body, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
+	if e != nil {
+		return 0, 0, 0, e
+	}
+	root := ParseActivityGroup(body)
+	if root == nil {
+		return rootID, 0, 0, fmt.Errorf("青梅活动分组解析失败")
+	}
+	var walk func(n *ActivityNode)
+	walk = func(n *ActivityNode) {
+		if n == nil {
+			return
+		}
+		if n.Info != nil {
+			if n.Info.Type == 4 && claimID == 0 {
+				claimID = n.Info.ID
+			}
+			if n.Info.Type == 12 || strings.Contains(n.Info.Payload, "QingMei") {
+				if wineID == 0 {
+					wineID = n.Info.ID
+				}
+			}
+		}
+		for _, ch := range n.Children {
+			walk(ch)
+		}
+	}
+	walk(root)
+	if claimID == 0 || wineID == 0 {
+		return rootID, claimID, wineID, fmt.Errorf("未找到青梅领种子/酿制结点")
+	}
+	return rootID, claimID, wineID, nil
+}
+
+// qingmeiOperate 组装青梅 Operate 请求（id/cmd + 可选扩展字段），返回原始回包 body
+func qingmeiOperate(ctx context.Context, accountID string, actID, cmd int64, extField int, extBody []byte) ([]byte, error) {
+	b := proto.NewBuilder()
+	b.FieldInt64(1, actID)
+	b.FieldInt64(2, cmd)
+	if extField > 0 && extBody != nil {
+		b.FieldBytes(extField, extBody)
+	}
+	return rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 20*time.Second)
+}
+
+// subFieldBytes 取回包中指定字段的嵌套消息 bytes（容错）
+func subFieldBytes(body []byte, field int) []byte {
+	defer func() { _ = recover() }()
+	fs := readActFields(body)
+	return actBytes(fs, field)
+}
+
+func handleQingmei(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	rootID, claimID, wineID, err := qingmeiActIDs(ctx, accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	// 领种子结点状态由 GetGroup 树中 claim 结点提供（Node 用 claim.status/enabled）
+	gb := proto.NewBuilder()
+	gb.FieldInt64(1, rootID)
+	gb.FieldString(2, "")
+	gbody, e := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
+	var claimStatus, claimEnabled int64 = 0, 1
+	wineTitle := "青酿换万金"
+	endTime := int64(0)
+	if e == nil {
+		if root := ParseActivityGroup(gbody); root != nil {
+			var walk func(n *ActivityNode)
+			walk = func(n *ActivityNode) {
+				if n == nil || n.Info == nil {
+					return
+				}
+				if n.Info.ID == claimID {
+					claimStatus = n.Info.Status
+					if !n.Info.Enabled {
+						claimEnabled = 0
+					}
+				}
+				if n.Info.ID == wineID {
+					if n.Info.Title != "" {
+						wineTitle = n.Info.Title
+					}
+					endTime = n.Info.EndTime
+				}
+				for _, ch := range n.Children {
+					walk(ch)
+				}
+			}
+			walk(root)
+		}
+	}
+	mats := qingmeiMaterialItems(ctx, accountID)
+	total := int64(0)
+	for _, m := range mats {
+		total += m.Count
+	}
+	claimed := claimStatus == 3
+	claimable := !claimed && claimEnabled != 0
+
+	seedName := itemDisplayName(qingmeiSeedItemID)
+	if seedName == "" {
+		seedName = "青梅种子"
+	}
+	fruitName := itemDisplayName(qingmeiFruitItemID)
+	if fruitName == "" {
+		fruitName = "青梅"
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"title": "青酿换万金",
+		"activity": map[string]interface{}{
+			"activity_id": rootID,
+			"claim_activity_id": claimID,
+			"wine_activity_id": wineID,
+			"wine_title": wineTitle,
+			"end_time": endTime,
+			"status": claimStatus, "claimed": claimed, "claimable": claimable,
+		},
+		"reward": map[string]interface{}{
+			"item_id": qingmeiSeedItemID, "item_count": qingmeiSeedReward,
+			"item_name": seedName, "image": "",
+		},
+		"material": map[string]interface{}{
+			"item_id": qingmeiFruitItemID, "item_count": total,
+			"item_name": fruitName, "image": "",
+		},
+	})
+}
+
+func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	_, claimID, _, err := qingmeiActIDs(ctx, accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	sub := proto.NewBuilder()
+	sub.FieldInt32(1, 2) // QingmeiClaimParams.type=2
+	body, err := qingmeiOperate(ctx, accountID, claimID, qingmeiClaimCmd, qingmeiClaimParamF, sub.Bytes())
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	// 解析礼包物品（qingmei_claim=104 -> items=1）
+	var items []map[string]int64
+	if subRaw := subFieldBytes(body, qingmeiClaimReplyF); len(subRaw) > 0 {
+		sfs := readActFields(subRaw)
+		for _, itRaw := range actBytesAll(sfs, 1) {
+			it := readActFields(itRaw)
+			items = append(items, map[string]int64{
+				"item_id": actNum(it, 1), "count": actNum(it, 2),
+			})
+		}
+	}
+	claimed := int64(0)
+	for _, it := range items {
+		claimed += it["count"]
+	}
+	if claimed == 0 {
+		claimed = qingmeiSeedReward
+	}
+	writeJSONMap(w, "ok", true, "account", accountID, "claimed_count", claimed, "reward_item_id", qingmeiSeedItemID, "items", items)
+}
+
+func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	_, _, wineID, err := qingmeiActIDs(ctx, accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	mats := qingmeiMaterialItems(ctx, accountID)
+	beforeTotal := int64(0)
+	for _, m := range mats {
+		beforeTotal += m.Count
+	}
+	if beforeTotal <= 0 {
+		writeJSONMap(w, "ok", false, "error", "青梅不足，无法酿制")
+		return
+	}
+	// 组装 qingmei_wine_start 材料（items=1 -> corepb.Item{id=实例uid, count}，对齐 Node map id:item.uid）
+	startSub := proto.NewBuilder()
+	for _, m := range mats {
+		it := proto.NewBuilder()
+		it.FieldInt64(1, m.UID)
+		it.FieldInt64(2, m.Count)
+		startSub.FieldBytes(1, it.Bytes())
+	}
+	previewPrice := int64(0)
+	previewWarning := ""
+	previewBody, pErr := qingmeiOperate(ctx, accountID, wineID, qingmeiPreviewCmd, qingmeiWineStartF, startSub.Bytes())
+	if pErr != nil {
+		previewWarning = actErrMsg(pErr)
+	} else if subRaw := subFieldBytes(previewBody, qingmeiPreviewReplyF); len(subRaw) > 0 {
+		previewPrice = actNum(readActFields(subRaw), 1)
+	}
+	time.Sleep(qingmeiStepDelay)
+
+	// 精酿多次（对齐 Node brewSteps=3，每次间 delay）
+	type brewRes struct {
+		WineType int64 `json:"wine_type"`
+		Cost     int64 `json:"cost"`
+		Price    int64 `json:"price"`
+		CanDouble bool `json:"can_double"`
+	}
+	var brews []*brewRes
+	for i := 0; i < qingmeiBrewSteps; i++ {
+		brewBody, bErr := qingmeiOperate(ctx, accountID, wineID, qingmeiBrewCmd, qingmeiWineBrewF, []byte{})
+		if bErr != nil {
+			es := actErrMsg(bErr)
+			if i == 0 {
+				// 首次失败：可能是未打开酿制，重试 preview+brew
+				rs := proto.NewBuilder()
+				for _, m := range mats {
+					it := proto.NewBuilder()
+					it.FieldInt64(1, m.UID)
+					it.FieldInt64(2, m.Count)
+					rs.FieldBytes(1, it.Bytes())
+				}
+				_, _ = qingmeiOperate(ctx, accountID, wineID, qingmeiPreviewCmd, qingmeiWineStartF, rs.Bytes())
+				time.Sleep(qingmeiStepDelay)
+				brewBody, bErr = qingmeiOperate(ctx, accountID, wineID, qingmeiBrewCmd, qingmeiWineBrewF, []byte{})
+				if bErr != nil {
+					writeJSONMap(w, "ok", false, "error", "青梅酿精酿失败: "+actErrMsg(bErr))
+					return
+				}
+			} else {
+				writeJSONMap(w, "ok", false, "error", "青梅酿精酿失败: "+es)
+				return
+			}
+		}
+		var br brewRes
+		if subRaw := subFieldBytes(brewBody, qingmeiBrewReplyF); len(subRaw) > 0 {
+			bf := readActFields(subRaw)
+			br.WineType = actNum(bf, 1)
+			br.Cost = actNum(bf, 2)
+			br.Price = actNum(bf, 3)
+			br.CanDouble = actNum(bf, 4) != 0
+		}
+		brews = append(brews, &br)
+		time.Sleep(qingmeiStepDelay)
+	}
+	finalBrew := brews[len(brews)-1]
+
+	// 出售（默认 multiple=1；分享翻倍 multiple=2 暂未接入分享上报）
+	sellSub := proto.NewBuilder()
+	sellSub.FieldInt32(1, 1)
+	sellBody, sErr := qingmeiOperate(ctx, accountID, wineID, qingmeiSellCmd, qingmeiWineSellF, sellSub.Bytes())
+	if sErr != nil {
+		writeJSONMap(w, "ok", false, "error", "青梅酿售卖失败: "+actErrMsg(sErr))
+		return
+	}
+	sell := map[string]int64{"gold": 0, "multiple": 1}
+	if subRaw := subFieldBytes(sellBody, qingmeiSellReplyF); len(subRaw) > 0 {
+		sf := readActFields(subRaw)
+		sell["multiple"] = actNum(sf, 1)
+		sell["gold"] = actNum(sf, 2)
+	}
+	if sell["gold"] <= 0 {
+		writeJSONMap(w, "ok", false, "error", "售卖未返回金币收益，请稍后刷新活动状态")
+		return
+	}
+	afterTotal := int64(0)
+	for _, m := range qingmeiMaterialItems(ctx, accountID) {
+		afterTotal += m.Count
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"before_material": beforeTotal, "after_material": afterTotal,
+		"consumed": max64(0, beforeTotal-afterTotal),
+		"brew_steps": len(brews), "brews": brews,
+		"preview": map[string]int64{"price": previewPrice}, "preview_warning": previewWarning,
+		"wine": finalBrew,
+		"sell": sell,
+	})
+}
+
+func max64(a, b int64) int64 { if a > b { return a }; return b }
