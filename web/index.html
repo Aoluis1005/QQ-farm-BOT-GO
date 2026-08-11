@@ -227,7 +227,7 @@ body{
 /* ============ 页面切换 ============ */
 .page{ display:none; animation:fadeUp .35s var(--ease); }
 .page.active{ display:block; }
-@keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:none;} }
+@keyframes fadeUp{ from{ opacity:0;} to{ opacity:1;} }
 
 /* 农场：24块地 */
 .grid-title{ display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
@@ -439,11 +439,11 @@ body{
 .row{ display:flex; align-items:center; justify-content:space-between; padding:13px 0; font-size:13.5px; border-bottom:1px dashed var(--border); }
 .row:last-child{ border-bottom:none; }
 .row span:last-child{ color:var(--muted); font-size:12.5px; }
-.qr-card{ text-align:center; padding:22px 16px; background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); margin-top:14px; }
+.qr-card{ text-align:center; padding:22px 16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); margin-top:14px; }
 .qr-box{ width:138px; height:138px; margin:0 auto; border-radius:18px; border:1px solid var(--border); background:var(--card-strong); display:grid; place-items:center; font-size:13px; color:var(--muted); }
 .qr-card p{ margin-top:12px; font-size:12px; color:var(--muted); }
 /* 掉线自动重连设置（扫码弹窗内） */
-.rc-panel{ background:var(--card); backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:12px 13px; }
+.rc-panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:12px 13px; }
 .rc-head{ display:flex; flex-direction:column; gap:3px; font-size:13px; font-weight:700; margin-bottom:11px; }
 .rc-head small{ color:var(--muted); font-weight:500; font-size:11px; }
 .rc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0 11px; border-bottom:1px solid var(--border); }
@@ -754,6 +754,16 @@ body{
 .act-actions{ display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
 .act-btn{ border:none; background:linear-gradient(135deg,var(--primary),color-mix(in srgb,var(--primary) 75%,#000)); color:#fff; font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:999px; cursor:pointer; box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 35%,transparent); }
 .act-btn:disabled{ opacity:.5; cursor:not-allowed; }
+/* 按钮 loading 态（对齐 Node 交互：提交中禁用 + 内联 spinner，防重复点击） */
+.btn-loading{ position:relative; pointer-events:none; opacity:.72; }
+.btn-loading::after{
+  content:""; position:absolute; right:-20px; top:50%;
+  width:13px; height:13px; margin-top:-6.5px;
+  border:2px solid color-mix(in oklch,currentColor 28%,transparent);
+  border-top-color:currentColor; border-radius:50%;
+  animation:btnSpin .7s linear infinite;
+}
+@keyframes btnSpin{ to{ transform:rotate(360deg); } }
 .act-ic{ width:44px; height:44px; object-fit:contain; border-radius:8px; margin-bottom:2px; }
 .act-ic-sm{ width:26px; height:26px; object-fit:contain; border-radius:5px; }
 .act-rw{ display:inline-flex; align-items:center; gap:4px; margin:2px 6px 2px 0; }
@@ -1656,6 +1666,22 @@ body{
 </div>
 
 <script>
+/* 全局 toast 提示（对齐 Node；替换原生 alert 阻塞弹窗） */
+function toast(msg, ok){
+  var box=document.getElementById('toastBox');
+  if(!box){ box=document.createElement('div'); box.id='toastBox'; box.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;'; document.body.appendChild(box); }
+  var el=document.createElement('div'); el.textContent=msg;
+  el.style.cssText='padding:10px 16px;border-radius:10px;background:#25303c;color:#eef2f6;box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:13px;font-weight:600;border-left:3px solid '+(ok?'#34c759':'#ff5a4e')+';max-width:80vw;';
+  box.appendChild(el);
+  setTimeout(function(){ el.style.transition='opacity .35s'; el.style.opacity='0'; setTimeout(function(){ el.remove(); }, 370); }, 2000);
+}
+/* 按钮 loading：进入时禁用+spinner，结束恢复。保留原文本便于恢复 */
+function btnLoading(btn, on){
+  if(!btn) return;
+  if(on){ btn.dataset.ldText=btn.textContent; btn.classList.add('btn-loading'); btn.disabled=true; }
+  else{ btn.classList.remove('btn-loading'); btn.disabled=false; if(btn.dataset.ldText){ btn.textContent=btn.dataset.ldText; delete btn.dataset.ldText; } }
+}
+
 /* ---------- 主题切换 ---------- */
 const root = document.documentElement.closest('body') || document.body;
 const toggle = document.getElementById('themeToggle');
@@ -1826,7 +1852,7 @@ async function startQrLogin(){
     if(add.ok){
       stopQrPoll();
       closeSheetQ(qrSheet, qrMask);
-      alert('扫码登录成功');
+      toast('扫码登录成功', true);
       if(window.loadRealAccounts) window.loadRealAccounts();
       if(window.refreshAccount) window.refreshAccount();
       if(window.loadLands) window.loadLands();
@@ -1848,9 +1874,11 @@ qrMask.addEventListener('click', () => { stopQrPoll(); closeSheetQ(qrSheet, qrMa
 
 document.getElementById('addSubmit').addEventListener('click', async () => {
   const code = document.getElementById('addCodeInput').value.trim();
-  if(!code){ alert('请输入 code'); return; }
+  if(!code){ toast('请输入 code', false); return; }
   const name = document.getElementById('addNameInput').value.trim();
   const platform = window._addCh || 'qq';
+  const addBtn = document.getElementById('addSubmit');
+  btnLoading(addBtn, true);
   try{
     const resp = await fetch('/api/accounts', {
       method: 'POST',
@@ -1858,9 +1886,9 @@ document.getElementById('addSubmit').addEventListener('click', async () => {
       body: JSON.stringify({ name: name||'新账号', code, platform })
     });
     const data = await resp.json();
-    if(data.ok){ alert(`添加成功（${platform}）`); closeSheetQ(addSheet, addMask); location.reload(); }
-    else alert('添加失败: ' + (data.error||'未知'));
-  }catch(e){ alert('请求失败: ' + e.message); }
+    if(data.ok){ toast(`添加成功（${platform}）`, true); closeSheetQ(addSheet, addMask); location.reload(); }
+    else { toast('添加失败: ' + (data.error||'未知'), false); btnLoading(addBtn, false); }
+  }catch(e){ toast('请求失败: ' + e.message, false); btnLoading(addBtn, false); }
 });
 
 // 扫码登录 → 拉二维码（经后端代理）
@@ -1877,7 +1905,7 @@ document.querySelectorAll('.acc-method').forEach(m => m.addEventListener('click'
     return;
   }
   // 第三方登录
-  alert(`「${name}」请在源码中配置 YYB 服务后接入`);
+  toast(`「${name}」请在源码中配置 YYB 服务后接入`, false);
 }));
 
 /* 施肥范围城市块 多选切换 */
@@ -2464,7 +2492,7 @@ function renderBagSellBar(){
           if(!confirm('确定要铲除全部已种植作物吗？此操作不可恢复。')) return;
           const resp=await fetch('/api/land/remove-all?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
           const data=await resp.json();
-          alert(data.ok ? ('操作完成：'+((data.message)||'铲除')) : ('失败：'+(data.error||'未知')));
+          toast(data.ok ? ('操作完成：'+((data.message)||'铲除')) : ('失败：'+(data.error||'未知')), true);
           if(data.ok){ loadLands(true); if(window.loadLogs)loadLogs(); }
           return;
         }
@@ -2472,9 +2500,9 @@ function renderBagSellBar(){
         // 🌱 种植不硬编码 landId/seedId：交给后端用种植策略对当前农场空地自动选种种植（对齐 Node autoPlantEmptyLands）
         const resp=await fetch('/api/farm/action?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const data=await resp.json();
-        alert(data.ok ? ('操作完成：'+actMap[cls]) : ('失败：'+(data.error||'未知')));
+        toast(data.ok ? ('操作完成：'+actMap[cls]) : ('失败：'+(data.error||'未知')), true);
         if(data.ok){ loadLands(true); if(window.loadLogs)loadLogs(); }
-      }catch(e){ alert('请求失败: '+e.message); }
+      }catch(e){ toast('请求失败: '+e.message, false); }
       btn.disabled=false; btn.textContent=old;
     });
   });
@@ -2556,8 +2584,8 @@ document.addEventListener('click', async (e)=>{
       if(act==='black') d=await postJSON('/api/friend-blacklist/toggle?accountId='+accIdQ(),{gid});
       else if(act==='del'){ d=await postJSON('/api/friend/'+gid+'/delete?accountId='+accIdQ(),{}); loadFriendSub('list'); }
       else d=await postJSON('/api/friend/'+gid+'/op?accountId='+accIdQ(),{opType:act});
-      alert(d.ok ? ((act==='black'?'已切换黑名单':act)+' 完成') : ('操作失败：'+(d.error||'未知')));
-    }catch(err){ alert('请求失败：'+err.message); }
+      toast(d.ok ? ((act==='black'?'已切换黑名单':act)+' 完成') : ('操作失败：'+(d.error||'未知')), true);
+    }catch(err){ toast('请求失败：'+err.message, false); }
     return;
   }
   const pb = e.target.closest('.plot-btns button');
@@ -2565,9 +2593,9 @@ document.addEventListener('click', async (e)=>{
     const plot = pb.closest('.plot');
     const no = plot ? ((plot.querySelector('.lc-id').textContent||'')).replace('#','') : '';
     try{
-      if(pb.classList.contains('p-cuisi')){ const d=await postJSON('/api/land/fertilize?accountId='+accIdQ(),{landId:no}); alert(d.ok?'催熟完成':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
-      else if(pb.classList.contains('p-chan')){ const d=await postJSON('/api/land/remove?accountId='+accIdQ(),{landId:no}); alert(d.ok?'已铲除':'失败：'+(d.error||'')); loadLands(true); if(window.loadLogs)loadLogs(); }
-    }catch(err){ alert('请求失败：'+err.message); }
+      if(pb.classList.contains('p-cuisi')){ const d=await postJSON('/api/land/fertilize?accountId='+accIdQ(),{landId:no}); toast(d.ok?'催熟完成':'失败：'+(d.error||''), true); loadLands(true); if(window.loadLogs)loadLogs(); }
+      else if(pb.classList.contains('p-chan')){ const d=await postJSON('/api/land/remove?accountId='+accIdQ(),{landId:no}); toast(d.ok?'已铲除':'失败：'+(d.error||''), false); loadLands(true); if(window.loadLogs)loadLogs(); }
+    }catch(err){ toast('请求失败：'+err.message, false); }
     return;
   }
 });
@@ -2579,9 +2607,9 @@ document.addEventListener('click', async (e)=>{
     if(!confirm('确定使用 '+count+' 个该道具？')) return;
     try{
       const d=await postJSON('/api/bag/use?accountId='+accIdQ(),{itemId:id,count:count});
-      alert(d.ok?'使用成功':'失败：'+(d.error||''));
+      toast(d.ok?'使用成功':'失败：'+(d.error||''), true);
       loadBag();
-    }catch(err){ alert('请求失败：'+err.message); }
+    }catch(err){ toast('请求失败：'+err.message, false); }
     return;
   }
   const sb = e.target.closest('.bi-sell');
@@ -2590,9 +2618,9 @@ document.addEventListener('click', async (e)=>{
     if(!confirm('确定出售 '+count+' 个该物品？')) return;
     try{
       const d=await postJSON('/api/bag/sell?accountId='+accIdQ(),{items:[{id:id,count:count,uid:uid}]});
-      alert(d.ok?'出售成功':'失败：'+(d.error||''));
+      toast(d.ok?'出售成功':'失败：'+(d.error||''), true);
       loadBag();
-    }catch(err){ alert('请求失败：'+err.message); }
+    }catch(err){ toast('请求失败：'+err.message, false); }
     return;
   }
 });
@@ -2609,7 +2637,7 @@ document.addEventListener('click', async (e)=>{
       sw.classList.add('on');
       fetch('/api/home/patrol?accountId='+accIdQ(), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key:sm[sw.dataset.who], enabled:true})});
     });
-    alert('已全部开启');
+    toast('已全部开启', false);
   });
 
   // 清空日志（对齐 Node clearLogs：DELETE 真删后端文件，再重新拉取确认空——否则刷新后日志又回来）
@@ -2617,7 +2645,7 @@ document.addEventListener('click', async (e)=>{
   if(clearLogs) clearLogs.addEventListener('click', async ()=>{
     try{ await fetch('/api/logs?accountId='+accIdQ(), {method:'DELETE'}); }catch(e){}
     if(window.loadLogs) window.loadLogs();
-    alert('日志已清空');
+    toast('日志已清空', true);
   });
 
   // 背包批量出售：切换选择模式（对齐 Node BagPanel 批量出售模式）
@@ -2633,16 +2661,16 @@ document.addEventListener('click', async (e)=>{
   const bagSellConfirm = document.getElementById('bagSellConfirm');
   if(bagSellConfirm) bagSellConfirm.addEventListener('click', async ()=>{
     const checks=document.querySelectorAll('#p-bag .bi-sel input:checked');
-    if(!checks.length){ alert('请先勾选要出售的果实'); return; }
+    if(!checks.length){ toast('请先勾选要出售的果实', false); return; }
     const items=[].map.call(checks, c=>({id:Number(c.dataset.id),count:Number(c.dataset.count)||1,uid:Number(c.dataset.uid)||0}));
     if(!confirm('确定批量出售 '+items.length+' 种物品？')) return;
     try{
       const d=await postJSON('/api/bag/sell?accountId='+accIdQ(),{items:items});
-      alert(d.ok?'批量出售成功':'失败：'+(d.error||''));
+      toast(d.ok?'批量出售成功':'失败：'+(d.error||''), true);
       BAG_SELL_MODE=false;
       const bs=document.getElementById('batchSell'); if(bs) bs.textContent='🗑️ 批量出售';
       loadBag();
-    }catch(err){ alert('请求失败：'+err.message); }
+    }catch(err){ toast('请求失败：'+err.message, false); }
   });
   // 勾选变化时刷新确认条数量
   document.addEventListener('change', (e)=>{
@@ -2674,9 +2702,9 @@ document.addEventListener('click', async (e)=>{
       frDog.disabled = true; const oldTxt = frDog.textContent; frDog.textContent='获取中…';
       try{
         const d = await postJSON('/api/friends/fetch-dog-info?accountId='+friendAccId(), {});
-        if(d.ok){ alert('狗信息已更新（护主犬 '+ (d.guardDogCount||0) +' 只）'); loadFriendSub('list'); }
-        else alert('获取失败：'+(d.error||'未知'));
-      }catch(err){ alert('请求失败：'+err.message); }
+        if(d.ok){ toast('狗信息已更新（护主犬 '+ (d.guardDogCount||0) +' 只）', true); loadFriendSub('list'); }
+        else toast('获取失败：'+(d.error||'未知'), false);
+      }catch(err){ toast('请求失败：'+err.message, false); }
       frDog.disabled=false; frDog.textContent=oldTxt;
     });
   }
@@ -2698,13 +2726,13 @@ document.addEventListener('click', async (e)=>{
       const g = Number(cb.closest('.friend-card').dataset.uid);
       if(g>0 && gids.indexOf(g)===-1) gids.push(g);
     });
-    if(!gids.length){ alert('请填写等级阈值或勾选好友'); return; }
+    if(!gids.length){ toast('请填写等级阈值或勾选好友', false); return; }
     if(!confirm('确认批量删除 '+gids.length+' 名好友？此操作不可恢复')) return;
     try{
       const d = await postJSON('/api/friend/batch-delete?accountId='+friendAccId(), {gids:gids, password:pwd});
-      if(d.ok){ alert('成功 '+ (d.successCount||0) +' / 失败 '+ (d.failedCount||0)); loadFriendSub('del'); }
-      else alert('失败：'+(d.error||'未知'));
-    }catch(err){ alert('请求失败：'+err.message); }
+      if(d.ok){ toast('成功 '+ (d.successCount||0) +' / 失败 '+ (d.failedCount||0), true); loadFriendSub('del'); }
+      else toast('失败：'+(d.error||'未知'), false);
+    }catch(err){ toast('请求失败：'+err.message, false); }
   });
 })();
 </script>
@@ -2723,8 +2751,8 @@ document.addEventListener('click', async (e)=>{
         if(typeof loadFriendSub === 'function') loadFriendSub('list');
         var sh=document.getElementById('sheet'); if(sh) sh.classList.remove('show');
         var mask=document.getElementById('sheetMask'); if(mask) mask.classList.remove('show');
-      } else alert('切换失败: '+(d.error||'?')); })
-      .catch(()=>alert('切换请求失败'));
+      } else toast('切换失败: '+(d.error||'?'), false); })
+      .catch(()=>toast('切换请求失败', false));
   }
   function renderRow(a,cur){
     const act=a.id===cur;
@@ -2733,14 +2761,14 @@ document.addEventListener('click', async (e)=>{
   function editAccount(id){
     const newName=(prompt('修改备注名称（留空不变）：')||'').trim();
     const newCode=(prompt('若 code 已过期，粘贴新的登录 code（留空不变）：')||'').trim();
-    if(!newName&&!newCode){ alert('未做修改'); return; }
+    if(!newName&&!newCode){ toast('未做修改', false); return; }
     fetch('/api/accounts/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:newName,code:newCode,platform:''})})
-      .then(r=>r.json()).then(d=>{ if(d.ok){ alert(d.relinked?'已保存并刷新登录凭证':'已保存'); window.loadRealAccounts(); if(window.refreshAccount)window.refreshAccount(); if(window.loadLands)loadLands(); if(window.refreshMngList) window.refreshMngList(); } else alert('保存失败: '+(d.error||'?')); });
+      .then(r=>r.json()).then(d=>{ if(d.ok){ toast(d.relinked?'已保存并刷新登录凭证':'已保存', true); window.loadRealAccounts(); if(window.refreshAccount)window.refreshAccount(); if(window.loadLands)loadLands(); if(window.refreshMngList) window.refreshMngList(); } else toast('保存失败: '+(d.error||'?'), false); });
   }
   function delAccount(id){
     if(!confirm('确定删除该账号？此操作不可恢复，删除后需重新添加 code 才能登录。')) return;
     fetch('/api/accounts/'+encodeURIComponent(id),{method:'DELETE'})
-      .then(r=>r.json()).then(d=>{ if(d.ok){ alert('已删除'); window.loadRealAccounts(); if(window.refreshMngList) window.refreshMngList(); } else alert('删除失败: '+(d.error||'?')); });
+      .then(r=>r.json()).then(d=>{ if(d.ok){ toast('已删除', true); window.loadRealAccounts(); if(window.refreshMngList) window.refreshMngList(); } else toast('删除失败: '+(d.error||'?'), false); });
   }
   window.loadRealAccounts = function(){
     Promise.all([
@@ -2973,19 +3001,22 @@ window.loadLogs();
   if(sw) sw.addEventListener('click', ()=> sw.classList.toggle('on'));
   const saveBtn = document.getElementById('rcSave');
   if(saveBtn) saveBtn.addEventListener('click', ()=>{
+    btnLoading(saveBtn, true);
     post('/api/reconnect/config?accountId='+encodeURIComponent(accIdR()), {
       enabled: sw.classList.contains('on'),
       reconnectDelayMin: parseInt(delay ? delay.value : '3', 10) || 3,
       reconnectMaxAttempts: parseInt(max ? max.value : '3', 10) || 3
-    }).then(d => { if(d.ok){ alert('设置已保存'); load(); } else alert('保存失败：'+(d.error||'未知')); }).catch(()=>alert('保存失败'));
+    }).then(d => { if(d.ok){ toast('设置已保存', true); load(); } else toast('保存失败：'+(d.error||'未知'), false); })
+      .catch(()=>toast('保存失败', false))
+      .finally(()=>{ btnLoading(saveBtn, false); });
   });
   const retryBtn = document.getElementById('rcRetry');
   if(retryBtn) retryBtn.addEventListener('click', async ()=>{
     retryBtn.disabled = true; retryBtn.textContent = '重连中…';
     const d = await post('/api/reconnect/retry?accountId='+encodeURIComponent(accIdR()), {}).catch(()=>null);
     retryBtn.disabled = false; retryBtn.textContent = '🔁 立即重连';
-    if(!d || !d.ok){ alert('触发失败'+(d&&d.error?'：'+d.error:'')); return; }
-    alert('已触发重连，将在后台执行');
+    if(!d || !d.ok){ toast('触发失败'+(d&&d.error?'：'+d.error:''), false); return; }
+    toast('已触发重连，将在后台执行', true);
     setTimeout(load, 2000);
   });
   load();
@@ -3256,9 +3287,9 @@ window.loadLogs();
       const old = b.textContent; b.disabled = true; b.textContent = '保存中…';
       try{
         const d = await fn();
-        alert(d && d.ok ? '已保存' : ('保存失败：' + ((d && d.error) || '未知错误')));
+        toast(d && d.ok ? '已保存' : ('保存失败：' + ((d && d.error) || '未知错误')), true);
         if(d && d.ok){ loadAccountMore(); loadDefaultPlan(); }
-      }catch(e){ alert('请求失败：' + e.message); }
+      }catch(e){ toast('请求失败：' + e.message, false); }
       b.disabled = false; b.textContent = old;
     });
   }
@@ -3276,9 +3307,9 @@ window.loadLogs();
     const old = imp.textContent; imp.disabled = true; imp.textContent = '导入中…';
     try{
       const d = await postJSON('/api/settings/default-plan/import?accountId=' + accId(), {});
-      alert(d && d.ok ? '已从当前账号导入默认方案' : ('导入失败：' + ((d && d.error) || '未知')));
+      toast(d && d.ok ? '已从当前账号导入默认方案' : ('导入失败：' + ((d && d.error) || '未知')), false);
       if(d && d.ok) loadDefaultPlan();
-    }catch(e){ alert('请求失败：' + e.message); }
+    }catch(e){ toast('请求失败：' + e.message, false); }
     imp.disabled = false; imp.textContent = old;
   });
   const rst = document.getElementById('dPlanReset');
@@ -3287,9 +3318,9 @@ window.loadLogs();
     const old = rst.textContent; rst.disabled = true; rst.textContent = '恢复中…';
     try{
       const d = await postJSON('/api/settings/default-plan/reset', {});
-      alert(d && d.ok ? '默认方案已恢复为系统默认' : ('恢复失败：' + ((d && d.error) || '未知')));
+      toast(d && d.ok ? '默认方案已恢复为系统默认' : ('恢复失败：' + ((d && d.error) || '未知')), true);
       if(d && d.ok) loadDefaultPlan();
-    }catch(e){ alert('请求失败：' + e.message); }
+    }catch(e){ toast('请求失败：' + e.message, false); }
     rst.disabled = false; rst.textContent = old;
   });
   // 新账号自动应用 开关
@@ -3401,8 +3432,8 @@ async function cxBuyGoods(gid, price){
     const r = await fetch('/api/illustrated/buy?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({goodsId:gid, price:price||0})});
     const d = await r.json();
     if(d.ok){ loadCodex(true); }
-    else alert('购买失败：'+(d.error||'未知'));
-  }catch(e){ alert('购买失败'); }
+    else toast('购买失败：'+(d.error||'未知'), false);
+  }catch(e){ toast('购买失败', false); }
 }
 async function cxBuyAll(){
   const acc = accIdQ();
@@ -3411,9 +3442,9 @@ async function cxBuyAll(){
   try{
     const r = await fetch('/api/illustrated/buy-all?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({illustrated_type:CX_TYPE})});
     const d = await r.json();
-    if(d.ok){ alert('一键购买完成：成功 '+d.data.successCount+'，失败 '+d.data.failCount); loadCodex(true); }
-    else alert('一键购买失败：'+(d.error||'未知'));
-  }catch(e){ alert('一键购买失败'); }
+    if(d.ok){ toast('一键购买完成：成功 '+d.data.successCount+'，失败 '+d.data.failCount, true); loadCodex(true); }
+    else toast('一键购买失败：'+(d.error||'未知'), false);
+  }catch(e){ toast('一键购买失败', false); }
 }
 function bindCodex(){
   const typeBtns = document.querySelectorAll('#page-more [data-cxtype]');
@@ -3745,7 +3776,7 @@ function hookClaim(root, ctx, p){
       let url='/api/activity/';
       if(this.dataset.claim==='season'){
         const _s=ctx.season||{}, _pp=_s.passport||{};
-        if(actNum(_pp.claimable_levels)<=0){ alert('暂无奖励可领取'); el.ld.style.display='none'; return; }
+        if(actNum(_pp.claimable_levels)<=0){ toast('暂无奖励可领取', false); el.ld.style.display='none'; return; }
         url+='season/claim';
       }
       else if(this.dataset.claim==='solar') url+='solar/claim?termId='+this.dataset.id;
@@ -3863,13 +3894,13 @@ async function renderShop(ctx){
     el.ld.style.display='block';
     let cnt=1; const inp=this.parentElement.querySelector('input[data-qnum]'); if(inp) cnt=(parseInt(inp.value||'1',10)||1);
     const price=parseInt(this.dataset.price||'0',10);
-    if(price*cnt>bal){ el.ld.style.display='none'; alert('星砂不足：需 '+price*cnt+'，当前 '+bal); return; }
+    if(price*cnt>bal){ el.ld.style.display='none'; toast('星砂不足：需 '+price*cnt+'，当前 '+bal, false); return; }
     try{
       const d2=await (await fetch('/api/activity/shop/exchange?accountId='+encodeURIComponent(acc)+'&id='+shopId+'&slotId='+this.dataset.ex+'&count='+cnt, {method:'POST'})).json();
       el.ld.style.display='none';
-      if(!(d2&&d2.ok)){ alert('兑换失败：'+(actEsc((d2&&d2.error)||'未知错误'))); return; }
+      if(!(d2&&d2.ok)){ toast('兑换失败：'+(actEsc((d2&&d2.error)||'未知错误')), false); return; }
       renderShop(ctx);
-    }catch(e){ el.ld.style.display='none'; alert('兑换失败：'+(actEsc((e&&e.message)||e))); }
+    }catch(e){ el.ld.style.display='none'; toast('兑换失败：'+(actEsc((e&&e.message)||e)), false); }
   }));
 }
 function actRwOne(rw){
@@ -3935,26 +3966,18 @@ function shopQty(it,mx){
 function shopBuyBtn(label, extra, disabled){
   return '<button class="act-btn act-sm'+(disabled?' disabled':'')+'" '+extra+'>'+label+'</button>';
 }
-/* 通用购买下发 */
-function toast(msg, ok){
-  var box=document.getElementById('toastBox');
-  if(!box){ box=document.createElement('div'); box.id='toastBox'; box.style.cssText='position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;'; document.body.appendChild(box); }
-  var el=document.createElement('div'); el.textContent=msg;
-  el.style.cssText='padding:10px 16px;border-radius:10px;background:#25303c;color:#eef2f6;box-shadow:0 6px 24px rgba(0,0,0,.45);font-size:13px;font-weight:600;border-left:3px solid '+(ok?'#34c759':'#ff5a4e')+';max-width:80vw;';
-  box.appendChild(el);
-  setTimeout(function(){ el.style.transition='opacity .35s'; el.style.opacity='0'; setTimeout(function(){ el.remove(); }, 370); }, 2000);
-}
+
 async function doShopBuy(url, body, refresh, okMsg){
   var acc=shopAcc(); if(!acc){ toast('请先选择账号', false); return; }
-  var btn=event&&event.target; if(btn&&btn.classList) btn.disabled=true;
+  var btn=event&&event.target; if(btn&&btn.classList) btnLoading(btn, true);
   try{
     var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
-    if(!(d&&d.ok)){ toast((d&&d.error)||'操作失败', false); if(btn) btn.disabled=false; return; }
-    if(btn) btn.disabled=false;
+    if(!(d&&d.ok)){ toast((d&&d.error)||'操作失败', false); if(btn) btnLoading(btn, false); return; }
+    if(btn) btnLoading(btn, false);
     toast(okMsg||'操作成功', true);
     if(refresh) refresh();
-  }catch(e){ toast('操作失败', false); if(btn) btn.disabled=false; }
+  }catch(e){ toast('操作失败', false); if(btn) btnLoading(btn, false); }
 }
 function qtyOf(btn){
   var inp=btn.closest('.act-item').querySelector('input[data-qnum]');
