@@ -938,15 +938,6 @@ body{
         <div class="auto-item"><span>自动购买有机化肥</span><div class="switch" data-auto-key="fertilizer_buy_organic"></div></div>
         <div class="auto-item"><span>不除自己草虫</span><div class="switch on" data-auto-key="skip_own_weed_bug"></div></div>
         <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on" data-auto-key="golden_bug_clear"></div></div>
-        <div class="auto-item"><span>神秘商人自动购买</span><div class="switch" data-auto-key="mystery_auto_buy"></div></div>
-        <div class="auto-item col">
-          <div class="f-label">神秘商人购买货币<small>自动购买仅用所选货币结算（金币/点券/金豆豆）</small></div>
-          <div class="chips" id="mMysteryCurrencies">
-            <button class="chip" data-land="1001">金币</button>
-            <button class="chip" data-land="1002">点券</button>
-            <button class="chip" data-land="1005">金豆豆</button>
-          </div>
-        </div>
       </div>
 
       <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
@@ -1273,15 +1264,6 @@ body{
           <div class="auto-item"><span>自动购买有机化肥</span><div class="switch" data-auto-key="fertilizer_buy_organic"></div></div>
           <div class="auto-item"><span>不除自己草虫</span><div class="switch on" data-auto-key="skip_own_weed_bug"></div></div>
           <div class="auto-item"><span>自动清除黄金虫</span><div class="switch on" data-auto-key="golden_bug_clear"></div></div>
-          <div class="auto-item"><span>神秘商人自动购买</span><div class="switch" data-auto-key="mystery_auto_buy"></div></div>
-          <div class="auto-item col">
-            <div class="f-label">神秘商人购买货币<small>自动购买仅用所选货币结算</small></div>
-            <div class="chips" id="dMysteryCurrencies">
-              <button class="chip" data-land="1001">金币</button>
-              <button class="chip" data-land="1002">点券</button>
-              <button class="chip" data-land="1005">金豆豆</button>
-            </div>
-          </div>
         </div>
         <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
         <div class="auto-grid">
@@ -3060,8 +3042,8 @@ window.loadLogs();
   // ---- 账号级：自动控制（m-auto）----
   function fillAuto(d){
     const aut = (d && d.automation) || {};
+    window.__curMystery = { autoBuy: !!aut.mystery_auto_buy, currencies: ((d && d.mysteryAutoBuyCurrencies) || []).map(Number) };
     autoApply(document.getElementById('m-auto'), aut);
-    chipsSet('mMysteryCurrencies', (d && d.mysteryAutoBuyCurrencies || []).map(String));
     numSet('mAutoFriendMinLevel', (d && d.autoAcceptFriendMinLevel) ?? 0);
     chipsSet('mFertLandTypes', aut.fertilizer_land_types);
     selSet('mFertStrategy', aut.fertilizer || 'smart_normal');
@@ -3070,6 +3052,7 @@ window.loadLogs();
   function collectAuto(){
     const mauto = document.getElementById('m-auto');
     const aut = autoCollect(mauto);
+    aut.mystery_auto_buy = window.__curMystery ? window.__curMystery.autoBuy : false;
     aut.fertilizer_land_types = chipsVal('mFertLandTypes');
     aut.fertilizer = selVal('mFertStrategy', 'smart_normal');
     aut.fertilizer_smart_seconds = numVal('mFertSeconds', 300);
@@ -3191,7 +3174,6 @@ window.loadLogs();
     numSet('dStealDelay', cfg.stealDelaySeconds ?? 1);
     const aut = cfg.automation || {};
     autoApply(document.getElementById('d-auto'), aut);
-    chipsSet('dMysteryCurrencies', (cfg.mysteryAutoBuyCurrencies || []).map(String));
     numSet('dAutoFriendMinLevel', cfg.autoAcceptFriendMinLevel ?? 0);
     chipsSet('dFertLandTypes', aut.fertilizer_land_types);
     selSet('dFertStrategy', aut.fertilizer || 'smart_normal');
@@ -3205,7 +3187,7 @@ window.loadLogs();
       bagSeedFallbackStrategy: selVal('dFallbackStrategy', 'level'),
       bagPriorityLandTypes: chipsVal('dBagLandTypes'),
       prioritize2x2Crops: swGet(document.getElementById('d2x2')),
-      mysteryAutoBuyCurrencies: chipsVal('dMysteryCurrencies').map(Number),
+      mysteryAutoBuyCurrencies: (window.__curMystery ? (window.__curMystery.currencies || []).slice() : []),
       intervals: {
         farmMin: numVal('dfMin', 5), farmMax: numVal('dfMax', 10),
         helpMin: numVal('dhMin', 3), helpMax: numVal('dhMax', 5),
@@ -3224,6 +3206,7 @@ window.loadLogs();
       automation: (function(){
         const dauto = document.getElementById('d-auto');
         const aut = autoCollect(dauto);
+        aut.mystery_auto_buy = window.__curMystery ? window.__curMystery.autoBuy : false;
         aut.fertilizer_land_types = chipsVal('dFertLandTypes');
         aut.fertilizer = selVal('dFertStrategy', 'smart_normal');
         aut.fertilizer_smart_seconds = numVal('dFertSeconds', 300);
@@ -3266,10 +3249,7 @@ window.loadLogs();
   }
   bindSave('mAutoSave', () => {
     const aut = collectAuto();
-    return postJSON('/api/automation?accountId=' + accId(), aut)
-      .then(d => (d && d.ok)
-        ? postJSON('/api/settings/save?accountId=' + accId(), { mysteryAutoBuyCurrencies: chipsVal('mMysteryCurrencies').map(Number) })
-        : d);
+    return postJSON('/api/automation?accountId=' + accId(), aut);
   });
   bindSave('mStrategySave', () => postJSON('/api/settings/save?accountId=' + accId(), collectStrategy()));
   bindSave('dStrategySave', () => fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: document.getElementById('dAutoApply') ? document.getElementById('dAutoApply').classList.contains('on') : true, config: collectDefault() }) }).then(r => r.json()));
@@ -4089,13 +4069,32 @@ async function loadShopMystery(){
   var acc=shopAcc(); var box=document.getElementById('s-mystery-box'); if(!box) return;
   box.innerHTML='<p class="shop-empty">加载中…</p>';
   if(!acc){ box.innerHTML='<p class="shop-empty">请先选择账号</p>'; return; }
-  var abOn=false;
-  try{ var ds=await (await fetch('/api/settings?accountId='+encodeURIComponent(acc))).json(); abOn=!!(ds&&ds.data&&ds.data.automation&&ds.data.automation.mystery_auto_buy); }catch(e){}
-  box.innerHTML='<div class="act-card" style="max-width:340px"><div class="auto-item"><span>🛒 神秘商人自动购买</span><div class="switch'+(abOn?' on':'')+'" data-mystery-ab="1"></div></div><div class="act-hint">开启后每 60 分钟自动购买当前在约商品（仅用所选货币结算）</div></div>';
-  // 事件委托：box 上监听，命中开关才处理（避免动态渲染时机的绑定问题）
+  var abOn=false, cur=[];
+  try{ var ds=await (await fetch('/api/settings?accountId='+encodeURIComponent(acc))).json(); abOn=!!(ds&&ds.data&&ds.data.automation&&ds.data.automation.mystery_auto_buy); cur=((ds&&ds.data&&ds.data.mysteryAutoBuyCurrencies)||[]).map(String); }catch(e){}
+  box.innerHTML='<div class="act-card" style="max-width:340px"><div class="auto-item"><span>🛒 神秘商人自动购买</span><div class="switch'+(abOn?' on':'')+'" data-mystery-ab="1"></div></div><div class="act-hint">开启后每 60 分钟自动购买当前在约商品（仅用所选货币结算）</div></div>'
+    +'<div class="act-card" style="max-width:340px"><div class="f-label">💱 神秘商人购买货币<small>自动购买仅用所选货币结算</small></div><div class="chips" data-mystery-cur="1">'
+    +'<button class="chip'+(cur.indexOf('1001')>=0?' on':'')+'" data-cur="1001">金币</button>'
+    +'<button class="chip'+(cur.indexOf('1002')>=0?' on':'')+'" data-cur="1002">点券</button>'
+    +'<button class="chip'+(cur.indexOf('1005')>=0?' on':'')+'" data-cur="1005">金豆豆</button>'
+    +'</div></div>';
+  // 事件委托：box 上监听，命中开关/货币才处理（避免动态渲染时机的绑定问题）
   box.onclick=function(ev){
-    var t=ev&&ev.target&&ev.target.closest?ev.target.closest('[data-mystery-ab]'):null;
-    if(!t) return;
+    var el=ev&&ev.target;
+    var t=el&&el.closest?el.closest('[data-mystery-ab]'):null;
+    if(!t){
+      var chip=el&&el.closest?el.closest('[data-mystery-cur] .chip'):null;
+      if(chip){
+        chip.classList.toggle('on');
+        var a2=shopAcc(); if(!a2){ chip.classList.toggle('on'); toast('请先选择账号',false); return; }
+        var wrap=chip.closest('[data-mystery-cur]');
+        var arr=[].map.call(wrap.querySelectorAll('.chip.on'), function(b){ return Number(b.dataset.cur); });
+        postJSON('/api/settings/save?accountId='+encodeURIComponent(a2), { mysteryAutoBuyCurrencies: arr })
+          .then(function(r){ toast(r&&r.ok?'已保存购买货币':'保存失败', !!(r&&r.ok)); })
+          .catch(function(){ toast('保存失败', false); });
+      }
+      return;
+    }
+    var abEl=t;
     t.classList.toggle('on');
     var a2=shopAcc(); if(!a2){ t.classList.toggle('on'); toast('请先选择账号',false); return; }
     fetch('/api/settings?accountId='+encodeURIComponent(a2)).then(function(x){return x.json();}).then(function(d){
