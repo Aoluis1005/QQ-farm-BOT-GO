@@ -104,6 +104,8 @@ func main() {
 	registerFriendExtraAPI(api)
 	registerReconnectAPI(api)
 	registerSettingsAPI(api)
+	registerIllustratedAPI(api)
+	registerAnalyticsAPI(api)
 
 	mux.Handle("/api/", corsHandler(api))
 

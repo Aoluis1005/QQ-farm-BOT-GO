@@ -23,8 +23,10 @@ type plantEntry struct {
 	Seasons    int    `json:"seasons"`
 	GrowPhases string `json:"grow_phases"` // "种子:5760;发芽:5760;...;成熟:0;"
 	Size       int    `json:"size"`        // 合种尺寸（2=2x2），可空
+	Exp        int    `json:"exp"`         // 单次收获经验（对齐 Node plant.exp，用于分析排名）
 	Fruit      *struct {
-		ID int `json:"id"`
+		ID    int `json:"id"`
+		Count int `json:"count"` // 单次收获果实数量（用于分析金币计算）
 	} `json:"fruit"`
 }
 
@@ -39,13 +41,15 @@ type mutantEffectEntry struct {
 
 // itemInfoEntry ItemInfo.json 条目
 type itemInfoEntry struct {
-	ID             int    `json:"id"`
-	Type           int    `json:"type"` // 5=种子物品；4=果实物品；6=果实/装扮
-	Name           string `json:"name"`
-	Price          float64 `json:"price"`
-	Level          int    `json:"level"`
-	PriceID        int    `json:"price_id"`
-	InteractionType string `json:"interaction_type"`
+	ID              int      `json:"id"`
+	Type            int      `json:"type"` // 5=种子物品；4=果实物品；6=果实/装扮
+	Name            string   `json:"name"`
+	Price           float64  `json:"price"`
+	Level           int      `json:"level"`
+	PriceID         int      `json:"price_id"`
+	InteractionType string   `json:"interaction_type"`
+	Layer           int      `json:"layer"` // 果实层级（图鉴 getFruitLayerByFruitId 用）
+	AssetName       string   `json:"asset_name"` // 图鉴/物品图片映射用
 }
 
 // 运行期从配置文件建立的映射

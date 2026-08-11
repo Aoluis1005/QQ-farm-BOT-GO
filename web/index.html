@@ -607,10 +607,10 @@ body{
 
 /* ── 好友 ── */
 .friend-filter{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-.f-toggle{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text); cursor:pointer; }
+.f-toggle{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--foreground); cursor:pointer; }
 .f-field{ display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-right:10px; }
 .del-form{ background:var(--card,#1e1e22); border:1px solid var(--border,#333); border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; align-items:center; }
-.del-form .field{ background:var(--input,#15151a); color:var(--text); border:1px solid var(--border,#333); border-radius:8px; padding:6px 8px; font-size:13px; }
+.del-form .field{ background:var(--input,#15151a); color:var(--foreground); border:1px solid var(--border,#333); border-radius:8px; padding:6px 8px; font-size:13px; }
 .f-batch{ background:var(--accent,#4f7cff); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
 .friend-card{ border-radius:16px; background:var(--card); border:1px solid var(--border); padding:14px; margin-bottom:10px; box-shadow:var(--shadow-sm); cursor:pointer; }
 .fc-head{ display:flex; align-items:center; gap:10px; }
@@ -625,15 +625,15 @@ body{
 .fc-lands{ display:none; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
 .friend-card.open .fc-lands{ display:grid; }
 .friend-card.open .fc-arrow{ transform:rotate(180deg); }
-.f-land{ background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:6px; text-align:center; }
+.f-land{ background:var(--bg-hi); border:1px solid var(--border); border-radius:10px; padding:6px; text-align:center; }
 .f-land .f-l-icon{ height:34px; display:flex; align-items:center; justify-content:center; }
 .f-land .f-l-icon img{ max-width:34px; max-height:34px; object-fit:contain; }
-.f-land .f-l-name{ font-size:10px; color:var(--text); margin-top:3px; line-height:1.2; }
+.f-land .f-l-name{ font-size:10px; color:var(--foreground); margin-top:3px; line-height:1.2; }
 .f-land .f-l-name em{ display:block; font-style:normal; font-size:9px; color:var(--muted); }
-.f-land .bar{ height:3px; background:var(--line); border-radius:2px; margin-top:4px; overflow:hidden; }
+.f-land .bar{ height:3px; background:var(--border); border-radius:2px; margin-top:4px; overflow:hidden; }
 .f-land .bar i{ display:block; height:100%; background:var(--accent,#4caf50); }
 .f-land-empty{ grid-column:1/-1; text-align:center; color:var(--muted); font-size:11px; padding:8px 0; }
-.fa-mini{ font-size:11px; padding:5px 0; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; }
+.fa-mini{ font-size:11px; padding:5px 0; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; }
 .fa-mini.fs1{ color:#e91e63; }
 .fa-mini.fs2{ color:#2196f3; }
 .fa-mini.fs3{ color:#4caf50; }
@@ -661,7 +661,7 @@ body{
 .visitor-card .f-info p{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .visitor-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:8px 0 12px; }
 .vstat{ background:var(--glass); border:1px solid var(--border); border-radius:14px; padding:10px 6px; text-align:center; }
-.vstat b{ display:block; font-size:18px; color:var(--text); }
+.vstat b{ display:block; font-size:18px; color:var(--foreground); }
 .vstat span{ font-size:11px; color:var(--muted); }
 .visitor-filters{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
 .v-err{ background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.3); border-radius:12px; padding:10px 12px; font-size:12px; margin:8px 0; }
@@ -675,6 +675,60 @@ body{
 .v-av-img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
 .v-av-fb{ width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted); }
 
+/* ===== 更多：图鉴 (m-codex) / 分析 (m-analysis)（对齐 Node Illustrated.vue / Analytics.vue） ===== */
+.cx-badges{ display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 2px; }
+.cx-badge{ font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:var(--card-strong); border:1px solid var(--border); color:var(--foreground); }
+.cx-badge b{ font-weight:700; }
+.cx-badge.ok{ color:var(--good,#2eb872); }
+.cx-badge.warn{ color:var(--warn,#e6a23c); }
+.cx-badge.info{ color:var(--primary,#3b7cf5); }
+.cx-item{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:8px 8px 10px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; }
+.cx-item.locked{ opacity:.82; }
+.cx-item .ic{ width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:color-mix(in srgb,var(--bg-hi) 70%,transparent); border:1px solid var(--border); overflow:hidden; }
+.cx-item .ic img{ width:40px; height:40px; object-fit:contain; }
+.cx-item .nm{ font-size:11.5px; font-weight:600; color:var(--foreground); line-height:1.2; text-align:center; }
+.cx-item .lv{ font-size:9.5px; color:var(--muted); }
+.cx-item .tag{ font-size:9px; font-weight:600; padding:1px 7px; border-radius:999px; }
+.cx-item .tag.un{ background:rgba(46,184,114,.15); color:var(--good,#2eb872); }
+.cx-item .tag.pend{ background:rgba(230,162,60,.15); color:var(--warn,#e6a23c); }
+.cx-item .tag.lock{ background:color-mix(in srgb,var(--muted) 18%,transparent); color:var(--muted); }
+.cx-item .buy{ margin-top:2px; width:100%; padding:5px 0; font-size:11px; font-weight:600; border:none; border-radius:9px; background:var(--primary,#3b7cf5); color:#fff; cursor:pointer; }
+.cx-item .buy:disabled{ opacity:.5; cursor:default; }
+.cx-empty{ text-align:center; color:var(--muted); font-size:12px; padding:28px 0; }
+.an-pane{ display:none; }
+.an-pane.active{ display:block; animation:fadeUp .3s var(--ease); }
+.an-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:11px 12px; display:flex; align-items:center; gap:11px; margin-bottom:8px; }
+.an-card .aic{ width:42px; height:42px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; border-radius:11px; background:color-mix(in srgb,var(--bg-hi) 70%,transparent); border:1px solid var(--border); overflow:hidden; }
+.an-card .aic img{ width:36px; height:36px; object-fit:contain; }
+.an-card .ainfo{ min-width:0; flex:1; }
+.an-card .anm{ font-size:13px; font-weight:700; color:var(--foreground); display:flex; align-items:center; gap:5px; }
+.an-card .anm .blk-tag{ font-size:9px; font-weight:600; color:#fff; background:var(--danger,#e5484d); border-radius:999px; padding:1px 6px; }
+.an-card .amz{ font-size:10px; color:var(--muted); margin-top:2px; }
+.an-card .amz b{ color:var(--foreground); font-weight:600; }
+.an-card .amz .c-purple{ color:#a855f7; } .an-card .amz .c-blue{ color:#3b82f6; } .an-card .amz .c-amber{ color:#f59e0b; } .an-card .amz .c-green{ color:#22c55e; }
+.an-card .ablk{ flex:0 0 auto; }
+.an-card .ablk button{ font-size:11px; font-weight:600; padding:7px 11px; border:none; border-radius:9px; cursor:pointer; }
+.an-card .ablk button.add{ background:color-mix(in srgb,var(--muted) 16%,transparent); color:var(--muted); }
+.an-card .ablk button.rm{ background:rgba(229,72,77,.14); color:var(--danger,#e5484d); }
+.blk-row{ display:flex; align-items:center; gap:11px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:10px 12px; margin-bottom:8px; }
+.blk-row .bic{ width:40px; height:40px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; border-radius:10px; background:color-mix(in srgb,var(--bg-hi) 70%,transparent); border:1px solid var(--border); overflow:hidden; }
+.blk-row .bic img{ width:34px; height:34px; object-fit:contain; }
+.blk-row .binfo{ min-width:0; flex:1; }
+.blk-row .bname{ font-size:12.5px; font-weight:600; color:var(--foreground); }
+.blk-row .bid{ font-size:10px; color:var(--muted); margin-top:1px; }
+.blk-row button{ font-size:11px; font-weight:600; padding:7px 11px; border:none; border-radius:9px; background:rgba(229,72,77,.14); color:var(--danger,#e5484d); cursor:pointer; }
+.strat-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px; margin-bottom:10px; }
+.strat-card .sh{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.strat-card .ic{ width:40px; height:40px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; border-radius:10px; color:#fff; font-size:15px; }
+.strat-card .st{ font-size:13.5px; font-weight:700; color:var(--foreground); }
+.strat-card .su{ font-size:10.5px; color:var(--muted); }
+.strat-card .best{ display:flex; align-items:center; gap:10px; margin-top:4px; }
+.strat-card .bic{ width:40px; height:40px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; border-radius:10px; background:color-mix(in srgb,var(--bg-hi) 70%,transparent); border:1px solid var(--border); overflow:hidden; }
+.strat-card .bic img{ width:34px; height:34px; object-fit:contain; }
+.strat-card .bcnm{ font-size:12.5px; font-weight:600; color:var(--foreground); }
+.strat-card .bcmeta{ font-size:10.5px; color:var(--muted); }
+.strat-card .val{ margin-top:8px; padding:8px 10px; border-radius:9px; background:color-mix(in srgb,var(--bg-hi) 60%,transparent); display:flex; align-items:baseline; justify-content:space-between; font-size:11px; color:var(--muted); }
+.strat-card .val b{ font-size:17px; font-weight:800; }
 </style>
 </head>
 <body data-theme="dark">
@@ -1207,18 +1261,59 @@ body{
 
     <div class="seg-pane" id="m-codex">
       <div class="sec-title" style="margin-top:18px"><span>作物图鉴</span></div>
-      <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:16px">作物图鉴数据待接口接入</p>
+      <div class="seg" style="margin-bottom:10px">
+        <button class="seg-btn active" data-cxtype="1">作物图鉴</button>
+        <button class="seg-btn" data-cxtype="2">变异图鉴</button>
+      </div>
+      <div class="seg" style="margin-bottom:10px">
+        <button class="seg-btn active" data-cxfilter="all">全部</button>
+        <button class="seg-btn" data-cxfilter="unlocked">已解锁</button>
+        <button class="seg-btn" data-cxfilter="locked">未解锁</button>
+      </div>
+      <div class="cx-badges" id="cxSummary"></div>
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button class="fa-btn" style="flex:1" id="cxBuyAll">🛒 一键购买</button>
+        <button class="fa-btn" style="flex:1" id="cxRefresh">🔄 刷新</button>
+      </div>
+      <div id="cxGrid" class="bag-grid" style="grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px"></div>
+      <p style="font-size:10.5px;color:var(--muted);text-align:center;margin-top:10px">图鉴数据对齐 Node illustrated · 未解锁且满足等级可购买补录</p>
     </div>
 
     <div class="seg-pane" id="m-analysis">
       <div class="sec-title" style="margin-top:18px"><span>数据统计</span></div>
-      <div class="profile" style="padding:16px;display:block">
-        <div class="stats" style="flex-wrap:wrap;gap:16px">
-          <div class="stat"><strong>--</strong><span>今日收菜</span></div>
-          <div class="stat"><strong>--</strong><span>今日偷菜</span></div>
-          <div class="stat"><strong>--</strong><span>今日帮忙</span></div>
-          <div class="stat"><strong>--</strong><span>本周收益</span></div>
+      <div class="seg" style="margin-bottom:10px">
+        <button class="seg-btn active" data-antab="crops">全部作物</button>
+        <button class="seg-btn" data-antab="blacklist">偷菜黑名单</button>
+        <button class="seg-btn" data-antab="strategy">种植策略</button>
+      </div>
+
+      <div class="an-pane active" id="an-crops">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <input class="field" id="anSearch" placeholder="🔍 搜索作物..." style="flex:1;min-width:0">
+          <select class="field" id="anSort" style="width:auto">
+            <option value="exp">经验/时</option>
+            <option value="fert">普肥经验/时</option>
+            <option value="profit">利润/时</option>
+            <option value="fert_profit">普肥利润/时</option>
+            <option value="level">等级</option>
+          </select>
         </div>
+        <div id="anList"></div>
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 0" id="anCount"></p>
+      </div>
+
+      <div class="an-pane" id="an-blacklist">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">加入后自动偷菜会跳过这些蔬菜，不影响自己种植</p>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="fa-btn" style="flex:1" id="anBlkAddAll">一键全部加入</button>
+          <button class="fa-btn" style="flex:1" id="anBlkClear">清空黑名单</button>
+        </div>
+        <div id="blkList"></div>
+      </div>
+
+      <div class="an-pane" id="an-strategy">
+        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">按当前等级推荐最优种植策略</p>
+        <div id="anStrategyCards"></div>
       </div>
     </div>
 
@@ -1285,7 +1380,7 @@ body{
       <div class="bag-grid">
         <!-- 背包物品由 /api/bag/items 动态渲染（renderBag） -->
       </div>
-      <div id="bagSellBar" style="display:none;position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:var(--card);border-top:1px solid var(--line);align-items:center;gap:12px;z-index:60">
+      <div id="bagSellBar" style="display:none;position:fixed;left:0;right:0;bottom:0;padding:12px 16px;background:var(--card);border-top:1px solid var(--border);align-items:center;gap:12px;z-index:60">
         <span style="color:var(--muted);font-size:13px">勾选要出售的果实</span>
         <button id="bagSellConfirm" class="seg-btn" style="margin-left:auto">确认出售选中 (0)</button>
       </div>
@@ -1337,7 +1432,7 @@ body{
         <p style="font-size:11px;color:var(--muted);text-align:center;margin:4px 0 8px">仅展示最近 50 条访客记录</p>
         <div id="visitorErr" class="v-err" style="display:none"></div>
         <div id="visitorEmpty" class="v-empty" style="display:none">
-          <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">暂无访客记录</div>
+          <div style="font-size:15px;color:var(--foreground);font-weight:600;margin-bottom:6px">暂无访客记录</div>
           <div style="font-size:11px;color:var(--muted)">有新访客后会同步展示在这里，QQ 账号也会用它补充已知 GID；如果这里长期为空，好友同步也会相对受限。</div>
         </div>
         <div id="visitorList"></div>
@@ -1571,6 +1666,8 @@ document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', (
     const af = document.querySelector('.friend-subtab.active');
     loadFriendSub(af ? af.dataset.segf : 'list');
   }
+  if(b.dataset.seg === 'm-codex' && typeof loadCodex === 'function'){ loadCodex(); }
+  if(b.dataset.seg === 'm-analysis' && typeof loadAnalysis === 'function'){ loadAnalysis(); }
 }));
 
 /* 好友页 5 子tab 切换（独立 .f-sub 容器） */
@@ -3178,6 +3275,304 @@ window.loadLogs();
   loadDefaultPlan();
   loadSeeds();
 })();
+</script>
+
+<script>
+/* ============ 图鉴 (m-codex) + 分析 (m-analysis)（对齐 Node Illustrated.vue / Analytics.vue） ============ */
+/* ---- 图鉴状态 ---- */
+var CX_TYPE = 1;
+var CX_FILTER = 'all';
+var CX_ITEMS = [];
+var CX_SUMMARY = { total:0, unlocked:0, locked:0, canBuy:0 };
+var CX_USERLEVEL = 0;
+window.CX_LOADED = false;
+
+/* ---- 分析状态 ---- */
+var AN_LIST = [];
+var AN_SORT = 'exp';
+var BLK = [];
+var AN_LEVEL = 0;
+
+/* ====== 图鉴 ====== */
+function cxImg(it){
+  if(it.image) return '<img src="'+it.image+'" style="width:40px;height:40px;object-fit:contain" onerror="this.remove()">';
+  return '<span style="font-size:20px">'+(it.unlocked?'🌾':'🌱')+'</span>';
+}
+function renderCodex(){
+  const sm = CX_SUMMARY||{};
+  const sb = document.getElementById('cxSummary');
+  if(sb) sb.innerHTML =
+    '<span class="cx-badge ok"><b>'+(sm.unlocked||0)+'</b>/'+(sm.total||0)+' 已解锁</span>'
+    +'<span class="cx-badge"><b>'+(sm.locked||0)+'</b>/'+(sm.total||0)+' 未解锁</span>'
+    +'<span class="cx-badge warn"><b>'+(sm.canBuy||0)+'</b> 可购买</span>'
+    +'<span class="cx-badge info">Lv.'+CX_USERLEVEL+'</span>';
+  const filtered = CX_ITEMS.filter(function(it){
+    if(CX_FILTER==='unlocked') return it.unlocked;
+    if(CX_FILTER==='locked') return !it.unlocked;
+    return true;
+  });
+  const grid = document.getElementById('cxGrid');
+  if(!grid) return;
+  if(!filtered.length){ grid.innerHTML='<p class="cx-empty">暂无图鉴项目</p>'; window.CX_NOITEMS=true; return; }
+  window.CX_NOITEMS=false;
+  grid.innerHTML = filtered.map(function(it){
+    const locked = !it.unlocked;
+    let tag, tagCls;
+    if(it.unlocked){ tag='已收录'; tagCls='un'; }
+    else if(it.canBuy && it.goodsId){ tag='可购买补录'; tagCls='pend'; }
+    else if(Number(it.level)>CX_USERLEVEL){ tag='等级不足'; tagCls='lock'; }
+    else { tag='待解锁'; tagCls='lock'; }
+    const buyBtn = (locked && it.canBuy && it.goodsId)
+      ? '<button class="buy" data-gid="'+it.goodsId+'" data-price="'+it.price+'" data-name="'+esc(it.name)+'">购买</button>'
+      : '';
+    const needLv = (it.seedLevel && Number(it.seedLevel)!==Number(it.level)) ? ' · 需'+it.seedLevel : '';
+    return '<div class="cx-item'+(locked?' locked':'')+'">'
+      +'<div class="ic">'+cxImg(it)+'</div>'
+      +'<div class="nm">'+esc(it.name||'')+'</div>'
+      +'<div class="lv">Lv.'+(it.level||'-')+needLv+'</div>'
+      +'<span class="tag '+tagCls+'">'+tag+'</span>'+buyBtn
+      +'</div>';
+  }).join('');
+}
+async function loadCodex(forceRefresh){
+  window.CX_LOADED = true;
+  const acc = accIdQ();
+  const grid = document.getElementById('cxGrid');
+  if(!grid) return;
+  if(!acc){ grid.innerHTML='<p class="cx-empty">请先选择账号</p>'; return; }
+  grid.innerHTML='<p class="cx-empty">正在加载图鉴...</p>';
+  try{
+    const r = await fetch('/api/illustrated?accountId='+encodeURIComponent(acc)+'&illustrated_type='+CX_TYPE+(forceRefresh?'&refresh=true':''));
+    const d = await r.json();
+    if(!(d.ok&&d.data)){ grid.innerHTML='<p class="cx-empty">'+esc(d.error||'获取图鉴失败')+'</p>'; return; }
+    CX_ITEMS = d.data.items||[];
+    CX_SUMMARY = d.data.summary||CX_SUMMARY;
+    CX_USERLEVEL = Number(d.data.userLevel)||0;
+    renderCodex();
+  }catch(e){ grid.innerHTML='<p class="cx-empty">加载失败</p>'; }
+}
+async function cxBuyGoods(gid, price){
+  const acc = accIdQ();
+  try{
+    const r = await fetch('/api/illustrated/buy?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({goodsId:gid, price:price||0})});
+    const d = await r.json();
+    if(d.ok){ loadCodex(true); }
+    else alert('购买失败：'+(d.error||'未知'));
+  }catch(e){ alert('购买失败'); }
+}
+async function cxBuyAll(){
+  const acc = accIdQ();
+  if(!acc) return;
+  if(!confirm('将尝试购买当前图鉴中所有可购买项目。\n可购买数量：'+(CX_SUMMARY.canBuy||0))) return;
+  try{
+    const r = await fetch('/api/illustrated/buy-all?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({illustrated_type:CX_TYPE})});
+    const d = await r.json();
+    if(d.ok){ alert('一键购买完成：成功 '+d.data.successCount+'，失败 '+d.data.failCount); loadCodex(true); }
+    else alert('一键购买失败：'+(d.error||'未知'));
+  }catch(e){ alert('一键购买失败'); }
+}
+function bindCodex(){
+  const typeBtns = document.querySelectorAll('#page-more [data-cxtype]');
+  typeBtns.forEach(function(b){ b.addEventListener('click', function(){
+    typeBtns.forEach(function(x){ x.classList.remove('active'); }); this.classList.add('active');
+    const t = Number(this.dataset.cxtype)||1;
+    if(t!==CX_TYPE){ CX_TYPE=t; CX_ITEMS=[]; loadCodex(false); }
+  }); });
+  const fBtns = document.querySelectorAll('#page-more [data-cxfilter]');
+  fBtns.forEach(function(b){ b.addEventListener('click', function(){
+    fBtns.forEach(function(x){ x.classList.remove('active'); }); this.classList.add('active');
+    CX_FILTER = this.dataset.cxfilter || 'all';
+    renderCodex();
+  }); });
+  const all = document.getElementById('cxBuyAll'); if(all) all.addEventListener('click', cxBuyAll);
+  const rf = document.getElementById('cxRefresh'); if(rf) rf.addEventListener('click', function(){ loadCodex(true); });
+  const grid = document.getElementById('cxGrid');
+  if(grid) grid.addEventListener('click', function(ev){
+    const btn = ev.target.closest('button.buy');
+    if(btn){ cxBuyGoods(Number(btn.dataset.gid), Number(btn.dataset.price)||0); }
+  });
+}
+
+/* ====== 分析 ====== */
+function anImg(item){
+  if(item.image) return '<img src="'+item.image+'" style="width:36px;height:36px;object-fit:contain" onerror="this.remove()">';
+  return '<span style="font-size:18px">🥕</span>';
+}
+function blkTag(seedId){ return (BLK.indexOf(Number(seedId))>=0) ? '<span class="blk-tag">黑名单</span>' : ''; }
+function blkBtnHtml(seedId){
+  const inBlk = BLK.indexOf(Number(seedId))>=0;
+  return inBlk
+    ? '<button class="rm" data-blk="rm" data-seed="'+seedId+'">移出黑名单</button>'
+    : '<button class="add" data-blk="add" data-seed="'+seedId+'">加入黑名单</button>';
+}
+function renderAnList(){
+  const kw = (document.getElementById('anSearch').value||'').trim().toLowerCase();
+  let list = AN_LIST.filter(function(it){
+    if(!kw) return true;
+    return String(it.name||'').toLowerCase().indexOf(kw)>=0 || String(it.seedId||'').indexOf(kw)>=0;
+  });
+  const cnt = document.getElementById('anCount');
+  if(cnt) cnt.textContent = '共 '+AN_LIST.length+' 种作物 · 显示 '+list.length;
+  const box = document.getElementById('anList');
+  if(!AN_LIST.length){ box.innerHTML='<p class="cx-empty">暂无数据</p>'; return; }
+  box.innerHTML = list.map(function(it){
+    return '<div class="an-card"><div class="aic">'+anImg(it)+'</div>'
+      +'<div class="ainfo"><div class="anm">'+esc(it.name||'')+blkTag(it.seedId)+'</div>'
+      +'<div class="amz"><span>Lv.'+(it.level==null?'未知':it.level)+' · '+it.seasons+'季 · '+esc(it.growTimeStr||'')+'</span></div>'
+      +'<div class="amz"><span class="c-purple">经验 <b>'+it.expPerHour+'</b>/时</span> · <span class="c-blue">普肥经验 <b>'+it.normalFertilizerExpPerHour+'</b>/时</span></div>'
+      +'<div class="amz"><span class="c-amber">利润 <b>'+(it.profitPerHour??'-')+'</b>/时</span> · <span class="c-green">普肥利润 <b>'+(it.normalFertilizerProfitPerHour??'-')+'</b>/时</span></div>'
+      +'</div><div class="ablk">'+blkBtnHtml(it.seedId)+'</div></div>';
+  }).join('');
+}
+async function refetchAnalytics(){
+  const acc = accIdQ();
+  try{
+    const r = await fetch('/api/analytics?sort='+encodeURIComponent(AN_SORT)+'&accountId='+encodeURIComponent(acc));
+    const d = await r.json();
+    AN_LIST = (d.ok && Array.isArray(d.data)) ? d.data : [];
+  }catch(e){ AN_LIST=[]; }
+  renderAnList(); renderStrategy();
+}
+function renderBlk(){
+  const box = document.getElementById('blkList');
+  if(!box) return;
+  if(!BLK.length){ box.innerHTML='<p class="cx-empty">暂无黑名单蔬菜</p>'; return; }
+  box.innerHTML = BLK.map(function(seedId){
+    const it = AN_LIST.find(function(x){ return Number(x.seedId)===Number(seedId); });
+    const name = it ? it.name : ('蔬菜'+seedId);
+    const img = it ? anImg(it) : '<span style="font-size:18px">🥬</span>';
+    return '<div class="blk-row"><div class="bic">'+img+'</div><div class="binfo"><div class="bname">'+esc(name)+'</div><div class="bid">ID: '+seedId+'</div></div>'
+      +'<button data-blk="rm" data-seed="'+seedId+'">移出</button></div>';
+  }).join('');
+}
+function renderStrategy(){
+  const box = document.getElementById('anStrategyCards');
+  if(!box) return;
+  const strategies = [
+    {key:'max_exp', label:'经验/时', metric:'expPerHour', color:'#a855f7', unit:'EXP', desc:'每小时经验收益最高'},
+    {key:'max_profit', label:'利润/时', metric:'profitPerHour', color:'#f59e0b', unit:'金币', desc:'每小时净利润最高'},
+    {key:'max_fert_exp', label:'普肥经验/时', metric:'normalFertilizerExpPerHour', color:'#3b82f6', unit:'EXP', desc:'使用普通化肥后经验最高'},
+    {key:'max_fert_profit', label:'普肥利润/时', metric:'normalFertilizerProfitPerHour', color:'#22c55e', unit:'金币', desc:'使用普通化肥后利润最高'},
+  ];
+  const plantable = AN_LIST.filter(function(it){
+    if(it.level==null || it.level==='') return true;
+    return Number(it.level)<=AN_LEVEL;
+  });
+  box.innerHTML = strategies.map(function(s){
+    const best = getBestFor(s.metric);
+    let body;
+    if(best){
+      body = '<div class="best"><div class="bic">'+anImg(best)+'</div><div class="bcnm">'+esc(best.name||'')+'</div><div class="bcmeta">Lv.'+(best.level==null?'-':best.level)+'</div></div>'
+        +'<div class="val"><span>'+s.unit+'/时</span><b style="color:'+s.color+'">'+best[s.metric]+'</b></div>';
+    } else {
+      body = '<p class="cx-empty" style="padding:10px 0">暂无可种植作物</p>';
+    }
+    return '<div class="strat-card"><div class="sh"><div class="ic" style="background:'+s.color+'">✦</div>'
+      +'<div><div class="st">'+s.label+'</div><div class="su">'+s.desc+'</div></div></div>'+body+'</div>';
+  }).join('')
+    +'<p style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">当前等级 Lv.'+AN_LEVEL+' · 可种植 '+plantable.length+'/'+AN_LIST.length+' 种作物</p>';
+}
+function getBestFor(metric){
+  if(!AN_LIST.length) return null;
+  const filtered = AN_LIST.filter(function(it){
+    if(it.level==null || it.level==='') return true;
+    return Number(it.level)<=AN_LEVEL;
+  });
+  if(!filtered.length) return null;
+  return filtered.slice().sort(function(a,b){
+    const av = Number(a[metric]); const bv = Number(b[metric]);
+    if(!isFinite(av)&&!isFinite(bv)) return 0;
+    if(!isFinite(av)) return 1;
+    if(!isFinite(bv)) return -1;
+    return bv-av;
+  })[0];
+}
+async function loadAnalysis(){
+  const acc = accIdQ();
+  const box = document.getElementById('anList');
+  if(!acc){ if(box) box.innerHTML='<p class="cx-empty">请先选择账号</p>'; return; }
+  try{
+    const hr = await fetch('/api/home/profile?accountId='+encodeURIComponent(acc));
+    const hd = await hr.json();
+    AN_LEVEL = Number((hd.data&&hd.data.level)||0);
+  }catch(e){}
+  try{
+    const r = await fetch('/api/analytics?sort='+encodeURIComponent(AN_SORT)+'&accountId='+encodeURIComponent(acc));
+    const d = await r.json();
+    AN_LIST = (d.ok && Array.isArray(d.data)) ? d.data : [];
+  }catch(e){ AN_LIST=[]; }
+  try{
+    const br = await fetch('/api/plant-blacklist?accountId='+encodeURIComponent(acc));
+    const bd = await br.json();
+    BLK = (bd.ok && Array.isArray(bd.data)) ? bd.data.map(Number) : [];
+  }catch(e){ BLK=[]; }
+  renderAnList(); renderBlk(); renderStrategy();
+}
+async function toggleBlk(seedId){
+  const acc = accIdQ();
+  const inBlk = BLK.indexOf(Number(seedId))>=0;
+  try{
+    if(inBlk){
+      const r = await fetch('/api/plant-blacklist/'+seedId+'?accountId='+encodeURIComponent(acc), {method:'DELETE'});
+      const d = await r.json(); if(d.ok) BLK = d.data.map(Number);
+    } else {
+      const r = await fetch('/api/plant-blacklist?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({seedId:Number(seedId)})});
+      const d = await r.json(); if(d.ok) BLK = d.data.map(Number);
+    }
+  }catch(e){}
+  renderAnList(); renderBlk();
+}
+async function removeBlk(seedId){
+  const acc = accIdQ();
+  try{
+    const r = await fetch('/api/plant-blacklist/'+seedId+'?accountId='+encodeURIComponent(acc), {method:'DELETE'});
+    const d = await r.json(); if(d.ok) BLK = d.data.map(Number);
+  }catch(e){}
+  renderBlk(); renderAnList();
+}
+function bindAnalysis(){
+  const srt = document.getElementById('anSort');
+  if(srt) srt.addEventListener('change', function(){ AN_SORT = this.value||'exp'; refetchAnalytics(); });
+  const sch = document.getElementById('anSearch');
+  if(sch) sch.addEventListener('input', function(){ renderAnList(); });
+  const tabs = document.querySelectorAll('#page-more [data-antab]');
+  tabs.forEach(function(b){ b.addEventListener('click', function(){
+    tabs.forEach(function(x){ x.classList.remove('active'); }); this.classList.add('active');
+    const key = this.dataset.antab;
+    ['crops','blacklist','strategy'].forEach(function(k){
+      const p = document.getElementById('an-'+k); if(p) p.classList.toggle('active', k===key);
+    });
+  }); });
+  const addAll = document.getElementById('anBlkAddAll');
+  if(addAll) addAll.addEventListener('click', async function(){
+    const acc = accIdQ(); if(!acc) return;
+    const ids = AN_LIST.map(function(it){ return Number(it.seedId); });
+    try{
+      const r = await fetch('/api/plant-blacklist/batch?accountId='+encodeURIComponent(acc), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({seedIds:ids})});
+      const d = await r.json(); if(d.ok) BLK = d.data.map(Number);
+    }catch(e){}
+    renderBlk(); renderAnList();
+  });
+  const clr = document.getElementById('anBlkClear');
+  if(clr) clr.addEventListener('click', async function(){
+    const acc = accIdQ(); if(!acc) return;
+    try{
+      const r = await fetch('/api/plant-blacklist?accountId='+encodeURIComponent(acc), {method:'DELETE'});
+      const d = await r.json(); if(d.ok) BLK = [];
+    }catch(e){}
+    renderBlk(); renderAnList();
+  });
+  // 黑名单按钮事件委托（anList 与 blkList）
+  [document.getElementById('anList'), document.getElementById('blkList')].forEach(function(list){
+    if(!list) return;
+    list.addEventListener('click', function(ev){
+      const btn = ev.target.closest('button[data-blk]');
+      if(!btn) return;
+      toggleBlk(Number(btn.dataset.seed));
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', function(){ bindCodex(); bindAnalysis(); });
 </script>
 </body>
 </html>
