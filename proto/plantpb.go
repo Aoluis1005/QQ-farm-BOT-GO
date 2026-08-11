@@ -274,7 +274,8 @@ func EncodeUnlockLandRequest(landID int64, doShared bool) []byte {
 }
 
 // EncodePlantRequest 种植（对齐 Node planting-service.js encodePlantRequest：
-// PlantRequest{ items:[{ seed_id=1, land_ids=2 }] }，无 count 字段，多地块走 land_ids 数组）。
+// PlantRequest{ items(字段2):[ PlantItem{ seed_id=1, land_ids=2 } ] }，无 count 字段，多地块走 land_ids 数组）。
+// 注意：PlantRequest.items 是 repeated PlantItem，外层字段号为 2（字段1 是旧版 land_and_seed map）。
 func EncodePlantRequest(seedID int64, landIDs []int64) []byte {
 	item := NewBuilder()
 	item.FieldInt64(1, seedID)
@@ -282,7 +283,7 @@ func EncodePlantRequest(seedID int64, landIDs []int64) []byte {
 		item.FieldInt64(2, id)
 	}
 	b := NewBuilder()
-	b.FieldMessage(1, item.Bytes())
+	b.FieldMessage(2, item.Bytes())
 	return b.Bytes()
 }
 

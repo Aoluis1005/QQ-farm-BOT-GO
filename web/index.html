@@ -2465,7 +2465,7 @@ function renderBagSellBar(){
           return;
         }
         const body={action:actMap[cls]};
-        if(actMap[cls]==='plant'){ body.landId='1'; body.seedId='200001'; }
+        // 🌱 种植不硬编码 landId/seedId：交给后端用种植策略对当前农场空地自动选种种植（对齐 Node autoPlantEmptyLands）
         const resp=await fetch('/api/farm/action?accountId='+accId(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const data=await resp.json();
         alert(data.ok ? ('操作完成：'+actMap[cls]) : ('失败：'+(data.error||'未知')));

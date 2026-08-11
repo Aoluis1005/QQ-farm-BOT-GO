@@ -329,7 +329,9 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 			appendOpLog(accountID, "farm", "种植跳过：无可用种子 ("+err.Error()+")")
 			continue
 		}
-		if err := ensureSeedOwned(c, seedID, goodsID, price, len(g.ids)); err != nil {
+		// 一组地（1x1 单块 / 2x2 四块）一次 Plant RPC 种完，服务端按 footprint 合并消耗 1 颗种子，
+		// 对齐 Node plantFromShop：plantCount = floor(landIds/footprint)，每组买 1 颗。
+		if err := ensureSeedOwned(c, seedID, goodsID, price, 1); err != nil {
 			appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
 			continue
 		}
@@ -345,6 +347,26 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		}
 		time.Sleep(delay + 200*time.Millisecond)
 	}
+}
+
+// autoPlantEmptyLands 手动"一键种植"：对当前农场所有空地/枯死地用种植策略自动选种种植
+// （对齐 Node planting-service.js autoPlantEmptyLands 入口；autoPlantLands 内部会对枯死地先铲除）。
+func autoPlantEmptyLands(accountID string, c *gw.Client, cfg config.AccountConfig) (int, error) {
+	rep, err := c.Request(context.Background(), plantService, "AllLands",
+		proto.EncodeAllLandsRequest(0), 15*time.Second)
+	if err != nil {
+		return 0, err
+	}
+	lands := proto.DecodeAllLandsReply(rep.Body).Lands
+	a := analyzeFarmLands(lands, time.Now().Unix())
+	targets := append([]int64{}, a.dead...)
+	targets = append(targets, a.empty...)
+	targets = dedupeInt64(targets)
+	if len(targets) == 0 {
+		return 0, nil
+	}
+	autoPlantLands(accountID, c, cfg, lands, targets)
+	return len(targets), nil
 }
 
 // plantOnLands 在指定地块种植指定种子（对齐 Node planting-service.js plantSeeds：

@@ -1256,23 +1256,34 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		detail = fmt.Sprintf("铲除 %d 块地", len(ids))
-	case "plant": // 手动种植：对齐 Node plantSeeds，逐块传 [landId]
-		seedID, err := strconv.ParseInt(req.SeedID, 10, 64)
-		if err != nil || seedID <= 0 {
-			writeError(w, 400, "missing or bad seedId")
-			return
+	case "plant": // 手动种植：对齐 Node plantSeeds / autoPlantEmptyLands
+		cfg := models.GetAccountConfig(accountID)
+		if req.SeedID != "" && req.LandID != "" {
+			seedID, perr := strconv.ParseInt(req.SeedID, 10, 64)
+			if perr != nil || seedID <= 0 {
+				writeError(w, 400, "missing or bad seedId")
+				return
+			}
+			landIDs := parseIDs(req.LandID)
+			if len(landIDs) == 0 {
+				writeError(w, 400, "missing landId")
+				return
+			}
+			n, perr := plantOnLands(accountID, c, seedID, landIDs)
+			if perr != nil {
+				writeError(w, 500, "种植失败: "+perr.Error())
+				return
+			}
+			detail = fmt.Sprintf("种植 %d 块地", n)
+		} else {
+			// 未指定种子：用种植策略自动选种，种植当前农场所有空地/枯死地（对齐 Node autoPlantEmptyLands）
+			n, perr := autoPlantEmptyLands(accountID, c, cfg)
+			if perr != nil {
+				writeError(w, 500, "自动种植失败: "+perr.Error())
+				return
+			}
+			detail = fmt.Sprintf("自动种植 %d 块地", n)
 		}
-		landIDs := parseIDs(req.LandID)
-		if len(landIDs) == 0 {
-			writeError(w, 400, "missing landId")
-			return
-		}
-		n, err := plantOnLands(accountID, c, seedID, landIDs)
-		if err != nil {
-			writeError(w, 500, "种植失败: "+err.Error())
-			return
-		}
-		detail = fmt.Sprintf("种植 %d 块地", n)
 	default:
 		writeError(w, 400, "unknown action: "+req.Action)
 		return
