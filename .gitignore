@@ -2,3 +2,4 @@ go-farm-bot-linux-amd64
 *.new
 store.json
 *.bak-*
+go-farm-bot

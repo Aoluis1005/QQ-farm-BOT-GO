@@ -3641,7 +3641,7 @@ function renderPanel(p, ctx){
         '<div class="act-stats"><span>积分 <b>'+actNum(pp.score)+'</b></span><span>可领 <b>'+cl+' 档</b></span><span>进度 <b>'+actNum(pp.current_progress)+'</b></span></div>'+
         '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
         '<div class="act-hint">距下一级还需 '+actNum(pp.next_level_need)+' 积分</div></div>';
-      h+='<div class="act-actions"><button class="act-btn'+(cl>0?'':' disabled')+'" data-claim="season">领取可领奖励 ('+cl+' 档)</button></div>';
+      h+='<div class="act-actions"><button class="act-btn'+(cl>0?'':' disabled')+'" data-claim="season"'+(cl>0?'':' disabled')+'>领取可领奖励 ('+cl+' 档)</button></div>';
       const tiers=(pp.reward_tiers||[]).slice();
       if(tiers.length){ h+='<div class="act-card"><div class="act-card-hd"><h4>🎁 奖励梯度（共 '+tiers.length+' 档）</h4></div>'+
         tiers.map(t=>'<div class="act-tier"><span class="lv">Lv.'+actNum(t.level)+'</span><span class="rw">'+(((t.free_rewards||[]).map(rw=>rw.name).filter(Boolean).join('、'))||'—')+'</span></div>').join('')+'</div>'; }
@@ -3674,7 +3674,11 @@ function hookClaim(root, ctx, p){
     const acc=ctx.acc;
     try{
       let url='/api/activity/';
-      if(this.dataset.claim==='season') url+='season/claim';
+      if(this.dataset.claim==='season'){
+        const _s=ctx.season||{}, _pp=_s.passport||{};
+        if(actNum(_pp.claimable_levels)<=0){ alert('暂无奖励可领取'); el.ld.style.display='none'; return; }
+        url+='season/claim';
+      }
       else if(this.dataset.claim==='solar') url+='solar/claim?termId='+this.dataset.id;
       else if(this.dataset.claim==='gift') url+='guanxing/claim?id='+(this.dataset.id||'');
       const d=await (await fetch(url+'?accountId='+encodeURIComponent(acc), {method:'POST'})).json();

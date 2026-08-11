@@ -194,6 +194,11 @@ func handleActivitySeasonClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	before := ParseSeason(beforeBody)
+	// 无可领档位时直接返回友好提示，不触发一次无意义的 Claim RPC
+	if before != nil && before.Passport != nil && before.Passport.ClaimableLevels <= 0 {
+		writeJSONMap(w, "ok", false, "error", "暂无奖励可领取")
+		return
+	}
 	body, err := rpcRequest(ctx, accountID, seasonSvc, "ClaimBattlePassRewards", []byte{}, 15*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", err.Error())
