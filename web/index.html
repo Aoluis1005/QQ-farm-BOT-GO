@@ -1509,13 +1509,29 @@ body{
     </div>
   </section>
 
-  <!-- ============ 商城占位 ============ -->
+  <!-- ============ 商城（种子/宠物/装扮/道具/神秘商人） ============ -->
   <section class="page" id="page-shop">
-    <div class="placeholder">
-      <div class="big">🛒</div>
-      <h3>商城</h3>
-      <p>种子商店 · 道具 · 装扮<br>接入数据源后开放</p>
-      <span class="badge">占位</span>
+    <div class="seg seg-5">
+      <button class="seg-btn active" data-seg="s-seed">🌱 种子</button>
+      <button class="seg-btn" data-seg="s-pet">🐶 宠物</button>
+      <button class="seg-btn" data-seg="s-decor">🎨 装扮</button>
+      <button class="seg-btn" data-seg="s-prop">🎒 道具</button>
+      <button class="seg-btn" data-seg="s-mystery">🧙 神秘商人</button>
+    </div>
+    <div class="seg-pane active" id="s-seed">
+      <div class="placeholder"><div class="big">🌱</div><h3>种子商店</h3><p>各类作物种子售卖<br>接入数据源后开放</p><span class="badge">占位</span></div>
+    </div>
+    <div class="seg-pane" id="s-pet">
+      <div class="placeholder"><div class="big">🐶</div><h3>宠物商店</h3><p>宠物购买与喂养道具<br>接入数据源后开放</p><span class="badge">占位</span></div>
+    </div>
+    <div class="seg-pane" id="s-decor">
+      <div class="placeholder"><div class="big">🎨</div><h3>装扮商店</h3><p>农场场景·建筑·装饰<br>接入数据源后开放</p><span class="badge">占位</span></div>
+    </div>
+    <div class="seg-pane" id="s-prop">
+      <div class="placeholder"><div class="big">🎒</div><h3>道具商店</h3><p>化肥·加速·功能道具<br>接入数据源后开放</p><span class="badge">占位</span></div>
+    </div>
+    <div class="seg-pane" id="s-mystery">
+      <div class="placeholder"><div class="big">🧙</div><h3>神秘商人</h3><p>限时神秘商品·每日刷新<br>接入数据源后开放</p><span class="badge">占位</span></div>
     </div>
   </section>
 
