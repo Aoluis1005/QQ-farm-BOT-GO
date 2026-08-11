@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/proto"
@@ -29,7 +30,11 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/list", handleActivityList)
 	api.HandleFunc("/api/activity/group", handleActivityGroup)
 	api.HandleFunc("/api/activity/season", handleActivitySeason)
+	api.HandleFunc("/api/activity/season/claim", handleActivitySeasonClaim)
 	api.HandleFunc("/api/activity/solar", handleActivitySolar)
+	api.HandleFunc("/api/activity/solar/claim", handleActivitySolarClaim)
+	api.HandleFunc("/api/activity/guanxing", handleActivityGuanxing)
+	api.HandleFunc("/api/activity/guanxing/claim", handleActivityGuanxingClaim)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -60,11 +65,28 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 		Finished  bool   `json:"finished"`
 	}
 	var out []*outItem
+	// 组根（id%100==0）自身常为哨兵时间（-62135596800），真实时间在其子活动上。
+	// 因此先收集：当前在期(on)的子活动，再据此判定组根是否 ongoing。
+	onChild := map[int64]bool{}
 	for _, it := range items {
-		longTerm := it.StartTime <= 0
-		ongoing := longTerm || (it.StartTime <= now && it.EndTime >= now)
-		upcoming := !longTerm && it.StartTime > now
-		finished := !longTerm && it.EndTime > 0 && it.EndTime < now
+		if it.ID%100 != 0 && it.StartTime > 0 && it.StartTime <= now && it.EndTime >= now {
+			onChild[it.ID-it.ID%100] = true
+		}
+	}
+	itemOngoing := func(it *ActivityInfo) bool {
+		if it.StartTime > 0 && it.EndTime > 0 {
+			return it.StartTime <= now && it.EndTime >= now
+		}
+		// 哨兵时间：仅在期当它是一个有活跃子活动的组根
+		if it.ID%100 == 0 {
+			return onChild[it.ID]
+		}
+		return false
+	}
+	for _, it := range items {
+		ongoing := itemOngoing(it)
+		upcoming := it.EndTime > 0 && it.StartTime > now
+		finished := it.EndTime > 0 && it.EndTime < now
 		show := false
 		switch scope {
 		case "all":
@@ -157,4 +179,154 @@ func handleActivitySolar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "data": ParseSolar(body)})
+}
+
+// ----- 千星游记：领取全部可领档位（SeasonService.ClaimBattlePassRewards，空请求） -----
+
+func handleActivitySeasonClaim(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	// before（用于算领取档位数差）
+	beforeBody, err := rpcRequest(ctx, accountID, seasonSvc, "GetSeasonInfo", []byte{}, 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	before := ParseSeason(beforeBody)
+	body, err := rpcRequest(ctx, accountID, seasonSvc, "ClaimBattlePassRewards", []byte{}, 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	res := ParseSeasonClaim(body)
+	afterBody, err := rpcRequest(ctx, accountID, seasonSvc, "GetSeasonInfo", []byte{}, 15*time.Second)
+	if err != nil {
+		afterBody = nil
+	}
+	after := ParseSeason(afterBody)
+	bl, al := int64(0), int64(0)
+	if before != nil && before.Passport != nil {
+		bl = before.Passport.FreeClaimedLevel
+	}
+	if after != nil && after.Passport != nil {
+		al = after.Passport.FreeClaimedLevel
+	}
+	var passport *SeasonPassport
+	if after != nil {
+		passport = after.Passport
+	}
+	if passport == nil {
+		passport = res.Passport
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"rewards":        res.Rewards,
+		"passport":       passport,
+		"claimed_levels": al - bl,
+	})
+}
+
+// ----- 节令小礼：领取单个节气（SolarTermsService.ClaimSolarTerms，field1=termId） -----
+
+func handleActivitySolarClaim(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	termID, _ := strconv.ParseInt(r.URL.Query().Get("termId"), 10, 64)
+	b := proto.NewBuilder()
+	b.FieldInt64(1, termID)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, solarSvc, "ClaimSolarTerms", b.Bytes(), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	res := ParseSolarClaim(body)
+	// 刷新最新节气状态
+	solarBody, err := rpcRequest(ctx, accountID, solarSvc, "GetSolarTerms", []byte{}, 15*time.Second)
+	if err != nil {
+		solarBody = nil
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"rewards": res.Rewards, "term": res.Term, "solar": ParseSolar(solarBody),
+	})
+}
+
+// ----- 观星礼录：二十八星宿数据（GetGroup + field110 星宿块） -----
+
+func handleActivityGuanxing(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	accountID := resolveAccountID(q.Get("accountId"))
+	id, _ := strconv.ParseInt(q.Get("id"), 10, 64)
+	if id == 0 {
+		id = guanxingActivityID
+	}
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	b.FieldString(2, q.Get("uid"))
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "data": ParseConstellation(body)})
+}
+
+// ----- 观星礼录：一键领取全部已解锁星宿（ActService.Operate cmd=21, field119空串） -----
+
+func handleActivityGuanxingClaim(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	accountID := resolveAccountID(q.Get("accountId"))
+	// before
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	gb := proto.NewBuilder()
+	gb.FieldInt64(1, guanxingActivityID)
+	gb.FieldString(2, q.Get("uid"))
+	beforeBody, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	before := ParseConstellation(beforeBody)
+	// operate
+	ob := proto.NewBuilder()
+	ob.FieldInt64(1, guanxingActivityID)
+	ob.FieldInt64(2, guanxingClaimCmd)
+	ob.FieldBytes(guanxingExtField, []byte{})
+	_, err = rpcRequest(ctx, accountID, actSvc, "Operate", ob.Bytes(), 15*time.Second)
+	if err != nil {
+		es := err.Error()
+		if !strings.Contains(es, itoa(guanxingNoReward)) && !strings.Contains(es, "无可领取") {
+			writeJSONMap(w, "ok", false, "error", es)
+			return
+		}
+	}
+	// after
+	afterBody, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 15*time.Second)
+	if err != nil {
+		afterBody = nil
+	}
+	after := ParseConstellation(afterBody)
+	var claimed []*Item
+	if before != nil && after != nil {
+		for _, bn := range before.Nodes {
+			if !bn.Claimable {
+				continue
+			}
+			claimed = append(claimed, bn.Rewards...)
+		}
+		claimed = mergeRewardItems(claimed)
+	}
+	var n *ConstellationInfo = after
+	if n == nil {
+		n = before
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"claimed_rewards": claimed, "data": n,
+	})
 }

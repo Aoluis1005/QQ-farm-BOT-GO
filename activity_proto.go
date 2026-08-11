@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"sort"
+	"time"
+
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
@@ -83,6 +87,7 @@ func actStr(fs []actField, no int) string {
 }
 
 // collectBytes 递归扫描 buf 中所有字段号为 target 的 length-delimited 块（对齐 Node scanLengthDelimitedFields）
+// 注意：必须与 readActFields 采用相同的显式逐 wire 读取方式，否则会漏扫嵌套字段（此前用 Skip 漏掉 field110）。
 func collectBytes(buf []byte, target int, maxDepth int) (out [][]byte) {
 	defer func() { _ = recover() }()
 	var rec func([]byte, int)
@@ -90,7 +95,8 @@ func collectBytes(buf []byte, target int, maxDepth int) (out [][]byte) {
 		rd := proto.NewReader(b)
 		for rd.More() {
 			f, w := rd.ReadTag()
-			if w == 2 {
+			switch w {
+			case 2:
 				bb := rd.ReadBytes()
 				if bb == nil {
 					return
@@ -98,10 +104,15 @@ func collectBytes(buf []byte, target int, maxDepth int) (out [][]byte) {
 				if f == target {
 					out = append(out, bb)
 				}
-				if depth < maxDepth {
-					rec(bb, depth+1)
-				}
-			} else {
+				rec(bb, depth+1) // 始终递归，靠 recover 兜底，避免深度限制漏扫
+			case 0:
+				rd.ReadInt64()
+			case 1:
+				rd.ReadInt64()
+				rd.ReadInt64()
+			case 5:
+				rd.ReadInt64()
+			default:
 				rd.Skip(w)
 			}
 		}
@@ -448,4 +459,320 @@ func solarStatusLabel(status int64) string {
 	default:
 		return "状态" + itoa(status)
 	}
+}
+
+func timeNow() int64 { return time.Now().Unix() }
+
+func jsonUnmarshalMap(s string) map[string]interface{} {
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+func strAny(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// ---- 观星礼录（二十八星宿） ----
+// 数据源：ActivityService.GetGroup(GUANXING_ACTIVITY_ID) 返回体 field110（CONSTELLATION_DATA_FIELD）。
+// 对齐 Node findConstellationBytes / normalizeConstellationGroup / normalizeConstellationNode。
+
+const (
+	guanxingActivityID  = 2026072701 // 观星礼录本体（type=13）
+	guanxingClaimCmd    = 21         // 一键领取全部已解锁星宿
+	constellationDataFi = 110        // ActivityData 中星宿数据所在字段号
+	guanxingNoReward    = 1034038    // 无可领取奖励节点（幂等信号）
+	guanxingExtField    = 119        // 官方客户端点亮请求附带的空扩展字段
+)
+
+// ConstellationGroup 星宿分组：名称、四象归类与释义（对齐 normalizeConstellationGroup）
+type ConstellationGroup struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Explain  string `json:"explain"`
+	Links    string `json:"links"`
+}
+
+// ConstellationNode 星宿节点（对齐 normalizeConstellationNode）
+// field2=已解锁 field3=已领取 field4=可领取
+type ConstellationNode struct {
+	ID          int64   `json:"id"`
+	Day         int64   `json:"day"`
+	Name        string  `json:"name"`
+	Category    string  `json:"category"`
+	Explain     string  `json:"explain"`
+	Unlocked    bool    `json:"unlocked"`
+	Claimed     bool    `json:"claimed"`
+	Claimable   bool    `json:"claimable"`
+	StatusLabel string  `json:"status_label"`
+	Rewards     []*Item `json:"rewards,omitempty"`
+}
+
+type ConstellationSummary struct {
+	TotalDays      int    `json:"total_days"`
+	CurrentDay     int64  `json:"current_day"`
+	UnlockedCount  int    `json:"unlocked_count"`
+	ClaimedCount   int    `json:"claimed_count"`
+	ClaimableCount int    `json:"claimable_count"`
+	PendingRewards []*Item `json:"pending_rewards"`
+}
+
+type ConstellationInfo struct {
+	ActivityID int64                `json:"activity_id"`
+	Title      string               `json:"title"`
+	StartTime  int64                `json:"start_time"`
+	EndTime    int64                `json:"end_time"`
+	NowTime    int64                `json:"now_time"`
+	CurrentDay int64                `json:"current_day"`
+	TotalDays  int                  `json:"total_days"`
+	Nodes      []*ConstellationNode `json:"nodes"`
+	Summary    ConstellationSummary `json:"summary"`
+	Warning    string               `json:"warning,omitempty"`
+}
+
+// parseConstGroup 解析星宿分组（field:1=id,3=name,4=links,5=configText(JSON category/explain)）
+func parseConstGroup(raw []byte) *ConstellationGroup {
+	fs := readActFields(raw)
+	id := actNum(fs, 1)
+	if id <= 0 {
+		return nil
+	}
+	g := &ConstellationGroup{ID: id, Name: actStr(fs, 3), Links: actStr(fs, 4)}
+	if cfg := actStr(fs, 5); cfg != "" {
+		if obj := jsonUnmarshalMap(cfg); obj != nil {
+			g.Category = strAny(obj["category"])
+			g.Explain = strAny(obj["explain"])
+		}
+	}
+	return g
+}
+
+// parseConstNode 解析星宿节点（field:1=id,2=unlocked,3=claimed,4=claimable,5=rewards）
+func parseConstNode(raw []byte, gmap map[int64]*ConstellationGroup) *ConstellationNode {
+	fs := readActFields(raw)
+	id := actNum(fs, 1)
+	if id <= 0 {
+		return nil
+	}
+	unlocked := actNum(fs, 2) == 1
+	claimed := actNum(fs, 3) == 1
+	claimable := actNum(fs, 4) == 1
+	n := &ConstellationNode{
+		ID: id, Day: id, Unlocked: unlocked, Claimed: claimed, Claimable: claimable,
+	}
+	if g := gmap[id]; g != nil {
+		n.Name, n.Category, n.Explain = g.Name, g.Category, g.Explain
+	}
+	if n.Name == "" {
+		n.Name = "第" + itoa(id) + "宿"
+	}
+	switch {
+	case claimed:
+		n.StatusLabel = "已领取"
+	case claimable:
+		n.StatusLabel = "可领取"
+	case unlocked:
+		n.StatusLabel = "已解锁"
+	default:
+		n.StatusLabel = "未解锁"
+	}
+	for _, r := range actBytesAll(fs, 5) {
+		if it := parseItem(r); it != nil {
+			n.Rewards = append(n.Rewards, it)
+		}
+	}
+	return n
+}
+
+// findConstellationBytes 提取返回体最大 field110 星宿块（对齐 Node findConstellationBytes）。
+// 遍历方式与 dbgCollectStats 完全一致（含深度≤6），实测可靠拿到 field110。
+func findConstellationBytes(body []byte) []byte {
+	var best []byte
+	var rec func([]byte, int)
+	rec = func(b []byte, depth int) {
+		if len(b) == 0 || depth > 6 {
+			return
+		}
+		defer func() { _ = recover() }()
+		rd := proto.NewReader(b)
+		for rd.More() {
+			f, w := rd.ReadTag()
+			switch w {
+			case 2:
+				nb := rd.ReadBytes()
+				if nb == nil {
+					return
+				}
+				if f == constellationDataFi && len(nb) > len(best) {
+					best = make([]byte, len(nb))
+					copy(best, nb)
+				}
+				rec(nb, depth+1)
+			case 0:
+				rd.ReadInt64()
+			case 1:
+				rd.ReadInt64()
+				rd.ReadInt64()
+			case 5:
+				rd.ReadInt64()
+			default:
+				rd.Skip(w)
+			}
+		}
+	}
+	rec(body, 0)
+	return best
+}
+
+// ParseConstellation 从 GetGroup 原始返回体中提取 field110 星宿数据（对齐 normalizeGuanxingActivity）
+func ParseConstellation(body []byte) *ConstellationInfo {
+	defer func() { _ = recover() }()
+	now := timeNow()
+	base := &ConstellationInfo{ActivityID: guanxingActivityID, Title: "观星礼录", StartTime: 0, EndTime: 0, NowTime: now}
+	// 定位 activity info（ActivityInfo: 1=id 4=title 6=start 7=end，对齐 findActivityInfoEntries）
+	for _, blk := range collectBytes(body, 1, 5) {
+		fs := readActFields(blk)
+		if actNum(fs, 1) != guanxingActivityID {
+			continue
+		}
+		if actStr(fs, 4) == "" {
+			continue
+		}
+		base.StartTime = actNum(fs, 6)
+		base.EndTime = actNum(fs, 7)
+		base.Title = actStr(fs, 4)
+		break
+	}
+	// 找 field110 星宿数据块（取最大）
+	best := findConstellationBytes(body)
+	if len(best) == 0 {
+		base.Warning = "未解析到星宿数据"
+		return base
+	}
+	fs := readActFields(best)
+	gmap := map[int64]*ConstellationGroup{}
+	for _, gRaw := range actBytesAll(fs, 5) {
+		if g := parseConstGroup(gRaw); g != nil {
+			gmap[g.ID] = g
+		}
+	}
+	for _, nRaw := range actBytesAll(fs, 4) {
+		if n := parseConstNode(nRaw, gmap); n != nil {
+			base.Nodes = append(base.Nodes, n)
+		}
+	}
+	// 按 id 排序
+	sort.Slice(base.Nodes, func(i, j int) bool { return base.Nodes[i].ID < base.Nodes[j].ID })
+	base.TotalDays = len(base.Nodes)
+	serverDay := actNum(fs, 1)
+	if serverDay > 0 {
+		base.CurrentDay = serverDay
+	} else if base.StartTime > 0 && now > base.StartTime {
+		d := (now - base.StartTime) / 86400 + 1
+		if d < 1 {
+			d = 1
+		}
+		if base.TotalDays > 0 && d > int64(base.TotalDays) {
+			d = int64(base.TotalDays)
+		}
+		base.CurrentDay = d
+	}
+	var pending []*Item
+	for _, n := range base.Nodes {
+		if n.Unlocked {
+			base.Summary.UnlockedCount++
+		}
+		if n.Claimed {
+			base.Summary.ClaimedCount++
+		}
+		if n.Claimable {
+			base.Summary.ClaimableCount++
+			pending = append(pending, n.Rewards...)
+		}
+	}
+	base.Summary.TotalDays = base.TotalDays
+	base.Summary.CurrentDay = base.CurrentDay
+	base.Summary.PendingRewards = mergeRewardItems(pending)
+	return base
+}
+
+func mergeRewardItems(items []*Item) []*Item {
+	merged := []*Item{}
+	idx := map[int64]int{}
+	for _, it := range items {
+		if it == nil || it.ItemID <= 0 {
+			continue
+		}
+		if i, ok := idx[it.ItemID]; ok {
+			merged[i].Count += it.Count
+			continue
+		}
+		merged = append(merged, it)
+		idx[it.ItemID] = len(merged) - 1
+	}
+	return merged
+}
+
+// ---- 领取结果解析 ----
+
+// ParseSeasonClaim 解析 SeasonService.ClaimBattlePassRewards 返回（对齐 normalizeSeasonClaimResult）
+// field1=rewards(repeated Item) field3=passport
+type SeasonClaimResult struct {
+	Rewards  []*Item         `json:"rewards"`
+	Passport *SeasonPassport `json:"passport,omitempty"`
+}
+
+func ParseSeasonClaim(body []byte) *SeasonClaimResult {
+	defer func() { _ = recover() }()
+	fs := readActFields(body)
+	res := &SeasonClaimResult{}
+	for _, r := range actBytesAll(fs, 1) {
+		if it := parseItem(r); it != nil {
+			res.Rewards = append(res.Rewards, it)
+		}
+	}
+	if p := actBytes(fs, 3); len(p) > 0 {
+		res.Passport = parseSeasonPassport(p)
+	}
+	return res
+}
+
+// ParseSolarClaim 解析 SolarTermsService.ClaimSolarTerms 返回（对齐 normalizeSolarTermsClaimResult）
+// field1=rewards field2=term
+type SolarClaimResult struct {
+	Rewards []*Item     `json:"rewards"`
+	Term    *SolarTerm  `json:"term,omitempty"`
+}
+
+func ParseSolarClaim(body []byte) *SolarClaimResult {
+	defer func() { _ = recover() }()
+	fs := readActFields(body)
+	res := &SolarClaimResult{}
+	for _, r := range actBytesAll(fs, 1) {
+		if it := parseItem(r); it != nil {
+			res.Rewards = append(res.Rewards, it)
+		}
+	}
+	if t := actBytes(fs, 2); len(t) > 0 {
+		termFS := readActFields(t)
+		term := &SolarTerm{ID: actNum(termFS, 1), Status: actNum(termFS, 2), Start: actNum(termFS, 3), End: actNum(termFS, 4), Title: actStr(termFS, 6)}
+		term.Claimable = term.Status == 2
+		term.Label = solarStatusLabel(term.Status)
+		for _, r := range actBytesAll(termFS, 5) {
+			if it := parseItem(r); it != nil {
+				term.Rewards = append(term.Rewards, it)
+			}
+		}
+		res.Term = term
+	}
+	return res
 }
