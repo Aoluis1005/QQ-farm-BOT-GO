@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type ClientPool struct {
 	offlineSince     map[string]time.Time // 首次检测到断线的时间
 	reconnectAttempts map[string]int      // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
 	stopped           map[string]bool     // 达上限后停止自动重连，直到手动触发/重新连上
+	kickBackoffUntil  map[string]time.Time // 被踢后重连防抖：下次允许重连的最早时间（避免与别处登录互踢自旋）
 }
 
 var clientPool = &ClientPool{
@@ -26,6 +28,7 @@ var clientPool = &ClientPool{
 	offlineSince:      map[string]time.Time{},
 	reconnectAttempts: map[string]int{},
 	stopped:           map[string]bool{},
+	kickBackoffUntil:  map[string]time.Time{},
 }
 
 func gwConfig(platform string) gw.Config {
@@ -54,9 +57,42 @@ func (p *ClientPool) cached(accountID string) *gw.Client {
 }
 
 func (p *ClientPool) store(accountID string, c *gw.Client) {
+	c.SetKickHook(func() { p.onKick(accountID) })
 	p.mu.Lock()
 	p.m[accountID] = c
 	p.mu.Unlock()
+}
+
+// onKick 被踢下线后的自动重连（对齐 Node kickout → 应用宝离线重连）：
+// 优先用 YYB openid 刷新 code 再连；带防抖避免与“别处登录”互踢形成自旋。
+// 仅当距上次重连超过冷却窗才执行，否则跳过（交给用户自行解决冲突端）。
+func (p *ClientPool) onKick(accountID string) {
+	p.mu.Lock()
+	if until, ok := p.kickBackoffUntil[accountID]; ok && time.Now().Before(until) {
+		p.mu.Unlock()
+		return
+	}
+	p.kickBackoffUntil[accountID] = time.Now().Add(8 * time.Second) // 冷却 8s，防止互踢自旋
+	p.reconnectAttempts[accountID]++
+	p.mu.Unlock()
+
+	acc := models.GetAccountByID(accountID)
+	if acc == nil {
+		return
+	}
+	// 优先 YYB 刷新 code（账号须有 openid）
+	if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
+		acc.Code = newCode
+		models.AddOrUpdateAccount(*acc)
+	}
+	c, err := connect(acc)
+	if err != nil {
+		log.Printf("[pool] 账号 %s 被踢后重连失败: %v", accountID, err)
+		return
+	}
+	loadAssetsAsync(accountID, c)
+	p.store(accountID, c)
+	log.Printf("[pool] 账号 %s 被踢后已重连（第 %d 次）", accountID, p.reconnectAttempts[accountID])
 }
 
 // connect 用账号 code 连接并登录
@@ -162,6 +198,7 @@ func (p *ClientPool) evict(accountID string) {
 	delete(p.offlineSince, accountID)
 	delete(p.reconnectAttempts, accountID)
 	delete(p.stopped, accountID)
+	delete(p.kickBackoffUntil, accountID)
 	p.mu.Unlock()
 }
 

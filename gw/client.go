@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ type Client struct {
 	mu         sync.Mutex
 	writeMu    sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
 	pending    map[int64]chan *proto.Message
+	kickHook   func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
 	accountID  string
 	giftHook   func(accountID string, delta int64)
 	GID        int64
@@ -204,6 +206,12 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	select {
 	case msg := <-ch:
 		if msg.Meta != nil && msg.Meta.ErrorCode != 0 {
+			// 账号在别处登录等致命码：触发连接池重连（对齐 Node kickout 事件），并关闭当前连接。
+			if isKickCode(msg.Meta.ErrorCode) && c.kickHook != nil {
+				log.Printf("[gw] 账号被踢下线 code=%d %s，触发应用宝重连", msg.Meta.ErrorCode, msg.Meta.ErrorMessage)
+				go c.kickHook()
+				c.Close()
+			}
 			return msg, fmt.Errorf("%s.%s code=%d %s", service, method, msg.Meta.ErrorCode, msg.Meta.ErrorMessage)
 		}
 		return msg, nil
@@ -307,6 +315,17 @@ func max64(a, b int64) int64 {
 func (c *Client) SetGiftHook(accountID string, hook func(accountID string, delta int64)) {
 	c.accountID = accountID
 	c.giftHook = hook
+}
+
+// SetKickHook 设置被踢回调（连接池在创建连接时注册，用于触发自动重连）
+func (c *Client) SetKickHook(f func()) {
+	c.kickHook = f
+}
+
+// isKickCode 是否为需要重连的致命网关错误码（如 1000014=账号已在其他地方登录）。
+// 仅识别已确认的踢下线码，避免把瞬时错误误判为被踢而频繁重连。
+func isKickCode(code int64) bool {
+	return code == 1000014
 }
 
 // prime 登录成功后预拉首页所需数据缓存（对齐 Node 常驻预载）
