@@ -121,13 +121,13 @@ func handleActivityGroup(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", "id required")
 		return
 	}
-	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）
+	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）。对齐 Node sendMsgAsync 默认 20s
 	b := proto.NewBuilder()
 	b.FieldInt64(1, id)
 	b.FieldString(2, q.Get("uid"))
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 15*time.Second)
+	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 20*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
