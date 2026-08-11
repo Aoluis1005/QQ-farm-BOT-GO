@@ -3680,11 +3680,15 @@ async function renderActivityGroup(acc, group){
   (function walk(n){ if(!n) return; const inf=n.info||{}; if(actNum(inf.type)===13 && !giftNode) giftNode=n; if((n.exchange_shop&&n.exchange_shop.length)&& !shopNode) shopNode=n; (n.children||[]).forEach(walk); })(tree);
   const isQingmei=(group.title||'').indexOf('青酿')>=0 || (group.title||'').indexOf('青梅')>=0;
   const panels=[];
-  if(isQingmei) panels.push({key:'qingmei',title:'青梅酿',icon:'🍶'});
-  if(season && season.passport) panels.push({key:'season',title:'千星游记',icon:'🗺️'});
-  if(shopNode && shopNode.exchange_shop && shopNode.exchange_shop.length) panels.push({key:'shop',title:'星砂商店',icon:'🛍️'});
-  if(giftNode) panels.push({key:'gift',title:'观星礼录',icon:'🌟'});
-  if(solar && solar.terms && solar.terms.length) panels.push({key:'solar',title:'节令小礼',icon:'🌿'});
+  if(isQingmei){
+    // 青梅活动只显示青梅专属面板，不套用千星/节令等账号级通用面板
+    panels.push({key:'qingmei',title:'青梅酿',icon:'🍶'});
+  } else {
+    if(season && season.passport) panels.push({key:'season',title:'千星游记',icon:'🗺️'});
+    if(shopNode && shopNode.exchange_shop && shopNode.exchange_shop.length) panels.push({key:'shop',title:'星砂商店',icon:'🛍️'});
+    if(giftNode) panels.push({key:'gift',title:'观星礼录',icon:'🌟'});
+    if(solar && solar.terms && solar.terms.length) panels.push({key:'solar',title:'节令小礼',icon:'🌿'});
+  }
   if(!panels.length){ el.bx.innerHTML='<div class="act-empty">该活动暂无可展示的面板</div>'; el.tb.style.display='none'; return; }
   let pi=el._ai||0; if(pi<0||pi>=panels.length) pi=0;
   el.tb.style.display='flex';
