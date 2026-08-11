@@ -77,6 +77,16 @@ func main() {
 	// 启动后台掉线自动重连扫描（增强：不破坏现有懒重连，Get() 仍可用）
 	clientPool.StartAutoReconnect(context.Background())
 
+	// 启动时为所有已配置账号建立初始连接（对齐 Node 启动即 startWorker，保证账号列表在线状态准确）。
+	// 后台异步执行，不阻塞 HTTP 启动；失败仅记录（重连/懒连接兜底）。
+	go func() {
+		for _, acc := range models.GetAccounts() {
+			if _, err := clientPool.Get(acc.ID); err != nil {
+				log.Printf("[startup] 账号 %s 初始连接失败: %v", acc.ID, err)
+			}
+		}
+	}()
+
 	// 启动时扫描 game-config/seed_images_named，建立 itemId → 图片URL 映射（working dir 为游戏配置根目录）
 	InitImageMap("game-config")
 	initGameConfig("game-config")

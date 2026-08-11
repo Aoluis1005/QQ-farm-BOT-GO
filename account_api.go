@@ -36,6 +36,15 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		accounts := models.GetAccounts()
+		// 在线状态用网关连接实时判断（对齐 Node getAccounts：acc.running = !!worker）——
+		// 持久化 status 创建即 offline 且从不更新，故这里覆盖返回，不写库。
+		for i := range accounts {
+			if c := clientPool.cached(accounts[i].ID); c != nil && !c.IsClosed() {
+				accounts[i].Status = "online"
+			} else {
+				accounts[i].Status = "offline"
+			}
+		}
 		writeJSON(w, map[string]interface{}{"ok": true, "data": accounts})
 	case "POST":
 		var body struct {
