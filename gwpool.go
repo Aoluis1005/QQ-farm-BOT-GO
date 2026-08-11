@@ -119,6 +119,13 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	c.SetGiftHook(acc.ID, recordGift)
 	c.Prime() // 登录后立即预拉首页数据缓存
 	c.StartHeartbeat(context.Background())
+	// 对齐 Node network.js:583-584：登录成功后 startHeartbeat() + startAceService()
+	// ACE 上报服务随连接关闭自动停止（监听 Done()）
+	aceSvc := startAceService(c, acc.ID)
+	go func() {
+		<-c.Done()
+		aceSvc.stop()
+	}()
 	appendOpLog(acc.ID, "登录", "账号上线")
 	return c, nil
 }

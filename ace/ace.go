@@ -436,6 +436,133 @@ func (r *Runtime) HeartbeatTick() error {
 	return err
 }
 
+// ProcessReceivedData 处理下行数据队列（对齐 Node tsdk-runtime.js processReceivedData）
+func (r *Runtime) ProcessReceivedData() error {
+	if !r.ready {
+		return fmt.Errorf("TSDK runtime not ready")
+	}
+	fn := r.fn(exportsMap["processReceivedData"])
+	_, err := fn.Call(r.ctx)
+	return err
+}
+
+// SendStatus 主动上报状态（对齐 Node tsdk-runtime.js sendStatus）
+func (r *Runtime) SendStatus() error {
+	if !r.ready {
+		return fmt.Errorf("TSDK runtime not ready")
+	}
+	fn := r.fn(exportsMap["sendStatus"])
+	_, err := fn.Call(r.ctx)
+	return err
+}
+
+// DetectSpeedHack 速度检测（对齐 Node tsdk-runtime.js detectSpeedHack）
+func (r *Runtime) DetectSpeedHack(elapsedMs int64) error {
+	if !r.ready {
+		return fmt.Errorf("TSDK runtime not ready")
+	}
+	if elapsedMs < 0 {
+		elapsedMs = 0
+	}
+	fn := r.fn(exportsMap["detectSpeedHack"])
+	_, err := fn.Call(r.ctx, uint64(elapsedMs))
+	return err
+}
+
+// GetDataToServer 取待上报的 ACE 数据（对齐 Node tsdk-runtime.js getDataToServer）：
+// wasm 通过 lengthPtr 写出数据长度，返回数据指针；无数据返回空切片。
+func (r *Runtime) GetDataToServer() ([]byte, error) {
+	if !r.ready {
+		return nil, fmt.Errorf("TSDK runtime not ready")
+	}
+	// 分配 4 字节 int32 长度槽（初始 0）
+	lenPtr, err := r.alloc(make([]byte, 4))
+	if err != nil {
+		return nil, err
+	}
+	defer r.free(lenPtr)
+	fn := r.fn(exportsMap["getDataToServer"])
+	out, err := fn.Call(r.ctx, uint64(lenPtr))
+	if err != nil {
+		return nil, fmt.Errorf("getDataToServer: %w", err)
+	}
+	if len(out) == 0 || out[0] == 0 {
+		return nil, nil
+	}
+	dataPtr := uint32(out[0])
+	length, ok := r.mem.ReadUint32Le(lenPtr)
+	if !ok || int32(length) <= 0 {
+		return nil, nil
+	}
+	buf, ok := r.mem.Read(dataPtr, length)
+	if !ok {
+		return nil, fmt.Errorf("getDataToServer: out of bounds")
+	}
+	return append([]byte(nil), buf...), nil
+}
+
+// SendDataFromServer 回灌服务端下发数据（对齐 Node tsdk-runtime.js sendDataFromServer）
+func (r *Runtime) SendDataFromServer(data []byte) error {
+	if !r.ready {
+		return fmt.Errorf("TSDK runtime not ready")
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	ptr, err := r.alloc(data)
+	if err != nil {
+		return err
+	}
+	defer r.free(ptr)
+	fn := r.fn(exportsMap["sendDataFromServer"])
+	_, err = fn.Call(r.ctx, uint64(ptr), uint64(len(data)))
+	return err
+}
+
+// CheckFunctionArray 完整性校验（对齐 Node tsdk-runtime.js checkFunctionArray）。
+// names 为函数名列表（Node 传方法 toString 的字符串数组；Go 侧以导出名等价替代）。
+func (r *Runtime) CheckFunctionArray(names []string, typeFlag int64) error {
+	if !r.ready {
+		return fmt.Errorf("TSDK runtime not ready")
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	fn := r.fn(exportsMap["checkFuncArray"])
+	if fn == nil {
+		return nil
+	}
+	// 构建字符串指针数组（与 Node allocCString + u32 指针数组一致）
+	strPtrs := make([]uint32, 0, len(names))
+	cleanup := func() {
+		for _, p := range strPtrs {
+			r.free(p)
+		}
+	}
+	for _, n := range names {
+		p, err := r.allocCBytes(n)
+		if err != nil {
+			cleanup()
+			return err
+		}
+		strPtrs = append(strPtrs, p)
+	}
+	ptrArr, err := r.alloc(make([]byte, len(strPtrs)*4))
+	if err != nil {
+		cleanup()
+		return err
+	}
+	defer func() {
+		r.free(ptrArr)
+		cleanup()
+	}()
+	for i, p := range strPtrs {
+		r.mem.WriteUint32Le(ptrArr+uint32(i*4), p)
+	}
+	_, err = fn.Call(r.ctx, uint64(ptrArr), uint64(len(strPtrs)), uint64(typeFlag))
+	return err
+}
+
 // Close 释放
 func (r *Runtime) Close() {
 	if r.rt != nil {

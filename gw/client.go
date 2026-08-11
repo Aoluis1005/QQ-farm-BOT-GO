@@ -407,6 +407,64 @@ func (c *Client) Done() <-chan struct{} {
 	return c.closed
 }
 
+// ---- ACE TSDK 运行时透传（供 AceService 调度调用，对齐 Node tsdk-runtime.js） ----
+
+// ACEProcessReceivedData 处理下行数据队列
+func (c *Client) ACEProcessReceivedData() error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.ProcessReceivedData()
+}
+
+// ACEHeartbeatTick TSDK 心跳
+func (c *Client) ACEHeartbeatTick() error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.HeartbeatTick()
+}
+
+// ACEDetectSpeedHack 速度检测
+func (c *Client) ACEDetectSpeedHack(elapsedMs int64) error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.DetectSpeedHack(elapsedMs)
+}
+
+// ACESendStatus 状态上报
+func (c *Client) ACESendStatus() error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.SendStatus()
+}
+
+// ACECheckFunctionArray 完整性校验
+func (c *Client) ACECheckFunctionArray(names []string, typeFlag int64) error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.CheckFunctionArray(names, typeFlag)
+}
+
+// ACEGetDataToServer 取待上报数据
+func (c *Client) ACEGetDataToServer() ([]byte, error) {
+	if c.ace == nil {
+		return nil, fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.GetDataToServer()
+}
+
+// ACESendDataFromServer 回灌服务端下发数据
+func (c *Client) ACESendDataFromServer(data []byte) error {
+	if c.ace == nil {
+		return fmt.Errorf("ace runtime not initialized")
+	}
+	return c.ace.SendDataFromServer(data)
+}
+
 // Close 关闭连接
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
