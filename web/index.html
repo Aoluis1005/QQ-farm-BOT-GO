@@ -3368,17 +3368,18 @@ window.loadLogs();
     const bagGroup = document.getElementById(prefix + 'BagPriorityGroup');
     if(!boxEl) return;
 
-    // 1) 显示规则
+    // 1) 显示规则（对齐 Node StrategySettingsTab.vue v-if/v-else-if/v-else 三选一）：
+    //    - preferred                  → 显示 preferredSeedId 下拉，隐藏预览框
+    //    - bag_priority+preferred     → 显示 preferredSeedId 下拉，隐藏预览框
+    //    - 其它（level/max_*/bag_priority 非 preferred） → 显示预览框，隐藏 preferredSeedId 下拉
     let showPreview = true, showPreferred = false, showBagGroup = false, previewLabel = '策略选种预览';
     if(strategy === 'preferred'){
       showPreview = false; showPreferred = true; showBagGroup = false;
     } else if(strategy === 'bag_priority'){
       showBagGroup = true;
       if(fallback === 'preferred'){
-        previewLabel = '第二优先策略预览';
-        showPreview = true; showPreferred = true;
+        showPreview = false; showPreferred = true;
       } else {
-        previewLabel = '策略选种预览';
         showPreview = true; showPreferred = false;
       }
     } else {
@@ -3394,23 +3395,26 @@ window.loadLogs();
 
     boxEl.textContent = '加载中…';
 
-    // 2) 计算预览文案
-    if(strategy === 'bag_priority' && fallback === 'preferred'){
-      // 优先种子模式（fallback=preferred）：显示 preferredId 对应种子
+    // 2) 计算预览文案：对齐 Node useStrategySettings.ts:224-286
+    //    bag_priority 时把 strategy 替换为 fallback（fallback 再走 level/sort/preferred）
+    let effective = strategy;
+    if(strategy === 'bag_priority') effective = fallback || 'level';
+
+    if(effective === 'preferred'){
+      // bag_priority+fallback=preferred 路径，但显示规则上已走 preferredSeedId 下拉分支
+      // 此处理论上不会触发（v-if/v-else-if 互斥），保留兜底
       getSeedsCache().then(seeds => {
-        if(!preferredId || preferredId <= 0){ boxEl.textContent = '未选择优先种子'; return; }
-        const seed = seeds.find(s => s.seedId === preferredId);
-        boxEl.textContent = seed ? (seed.requiredLevel || 0) + '级 ' + (seed.name || ('种子' + seed.seedId)) : '未选择优先种子';
+        const seed = preferredId ? seeds.find(s => s.seedId === preferredId) : null;
+        boxEl.textContent = seed ? (seed.requiredLevel||0)+'级 '+(seed.name||('种子'+seed.seedId)) : '未选择优先种子';
       });
       return;
     }
 
-    // 其它 strategy：level 取最高级可用；sort 调 analytics
+    // 其它：level / sort
     getSeedsCache().then(seeds => {
       const lvl = getUserLevel();
       const available = seeds.filter(s => (s.requiredLevel || 0) <= lvl);
       if(available.length === 0){
-        // 没缓存到 userLevel 时异步拉一次再算
         if(!__userLevel && !window.__pvFetched){
           window.__pvFetched = true;
           fetchUserLevel().then(() => computeStrategyPreview(prefix, strategy, fallback, preferredId));
@@ -3418,12 +3422,12 @@ window.loadLogs();
         boxEl.textContent = '暂无可用种子';
         return;
       }
-      if(strategy === 'level'){
+      if(effective === 'level'){
         const best = available.slice().sort((a,b) => (b.requiredLevel||0) - (a.requiredLevel||0))[0];
         boxEl.textContent = best ? (best.requiredLevel||0) + '级 ' + (best.name || ('种子'+best.seedId)) : '暂无可用种子';
         return;
       }
-      const sortBy = SORT_TO_ANALYTICS[strategy];
+      const sortBy = SORT_TO_ANALYTICS[effective];
       if(!sortBy){ boxEl.textContent = '暂无可用种子'; return; }
       fetch('/api/analytics?accountId=' + accId() + '&sort=' + encodeURIComponent(sortBy))
         .then(r => r.json())
