@@ -125,7 +125,7 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 	}
 
 	// 单飞连接：同一账号同时只连一个，避免与前端 Get / onKick 并发登录造成自踢
-	c, err := p.connectLocked(acc)
+	_, err := p.connectLocked(acc)
 	if err != nil {
 		// 失败：计数已在调度时累加，这里保持计数，等待下一轮重试
 		p.mu.Lock()
