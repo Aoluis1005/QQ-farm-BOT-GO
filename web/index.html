@@ -3011,8 +3011,15 @@ window.loadLogs();
   }
   function chipsSet(id, vals){
     const c = document.getElementById(id); if(!c) return;
-    const set = new Set(vals || []);
-    c.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', set.has(b.dataset.land)));
+    // 对齐 Node useStrategySettings.ts:297-299：后端返回空数组表示"不限制"，
+    // 视觉上必须全亮起（"默认全选表示不限制"）。空数组/null/undefined 都按"全亮"处理，
+    // 否则用户会看到 5 个灰色 chip，误以为"全没选"。
+    const isAll = !vals || (Array.isArray(vals) && vals.length === 0);
+    const set = isAll ? null : new Set(vals);
+    c.querySelectorAll('.chip').forEach(b => {
+      if(isAll) b.classList.add('on');
+      else b.classList.toggle('on', set.has(b.dataset.land));
+    });
   }
   function numVal(id, dflt){
     const el = document.getElementById(id); if(!el) return dflt;
@@ -3087,7 +3094,9 @@ window.loadLogs();
     return {
       plantingStrategy: selVal('mPlantStrategy', 'max_exp'),
       bagSeedFallbackStrategy: selVal('mFallbackStrategy', 'level'),
-      bagPriorityLandTypes: chipsVal('mBagLandTypes'),
+      // 对齐 Node useStrategySettings.ts:297-299：若用户把 5 个 chip 全点 off（空数组），
+      // 按"不限制"语义回填完整 5 个，与后端 normalizeFertilizerLandTypes 的全集判断一致。
+      bagPriorityLandTypes: (() => { const v = chipsVal('mBagLandTypes'); return v.length > 0 ? v : ['purple','gold','black','red','normal']; })(),
       prioritize2x2Crops: swGet(document.getElementById('m2x2')),
       intervals: {
         farmMin: numVal('fMin', 5), farmMax: numVal('fMax', 10),
@@ -3190,7 +3199,8 @@ window.loadLogs();
     const plan = {
       plantingStrategy: selVal('dPlantStrategy', 'max_exp'),
       bagSeedFallbackStrategy: selVal('dFallbackStrategy', 'level'),
-      bagPriorityLandTypes: chipsVal('dBagLandTypes'),
+      // 对齐 Node：全 off 时回填完整 5 个，与后端 normalizeFertilizerLandTypes 全集判断一致。
+      bagPriorityLandTypes: (() => { const v = chipsVal('dBagLandTypes'); return v.length > 0 ? v : ['purple','gold','black','red','normal']; })(),
       prioritize2x2Crops: swGet(document.getElementById('d2x2')),
       mysteryAutoBuyCurrencies: (window.__curMystery ? (window.__curMystery.currencies || []).slice() : []),
       intervals: {
