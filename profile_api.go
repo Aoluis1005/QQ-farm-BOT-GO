@@ -524,17 +524,59 @@ func handleFarmHarvest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "missing landId")
 		return
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "landId": landID, "message": "harvest ok"})
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	ids := parseIDs(landID)
+	if len(ids) == 0 {
+		writeError(w, 400, "bad landId")
+		return
+	}
+	if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(ids, c.GID, false)); err != nil {
+		writeError(w, 500, "收获失败: "+err.Error())
+		return
+	}
+	recordOperation(accountID, "harvest", int64(len(ids)))
+	appendOpLog(accountID, "harvest", fmt.Sprintf("手动收获 %d 块地", len(ids)))
+	// 收获后可选自动卖（对齐 Node 自动卖果实）
+	if models.GetAccountConfig(accountID).Automation.Sell {
+		autoSellAfterHarvest(accountID, c)
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "landIds": ids, "message": fmt.Sprintf("收获 %d 块地", len(ids))})
 }
 
 func handleFarmPlant(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
 	landID := r.FormValue("landId")
-	seedID := r.FormValue("seedId")
-	if landID == "" || seedID == "" {
+	seedIDStr := r.FormValue("seedId")
+	if landID == "" || seedIDStr == "" {
 		writeError(w, 400, "missing landId or seedId")
 		return
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "landId": landID, "seedId": seedID, "message": "plant ok"})
+	seedID, err := strconv.ParseInt(seedIDStr, 10, 64)
+	if err != nil {
+		writeError(w, 400, "bad seedId")
+		return
+	}
+	landIDs := parseIDs(landID)
+	if len(landIDs) == 0 {
+		writeError(w, 400, "bad landId")
+		return
+	}
+	n, err := plantOnLands(accountID, c, seedID, landIDs)
+	if err != nil {
+		writeError(w, 500, "种植失败: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "seedId": seedID, "landIds": landIDs, "message": fmt.Sprintf("种植 %d 块地", n)})
 }
 
 func handleBagItems(w http.ResponseWriter, r *http.Request) {
@@ -1214,9 +1256,23 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		detail = fmt.Sprintf("铲除 %d 块地", len(ids))
-	case "plant":
-		writeError(w, 501, "种植功能暂未接入（需商店买种子）")
-		return
+	case "plant": // 手动种植：对齐 Node plantSeeds，逐块传 [landId]
+		seedID, err := strconv.ParseInt(req.SeedID, 10, 64)
+		if err != nil || seedID <= 0 {
+			writeError(w, 400, "missing or bad seedId")
+			return
+		}
+		landIDs := parseIDs(req.LandID)
+		if len(landIDs) == 0 {
+			writeError(w, 400, "missing landId")
+			return
+		}
+		n, err := plantOnLands(accountID, c, seedID, landIDs)
+		if err != nil {
+			writeError(w, 500, "种植失败: "+err.Error())
+			return
+		}
+		detail = fmt.Sprintf("种植 %d 块地", n)
 	default:
 		writeError(w, 400, "unknown action: "+req.Action)
 		return

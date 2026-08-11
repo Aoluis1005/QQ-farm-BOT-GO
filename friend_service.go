@@ -250,6 +250,35 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: total, BugCount: bugCount, WeedCount: weedCount,
 			Message: fmt.Sprintf("捣乱完成 虫%d/草%d", bugCount, weedCount)}
 
+	case "help":
+		// 单次进入内完成 浇水/除草/除虫（对齐 Node visitFriendForHelp 单访多操作，减少进/出 RPC）
+		var total int64
+		rec := func(n int64, op string) {
+			if n > 0 {
+				total += n
+				recordOperation(accountID, op, n)
+			}
+		}
+		if len(analysis.NeedWater) > 0 {
+			if err := execFriendOp(c, "WaterLand", proto.EncodeWaterLandRequest(analysis.NeedWater, gid)); err == nil {
+				rec(int64(len(analysis.NeedWater)), "helpWater")
+			}
+		}
+		if len(analysis.NeedWeed) > 0 {
+			if err := execFriendOp(c, "WeedOut", proto.EncodeWeedOutRequest(analysis.NeedWeed, gid)); err == nil {
+				rec(int64(len(analysis.NeedWeed)), "helpWeed")
+			}
+		}
+		if len(analysis.NeedBug) > 0 {
+			if err := execFriendOp(c, "Insecticide", proto.EncodeInsecticideRequest(analysis.NeedBug, gid)); err == nil {
+				rec(int64(len(analysis.NeedBug)), "helpBug")
+			}
+		}
+		if total == 0 {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
+		}
+		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: total, Message: fmt.Sprintf("帮忙完成 %d 块", total)}
+
 	default:
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Count: 0, Message: "未知操作类型"}
 	}

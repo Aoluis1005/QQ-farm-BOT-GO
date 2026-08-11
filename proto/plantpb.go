@@ -268,6 +268,19 @@ func EncodeUnlockLandRequest(landID int64, doShared bool) []byte {
 	return b.Bytes()
 }
 
+// EncodePlantRequest 种植（对齐 Node planting-service.js encodePlantRequest：
+// PlantRequest{ items:[{ seed_id=1, land_ids=2 }] }，无 count 字段，多地块走 land_ids 数组）。
+func EncodePlantRequest(seedID int64, landIDs []int64) []byte {
+	item := NewBuilder()
+	item.FieldInt64(1, seedID)
+	for _, id := range landIDs {
+		item.FieldInt64(2, id)
+	}
+	b := NewBuilder()
+	b.FieldMessage(1, item.Bytes())
+	return b.Bytes()
+}
+
 // ============ 好友农场操作请求编码（对齐 Node friend-operation-limits.js） ============
 // 均由 gamepb.plantpb.PlantService 投递，字段：land_ids / host_gid。
 

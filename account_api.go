@@ -95,6 +95,8 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 		if c, cerr := clientPool.Get(acc.ID); cerr == nil && c != nil && c.GID != 0 {
 			connected = true
 		}
+		// 启动该账号的自动化引擎（连接就绪前循环内会懒连接，不会阻塞）
+		startAutomationForAccount(acc.ID)
 		writeJSON(w, map[string]interface{}{"ok": true, "data": result, "activeAccountId": acc.ID, "connected": connected})
 	default:
 		writeError(w, 405, "method not allowed")
@@ -165,6 +167,8 @@ func handleAccountByID(w http.ResponseWriter, r *http.Request) {
 			models.SetActiveAccount("")
 		}
 		clientPool.evict(id)
+		// 停止该账号的自动化引擎
+		stopAutomationForAccount(id)
 		writeJSON(w, map[string]interface{}{"ok": true})
 	case "PUT", "POST":
 		acc := models.GetAccountByID(id)

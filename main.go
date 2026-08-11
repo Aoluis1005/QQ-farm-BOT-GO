@@ -90,6 +90,9 @@ func main() {
 		}
 	}()
 
+	// 启动所有账号的自动化引擎（对齐 Node 启动即 startWorker）
+	startAllAutomation()
+
 	// 启动时扫描 game-config/seed_images_named，建立 itemId → 图片URL 映射（working dir 为游戏配置根目录）
 	InitImageMap("game-config")
 	initGameConfig("game-config")
