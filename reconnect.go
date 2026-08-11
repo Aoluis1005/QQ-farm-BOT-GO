@@ -62,6 +62,7 @@ func (p *ClientPool) scanAutoReconnect() {
 			since, ok := p.offlineSince[id]
 			if !ok {
 				// 刚检测到断线：记录时间，等过延迟周期再重连（容忍瞬时抖动）
+				appendOpLog(id, "掉线", "连接已断开")
 				p.offlineSince[id] = now
 				continue
 			}
@@ -140,6 +141,7 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 	delete(p.offlineSince, accountID)
 	delete(p.stopped, accountID)
 	p.mu.Unlock()
+	appendOpLog(accountID, "重连", "自动重连成功")
 	log.Printf("[reconnect] 账号 %s 自动重连成功", accountID)
 }
 

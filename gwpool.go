@@ -70,6 +70,7 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	c.SetGiftHook(acc.ID, recordGift)
 	c.Prime() // 登录后立即预拉首页数据缓存
 	c.StartHeartbeat(context.Background())
+	appendOpLog(acc.ID, "登录", "账号上线")
 	return c, nil
 }
 
