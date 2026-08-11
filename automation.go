@@ -285,6 +285,10 @@ func dedupeInt64(in []int64) []int64 {
 // ── 种植（对齐 Node planting-service.js autoPlantEmptyLands / plantFromShop） ──
 
 // autoPlantLands 在给定空地/枯死地上种植（targetLandIDs 为 master/standalone 地块）
+// 对齐 Node planting-service.js autoPlantEmptyLands：
+//  1) 枯死先铲除；2) 2x2 优先（用背包四格种子预留并种植）；
+//  3) bag_priority 按背包种子顺序消耗（并按地块品质拆分），其余/剩余走第二优先策略；
+//  4) 其余策略走商城购买种植。
 func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, lands []*proto.LandInfo, targetLandIDs []int64) {
 	landByID := map[int64]*proto.LandInfo{}
 	for _, l := range lands {
@@ -292,23 +296,44 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 			landByID[l.ID] = l
 		}
 	}
-	type group struct {
-		ids []int64
+	// 构建种植单元：master + 从属地（2x2），仅保留未处理过的 master
+	type unit struct {
+		master int64
+		ids    []int64
+		is2x2  bool
 	}
-	var groups []group
+	var units []unit
+	seen := map[int64]bool{}
 	for _, id := range targetLandIDs {
+		if seen[id] {
+			continue
+		}
 		l := landByID[id]
 		if l == nil {
 			continue
 		}
-		g := group{ids: []int64{id}}
+		u := unit{master: id, ids: []int64{id}}
 		if l.LandSize > 1 && len(l.SlaveLandIDs) > 0 {
-			g.ids = append(g.ids, l.SlaveLandIDs...)
+			u.ids = append(u.ids, l.SlaveLandIDs...)
+			for _, s := range l.SlaveLandIDs {
+				seen[s] = true
+			}
+			u.is2x2 = true
 		}
-		groups = append(groups, g)
+		seen[id] = true
+		units = append(units, u)
 	}
-	if len(groups) == 0 {
+	if len(units) == 0 {
 		return
+	}
+	// 枯死作物先铲除（对齐 Node autoPlantEmptyLands：removePlant(dead) 再种植）
+	for _, u := range units {
+		if l := landByID[u.master]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
+			if ph := currentPhase(l.Plant.Phases, time.Now().Unix()); ph != nil && ph.Phase == proto.PhaseDead {
+				_ = execFarmOp(c, "RemovePlant", proto.EncodeRemovePlantRequest(u.ids))
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
 	}
 
 	strategy := cfg.PlantingStrategy
@@ -316,39 +341,104 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		strategy = "level"
 	}
 
-	for _, g := range groups {
-		// 枯死作物需先铲除再种（对齐 Node autoPlantEmptyLands：先 removePlant(dead) 再种植）
-		if l := landByID[g.ids[0]]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
-			if ph := currentPhase(l.Plant.Phases, time.Now().Unix()); ph != nil && ph.Phase == proto.PhaseDead {
-				_ = execFarmOp(c, "RemovePlant", proto.EncodeRemovePlantRequest(g.ids))
-				time.Sleep(200 * time.Millisecond)
+	// 2x2 优先：用背包四格种子预留并种植（对齐 Node plantPrioritized2x2Crops，简化为种植当前完整空闲组）
+	if cfg.Prioritize2x2Crops {
+		var remainUnits []unit
+		for _, u := range units {
+			if !u.is2x2 {
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			allEmpty := true
+			for _, id := range u.ids {
+				if l := landByID[id]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
+					allEmpty = false
+					break
+				}
+			}
+			if !allEmpty {
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			seeds, e := listBagSeeds(accountID, c, cfg, 2)
+			if e != nil || len(seeds) == 0 {
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			realSeed, e2 := ensureSeedOwned(c, seeds[0].seedID, 0, 0, 1)
+			if e2 != nil || realSeed <= 0 {
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{u.master})); err != nil {
+				appendOpLog(accountID, "farm", fmt.Sprintf("2x2 种植 %d 失败: %v", realSeed, err))
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			recordOperation(accountID, "plant", int64(len(u.ids)))
+			appendOpLog(accountID, "farm", fmt.Sprintf("2x2 种植种子 %d → %d 块地", realSeed, len(u.ids)))
+			time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+		}
+		units = remainUnits
+	}
+
+	// bag_priority：先按背包种子顺序消耗；按地块品质拆分（对齐 Node autoPlantEmptyLands bag_priority 分支）
+	if strategy == "bag_priority" {
+		allowed := normalizeFertilizerLandTypes(cfg.BagPriorityLandTypes) // 5 种品质，空集/全选=不限制
+		unrestricted := len(allowed) == 0 || len(allowed) >= 5
+		var prefMasters, otherMasters []int64
+		if !unrestricted {
+			allowedSet := map[string]bool{}
+			for _, t := range allowed {
+				allowedSet[t] = true
+			}
+			for _, u := range units {
+				lt := landTypeByLevel(landByID[u.master].Level)
+				if allowedSet[lt] {
+					prefMasters = append(prefMasters, u.master)
+				} else {
+					otherMasters = append(otherMasters, u.master)
+				}
+			}
+		} else {
+			for _, u := range units {
+				prefMasters = append(prefMasters, u.master)
 			}
 		}
-		seedID, goodsID, price, err := pickSeedForPlanting(accountID, c, cfg, strategy, len(g.ids))
-		if err != nil || seedID <= 0 {
-			appendOpLog(accountID, "farm", "种植跳过：无可用种子 ("+err.Error()+")")
-			continue
+		remaining, fallbackAllowed, e := plantBagSeedsForLands(accountID, c, cfg, prefMasters)
+		if e != nil {
+			appendOpLog(accountID, "farm", "背包种子读取失败，跳过本轮: "+e.Error())
+			return
 		}
-		// 一组地（1x1 单块 / 2x2 四块）一次 Plant RPC 种完，服务端按 footprint 合并消耗 1 颗种子，
-		// 对齐 Node plantFromShop：plantCount = floor(landIds/footprint)，每组买 1 颗。
-		realSeed, err := ensureSeedOwned(c, seedID, goodsID, price, 1)
-		if err != nil || realSeed <= 0 {
-			appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
-			continue
+		fallbackLands := append([]int64{}, otherMasters...)
+		if fallbackAllowed {
+			fallbackLands = append(fallbackLands, remaining...)
 		}
-		// 每组地一次 Plant RPC，仅传主地 ID（对齐 Node plantSeeds：首块 [landId] 种下整组 2x2，消耗 1 颗）
-		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{g.ids[0]})); err != nil {
-			appendOpLog(accountID, "farm", fmt.Sprintf("种植 %d 失败: %v", realSeed, err))
-			continue
+		if len(fallbackLands) > 0 {
+			fb := cfg.BagSeedFallbackStrategy
+			if fb == "" {
+				fb = "level"
+			}
+			plantFromShopLands(accountID, c, cfg, fallbackLands, fb)
 		}
-		recordOperation(accountID, "plant", int64(len(g.ids)))
-		appendOpLog(accountID, "farm", fmt.Sprintf("种植种子 %d → %d 块地", realSeed, len(g.ids)))
-		delay := time.Duration(cfg.PlantDelaySeconds) * time.Second
-		if delay <= 0 {
-			delay = 2 * time.Second
-		}
-		time.Sleep(delay + 200*time.Millisecond)
+		return
 	}
+
+	// 其余策略：商城购买种植（对齐 Node plantFromShop）
+	var masters []int64
+	for _, u := range units {
+		masters = append(masters, u.master)
+	}
+	plantFromShopLands(accountID, c, cfg, masters, "")
+}
+
+// plantDelay 返回种植延迟（默认 2s）
+func plantDelay(cfg config.AccountConfig) time.Duration {
+	d := time.Duration(cfg.PlantDelaySeconds) * time.Second
+	if d <= 0 {
+		return 2 * time.Second
+	}
+	return d
 }
 
 // autoPlantEmptyLands 手动"一键种植"：对当前农场所有空地/枯死地用种植策略自动选种种植
@@ -458,6 +548,14 @@ type seedCand struct {
 	goodsID int64
 	price   int64
 	reqLvl  int
+}
+
+// bagSeedItem 背包种子（按 plantSize 过滤后用于种植），对齐 Node plantFromBagSeeds 的可用种子
+type bagSeedItem struct {
+	seedID int64
+	count  int64
+	reqLvl int
+	prio   int
 }
 
 var errNoSeed = &seedErr{"no available seed"}
@@ -661,6 +759,130 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int6
 		return got.GetItems[0].ID, nil
 	}
 	return seedID, nil
+}
+
+// listBagSeeds 返回背包中可用种子（count>0 且 plantSize==size），按 BagSeedPriority 排序。
+// 排序键：priority 升序 → requiredLevel 降序 → seedId 升序（对齐 Node sortBagSeedsForPlanting）。
+func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size int) ([]bagSeedItem, error) {
+	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	priority := map[int]int{}
+	for i, s := range cfg.BagSeedPriority {
+		priority[s] = i
+	}
+	var seeds []bagSeedItem
+	for _, it := range proto.DecodeBagReply(rep.Body).Items {
+		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
+			continue
+		}
+		pe, ok := seedToPlantMap[int(it.ID)]
+		if !ok || pe.Size != size {
+			continue
+		}
+		p, has := priority[int(it.ID)]
+		if !has {
+			p = 1 << 30
+		}
+		seeds = append(seeds, bagSeedItem{seedID: it.ID, count: it.Count, reqLvl: getSeedLevel(int(it.ID)), prio: p})
+	}
+	sort.SliceStable(seeds, func(i, j int) bool {
+		if seeds[i].prio != seeds[j].prio {
+			return seeds[i].prio < seeds[j].prio
+		}
+		if seeds[i].reqLvl != seeds[j].reqLvl {
+			return seeds[i].reqLvl > seeds[j].reqLvl
+		}
+		return seeds[i].seedID < seeds[j].seedID
+	})
+	return seeds, nil
+}
+
+// plantBagSeedsForLands 用背包 1x1 种子按优先级顺序种植（对齐 Node plantFromBagSeeds）。
+// 每种背包种子按其数量消耗；返回未被背包种子覆盖的剩余空地主地 ID，以及是否允许用第二优先策略补种
+// （某背包种子部分种植失败时 fallbackAllowed=false，避免误购商城种子，对齐 Node partial_bag_failure）。
+func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountConfig, masters []int64) (remaining []int64, fallbackAllowed bool, err error) {
+	fallbackAllowed = true
+	if len(masters) == 0 {
+		return nil, true, nil
+	}
+	seeds, err := listBagSeeds(accountID, c, cfg, 1)
+	if err != nil {
+		return masters, false, err
+	}
+	if len(seeds) == 0 {
+		return masters, true, nil
+	}
+	remainingSet := map[int64]bool{}
+	for _, m := range masters {
+		remainingSet[m] = true
+	}
+	for _, s := range seeds {
+		if len(remainingSet) == 0 {
+			break
+		}
+		maxCount := int64(len(remainingSet))
+		if s.count < maxCount {
+			maxCount = s.count
+		}
+		if maxCount <= 0 {
+			continue
+		}
+		planted := 0
+		for m := range remainingSet {
+			if planted >= int(maxCount) {
+				break
+			}
+			realSeed, e := ensureSeedOwned(c, s.seedID, 0, 0, 1)
+			if e != nil || realSeed <= 0 {
+				fallbackAllowed = false
+				break
+			}
+			if e2 := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{m})); e2 != nil {
+				fallbackAllowed = false
+				break
+			}
+			delete(remainingSet, m)
+			planted++
+			recordOperation(accountID, "plant", 1)
+			appendOpLog(accountID, "farm", fmt.Sprintf("背包种植种子 %d → 1 块地", realSeed))
+			time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+		}
+		// 实际种植数少于请求数 → 部分失败，避免误购商城（对齐 Node partial_bag_failure）
+		if planted < int(maxCount) && len(remainingSet) > 0 {
+			fallbackAllowed = false
+		}
+	}
+	for m := range remainingSet {
+		remaining = append(remaining, m)
+	}
+	return remaining, fallbackAllowed, nil
+}
+
+// plantFromShopLands 对给定主地列表按策略从商城选种购买并种植（对齐 Node plantFromShop + plantSeeds）。
+// overrideStrategy 非空时覆盖账号策略（用于 bag_priority 第二优先补种）。
+func plantFromShopLands(accountID string, c *gw.Client, cfg config.AccountConfig, masters []int64, overrideStrategy string) {
+	for _, m := range masters {
+		seedID, goodsID, price, err := pickSeedForPlanting(accountID, c, cfg, overrideStrategy, 1)
+		if err != nil || seedID <= 0 {
+			appendOpLog(accountID, "farm", "种植跳过：无可用种子 ("+err.Error()+")")
+			continue
+		}
+		realSeed, err := ensureSeedOwned(c, seedID, goodsID, price, 1)
+		if err != nil || realSeed <= 0 {
+			appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
+			continue
+		}
+		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{m})); err != nil {
+			appendOpLog(accountID, "farm", fmt.Sprintf("种植 %d 失败: %v", realSeed, err))
+			continue
+		}
+		recordOperation(accountID, "plant", 1)
+		appendOpLog(accountID, "farm", fmt.Sprintf("种植种子 %d → 1 块地", realSeed))
+		time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+	}
 }
 
 // ── 智能施肥（对齐 Node farm-fertilizer.js runFertilizerByConfig） ──
