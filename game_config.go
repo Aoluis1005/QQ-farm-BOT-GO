@@ -89,6 +89,13 @@ func loadPlantJSON(path string) {
 	fruitToPlantMap = make(map[int]plantEntry, len(rows))
 	plantByIDMap = make(map[int]plantEntry, len(rows))
 	for _, p := range rows {
+		// 占地尺寸归一：JSON size 为 null/0 时按 1（1x1）处理，
+		// 对齐 Node getPlantSizeBySeedId = Math.max(1, toNum(plant.size) || 1)。
+		// 否则 pickBagSeed/listBagSeeds 的 `Size != 1` 判断会把所有普通 1x1 种子误判为
+		// "非1x1" 全部过滤掉，导致背包优先策略落空、回退到商城乱选种子。
+		if p.Size <= 0 {
+			p.Size = 1
+		}
 		if p.ID > 0 {
 			if _, ok := plantByIDMap[p.ID]; !ok {
 				plantByIDMap[p.ID] = p
