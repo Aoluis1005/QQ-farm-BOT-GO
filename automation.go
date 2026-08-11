@@ -592,7 +592,9 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
-		pe, ok := getPlantByID(it.ID)
+		// 背包物品是种子，须按 seed_id 查 Plant.json（对齐 Node getPlantBySeedId）；
+		// 误用 getPlantByID(plant.id) 会在 plant.id != seed_id 时漏掉该种子。
+		pe, ok := seedToPlantMap[int(it.ID)]
 		if !ok || pe.Size != 1 {
 			continue
 		}

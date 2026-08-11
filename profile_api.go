@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -21,6 +22,7 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/action", handleFarmAction)
 	mux.HandleFunc("/api/farm/plant", handleFarmPlant)
 	mux.HandleFunc("/api/bag/items", handleBagItems)
+	mux.HandleFunc("/api/bag/seeds", handleBagSeeds)
 	mux.HandleFunc("/api/bag/use", handleBagUse)
 	mux.HandleFunc("/api/bag/sell", handleBagSell)
 	mux.HandleFunc("/api/friends/list", handleFriendList)
@@ -635,6 +637,98 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]interface{}{"ok": true, "data": items})
+}
+
+// handleBagSeeds GET /api/bag/seeds
+// 对齐 Node admin-bag-routes.js GET /api/bag/seeds → warehouse.getBagSeeds()：
+// 仅返回背包中实际拥有的种子（id>0 且 count>0 且 Plant.json 收录），
+// 含数量/尺寸(2x2)/所需等级，供"背包种子优先顺序"面板使用（而非全种子库）。
+func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	rep, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		writeError(w, 500, "拉取背包失败: "+err.Error())
+		return
+	}
+	br := proto.DecodeBagReply(rep.Body)
+
+	type bagSeedOut struct {
+		SeedID        int    `json:"seedId"`
+		Name          string `json:"name"`
+		Count         int64  `json:"count"`
+		RequiredLevel int    `json:"requiredLevel"`
+		PlantSize     int    `json:"plantSize"`
+		Image         string `json:"image,omitempty"`
+	}
+	seedMap := map[int]*bagSeedOut{}
+	for _, it := range br.Items {
+		id := int(it.ID)
+		count := it.Count
+		if id <= 0 || count <= 0 {
+			continue
+		}
+		// 仅纳入 Plant.json 收录的种子物品（对齐 Node：无 plant 条目则跳过；交互类型为 plant 但缺配置时记日志）
+		plant, ok := seedToPlantMap[id]
+		if !ok {
+			if isSeedItemID(int64(id)) {
+				log.Printf("[bag] 背包种子 %d 未收录进 Plant.json，已忽略", id)
+			}
+			continue
+		}
+		name := plant.Name
+		// 去 "??" 后缀（对齐 Node rawName.endsWith('??') 处理）
+		if strings.HasSuffix(name, "??") {
+			name = name[:len(name)-2]
+		}
+		if name == "" {
+			name = seedPlantName(int64(id))
+		}
+		if name == "" {
+			name = "种子" + strconv.Itoa(id)
+		}
+		// requiredLevel：对齐 Node Math.max(0, plant.land_level_need || info.level || getSeedLevel(id))
+		// Go 无 land_level_need 字段，用 getSeedLevel(itemInfo.level) 作为权威值
+		reqLvl := getSeedLevel(id)
+		if reqLvl < 0 {
+			reqLvl = 0
+		}
+		plantSize := plant.Size
+		if plantSize <= 0 {
+			plantSize = 1
+		}
+		img := getSeedImageBySeedID(id)
+		if img == "" {
+			img = GetItemImageURL(id)
+		}
+		if ex, ok := seedMap[id]; ok {
+			ex.Count += count
+		} else {
+			seedMap[id] = &bagSeedOut{
+				SeedID:        id,
+				Name:          name,
+				Count:         count,
+				RequiredLevel: reqLvl,
+				PlantSize:     plantSize,
+				Image:         img,
+			}
+		}
+	}
+	out := make([]bagSeedOut, 0, len(seedMap))
+	for _, s := range seedMap {
+		out = append(out, *s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SeedID < out[j].SeedID })
+	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
 }
 
 // handleBagUse POST /api/bag/use 对齐 Node admin-bag-routes.js POST /api/bag/use

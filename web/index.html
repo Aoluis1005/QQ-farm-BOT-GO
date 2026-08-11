@@ -3102,10 +3102,10 @@ window.loadLogs();
     };
   }
 
-  // ---- 背包种子列表（/api/seeds，本地种子库）----
+  // ---- 背包种子列表（/api/bag/seeds，仅返回背包中实际拥有的种子；对齐 Node BagSeedPriorityPanel）----
   let allSeeds = [];
   function loadSeeds(){
-    fetch('/api/seeds?accountId=' + accId()).then(r => r.json()).then(d => {
+    fetch('/api/bag/seeds?accountId=' + accId()).then(r => r.json()).then(d => {
       allSeeds = (d && d.ok && d.data) || [];
       renderBagSeeds('mBagSeedsList', window.__bagPriority || []);
       renderBagSeeds('dBagSeedsList', window.__dBagPriority || []);
@@ -3113,7 +3113,7 @@ window.loadLogs();
   }
   function renderBagSeeds(listId, priority){
     const box = document.getElementById(listId); if(!box) return;
-    if(!allSeeds.length){ box.innerHTML = '<p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">无可用种子</p>'; return; }
+    if(!allSeeds.length){ box.innerHTML = '<p style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">背包中暂无种子</p>'; return; }
     const byId = new Map(allSeeds.map(s => [s.seedId, s]));
     const ordered = (priority || []).map(id => byId.get(id)).filter(Boolean);
     const rest = allSeeds.filter(s => !ordered.includes(s));
@@ -3121,7 +3121,8 @@ window.loadLogs();
     box.innerHTML = items.map((s, i) =>
       `<div class="seed-row" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
         <span style="color:var(--muted-2);font-size:10px;width:16px;flex:none">${i+1}</span>
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name || ('种子' + s.seedId))}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name || ('种子' + s.seedId))}${s.plantSize === 2 ? ' <span style="color:var(--accent,#10b981);font-size:10px">2×2</span>' : ''}</span>
+        <span style="flex:none;color:var(--muted);font-size:10px">×${s.count||0} · ${s.requiredLevel||0}级</span>
         <button class="seed-up" data-list="${listId}" data-seed="${s.seedId}" ${i === 0 ? 'disabled' : ''} style="flex:none;border:1px solid var(--border);background:transparent;border-radius:5px;font-size:10px;cursor:pointer;padding:1px 7px">↑</button>
         <button class="seed-dn" data-list="${listId}" data-seed="${s.seedId}" ${i === items.length - 1 ? 'disabled' : ''} style="flex:none;border:1px solid var(--border);background:transparent;border-radius:5px;font-size:10px;cursor:pointer;padding:1px 7px">↓</button>
       </div>`).join('');
