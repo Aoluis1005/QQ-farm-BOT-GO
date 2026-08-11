@@ -61,14 +61,14 @@ func getFruitLayerByFruitID(fruitID int) int {
 	return 0
 }
 
-// getSeedImageBySeedId 种子图片 URL（对齐 Node getSeedImageBySeedId → seedImageMap）
-// Go 侧图片映射由 InitImageMap 从 seed_images_named 目录建立。
+// getSeedImageBySeedId 种子图片来源（对齐 Node getMappedSeedImage：id 直查 + asset_name 回退，不做 fruit→seed 换算）
+// 图鉴 buildIllustratedItem 传的是果实id，经 asset_name（如 Crop_1）命中同源图片。
 func getSeedImageBySeedID(seedID int) string {
-	return GetItemImageURL(seedID)
+	return getSeedImageBySeedIdURL(seedID)
 }
 
-// getItemImageById 物品图片 URL（对齐 Node getItemImageById → seedImageMap / itemInfo.asset_name 兜底）
-// Go 侧统一走 itemImageMap；未命中返回空串（前端用占位图标兜底）。
+// getItemImageById 物品图片 URL（对齐 Node getItemImageById：id/asset_name 直查 + fruit→seed 换算兜底）
+// 分析接口传 plant.seed_id，正常直查即命中。
 func getItemImageByID(itemID int) string {
 	return GetItemImageURL(itemID)
 }
