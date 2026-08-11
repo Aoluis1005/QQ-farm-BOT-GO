@@ -37,6 +37,7 @@ type Client struct {
 	firstToken string // 首次请求(登录)的 ACE 初始化凭据
 	seq        int64
 	mu         sync.Mutex
+	writeMu    sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
 	pending    map[int64]chan *proto.Message
 	accountID  string
 	giftHook   func(accountID string, delta int64)
@@ -189,9 +190,15 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	ctx2, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	if err := c.conn.Write(ctx2, websocket.MessageBinary, payload); err != nil {
+	// 串行化写：nhooyr.io/websocket 不允许并发 Write，而 Go 多线程下单连接会被
+	// 自动化 goroutine / 前端 handler / 心跳同时写，不加锁会交错损坏帧 → 网关超时/拿不到数据。
+	// 仅 Write 阶段持锁，readLoop 在另一把锁(mu)上读 pending，不会死锁。
+	c.writeMu.Lock()
+	writeErr := c.conn.Write(ctx2, websocket.MessageBinary, payload)
+	c.writeMu.Unlock()
+	if writeErr != nil {
 		c.removePending(seq)
-		return nil, err
+		return nil, writeErr
 	}
 
 	select {

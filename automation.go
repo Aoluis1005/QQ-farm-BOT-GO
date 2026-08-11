@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -560,6 +561,10 @@ type bagSeedItem struct {
 
 var errNoSeed = &seedErr{"no available seed"}
 
+// errGoldShort 金币不足以购买所需种子（对齐 Node planting-service.js 金币预检：缩减购买数，为 0 则跳过）。
+// 调用方应据此跳过该组种植，而非当作致命错误。
+var errGoldShort = errors.New("金币不足，跳过购买")
+
 type seedErr struct{ msg string }
 
 func (e *seedErr) Error() string { return e.msg }
@@ -749,6 +754,21 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int6
 	if goodsID <= 0 {
 		return 0, errNoSeed
 	}
+	// 金币预检（对齐 Node planting-service.js:1058-1069：金币不足则缩减购买数，为 0 则跳过购买）。
+	// Go 按组种植，每个 ensureSeedOwned 只买 need 颗（通常为 1）；单价高于余额或总价超余额时跳过该组，
+	// 不再直接发起购买（避免无谓失败与误扣）。
+	if price > 0 && c.Gold() > 0 {
+		if price > c.Gold() {
+			return 0, errGoldShort
+		}
+		if price*buy > c.Gold() {
+			affordable := c.Gold() / price
+			if affordable <= 0 {
+				return 0, errGoldShort
+			}
+			buy = affordable
+		}
+	}
 	brep, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "BuyGoods",
 		proto.EncodeBuyGoodsRequest(goodsID, buy, price), 12*time.Second)
 	if err != nil {
@@ -872,7 +892,11 @@ func plantFromShopLands(accountID string, c *gw.Client, cfg config.AccountConfig
 		}
 		realSeed, err := ensureSeedOwned(c, seedID, goodsID, price, 1)
 		if err != nil || realSeed <= 0 {
-			appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
+			if errors.Is(err, errGoldShort) {
+				appendOpLog(accountID, "farm", fmt.Sprintf("金币不足，跳过购买种子 %d（单价 %d）", seedID, price))
+			} else {
+				appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
+			}
 			continue
 		}
 		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{m})); err != nil {

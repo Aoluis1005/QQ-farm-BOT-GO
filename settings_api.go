@@ -54,6 +54,39 @@ func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/settings/save  全量保存账号配置（除 automation；automation 走 /api/automation）
+// ── 设置合法性钳制（对齐 Node models/store.js:474-481 / 581-644） ──
+var allowedPlantingStrategies = map[string]bool{
+	"preferred":        true,
+	"level":            true,
+	"max_exp":          true,
+	"max_fert_exp":     true,
+	"max_profit":       true,
+	"max_fert_profit":  true,
+	"bag_priority":     true,
+}
+
+// clampPlantDelaySeconds 对齐 Node: Math.max(0, Math.min(60, Number(x) || 2))
+func clampPlantDelaySeconds(v int) int {
+	if v == 0 {
+		return 2
+	}
+	if v < 0 {
+		return 0
+	}
+	if v > 60 {
+		return 60
+	}
+	return v
+}
+
+// normalizePlantingConfig 把种植策略/延迟钳制到合法范围，非法策略归一到 Node 默认 max_exp。
+func normalizePlantingConfig(cfg *config.AccountConfig) {
+	if !allowedPlantingStrategies[cfg.PlantingStrategy] {
+		cfg.PlantingStrategy = "max_exp"
+	}
+	cfg.PlantDelaySeconds = clampPlantDelaySeconds(cfg.PlantDelaySeconds)
+}
+
 func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -69,6 +102,7 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad json: "+err.Error())
 		return
 	}
+	normalizePlantingConfig(&cfg)
 	if err := models.SetAccountConfig(accountID, cfg); err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -119,6 +153,7 @@ func handleDefaultPlan(w http.ResponseWriter, r *http.Request) {
 		if body.Enabled != nil {
 			enabled = *body.Enabled
 		}
+		normalizePlantingConfig(&body.Config)
 		if err := models.SetUserDefaultPlan(body.Config, enabled); err != nil {
 			writeError(w, 500, err.Error())
 			return
