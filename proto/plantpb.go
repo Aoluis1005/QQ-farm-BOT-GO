@@ -23,10 +23,10 @@ const (
 
 // PlantPhaseInfo 生长阶段
 type PlantPhaseInfo struct {
-	Phase     int32
-	BeginTime int64
-	DryTime   int64
-	WeedsTime int64
+	Phase      int32
+	BeginTime  int64
+	DryTime    int64
+	WeedsTime  int64
 	InsectTime int64
 }
 
@@ -53,26 +53,59 @@ func (p *PlantPhaseInfo) decode(buf []byte) {
 
 // PlantInfo 作物信息
 type PlantInfo struct {
-	ID              int64
-	Name            string
-	Phases          []*PlantPhaseInfo
-	Season          int64   // 当前季（plantpb.proto season=5）
-	MutantConfigIDs []int64 // 变异配置ID（plantpb.proto mutant_config_ids=20）
-	DryNum          int64   // 缺水次数
-	StoleNum     int64
-	FruitID      int64
-	FruitNum     int64
-	WeedOwners   []int64
-	InsectOwners []int64
-	Stealers     []int64
-	GrowSec      int64
-	Stealable    bool
-	LeftFruitNum int64
-	IsNudged     bool
-	LeftInorcFertTimes    int64 // 剩余有机肥次数（plantpb.proto left_inorc_fert_times=17）
-	HasLeftInorcFertTimes bool  // 服务端是否下发该字段（proto3 默认0无法区分有无）
-	WeedNum      int64 // 有草地块数（当前 proto 未下发，默认0；friend_service 依赖字段存在）
-	InsectNum    int64 // 有虫地块数
+	ID                    int64
+	Name                  string
+	Phases                []*PlantPhaseInfo
+	Season                int64   // 当前季（plantpb.proto season=5）
+	MutantConfigIDs       []int64 // 变异配置ID（plantpb.proto mutant_config_ids=20）
+	DryNum                int64   // 缺水次数
+	StoleNum              int64
+	FruitID               int64
+	FruitNum              int64
+	WeedOwners            []int64
+	InsectOwners          []int64
+	Stealers              []int64
+	GrowSec               int64
+	Stealable             bool
+	LeftFruitNum          int64
+	IsNudged              bool
+	LeftInorcFertTimes    int64         // 剩余有机肥次数（plantpb.proto left_inorc_fert_times=17）
+	HasLeftInorcFertTimes bool          // 服务端是否下发该字段（proto3 默认0无法区分有无）
+	WeedNum               int64         // 有草地块数（当前 proto 未下发，默认0；friend_service 依赖字段存在）
+	InsectNum             int64         // 有虫地块数
+	SocialItems           []*SocialItem // 好友放置的背包型社交道具（plantpb.proto social_items=35）
+}
+
+// SocialItem 背包型社交道具（plantpb.proto SocialItem），用于判定黄金虫
+// 字段依据 2026-07-12 黄金虫抓包：item_id=1 count=2 type=3 owner_gid=4 created_at=5
+// 黄金虫判定：item_id==301101 && type==2（对齐 Node farm-land-analyzer.js GOLDEN_BUG_ITEM_ID/GOLDEN_BUG_SOCIAL_TYPE）
+type SocialItem struct {
+	ID        int64 // item_id=1
+	Count     int64 // count=2
+	Type      int64 // type=3
+	OwnerGID  int64 // owner_gid=4
+	CreatedAt int64 // created_at=5
+}
+
+func (si *SocialItem) decode(buf []byte) {
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		switch field {
+		case 1:
+			si.ID = r.ReadInt64()
+		case 2:
+			si.Count = r.ReadInt64()
+		case 3:
+			si.Type = r.ReadInt64()
+		case 4:
+			si.OwnerGID = r.ReadInt64()
+		case 5:
+			si.CreatedAt = r.ReadInt64()
+		default:
+			r.Skip(wire)
+		}
+		return true
+	})
 }
 
 func (p *PlantInfo) decode(buf []byte) {
@@ -121,6 +154,14 @@ func (p *PlantInfo) decode(buf []byte) {
 			p.MutantConfigIDs = r.AppendRepeatedInt64(wire, p.MutantConfigIDs)
 		case 21:
 			p.IsNudged = r.ReadInt64() != 0
+		case 35:
+			if wire == WireLen {
+				si := &SocialItem{}
+				si.decode(r.ReadBytes())
+				p.SocialItems = append(p.SocialItems, si)
+			} else {
+				r.Skip(wire)
+			}
 		default:
 			r.Skip(wire)
 		}
@@ -134,12 +175,12 @@ type LandInfo struct {
 	Unlocked     bool
 	Level        int64
 	MaxLevel     int64
-	CouldUnlock  bool // plantpb.proto could_unlock=5
-	CouldUpgrade bool // plantpb.proto could_upgrade=6
-	MasterLandID int64 // plantpb.proto master_land_id=13
+	CouldUnlock  bool    // plantpb.proto could_unlock=5
+	CouldUpgrade bool    // plantpb.proto could_upgrade=6
+	MasterLandID int64   // plantpb.proto master_land_id=13
 	SlaveLandIDs []int64 // plantpb.proto slave_land_ids=14
-	LandSize     int64 // plantpb.proto land_size=15
-	LandsLevel   int64 // plantpb.proto lands_level=16
+	LandSize     int64   // plantpb.proto land_size=15
+	LandsLevel   int64   // plantpb.proto lands_level=16
 	Plant        *PlantInfo
 }
 
@@ -442,4 +483,3 @@ func DecodeOperationLimits(buf []byte) []OperationLimit {
 	})
 	return out
 }
-

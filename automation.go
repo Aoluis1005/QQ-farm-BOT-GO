@@ -323,11 +323,18 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		farmingIDs = append(farmingIDs, a.needWeed...)
 		farmingIDs = append(farmingIDs, a.needBug...)
 	}
-	// GoldenBugClear：黄金虫本质也是草/虫，已并入 needWeed/needBug 的务农调用
+	// GoldenBugClear：独立开关控制清除好友放置的黄金虫（对齐 Node runFarmOperation golden_bug_clear）
+	if cfg.Automation.GoldenBugClear {
+		farmingIDs = append(farmingIDs, a.needGoldenBug...)
+	}
 	farmingIDs = dedupeInt64(farmingIDs)
 	if len(farmingIDs) > 0 {
 		if err := execFarmOp(c, "Farming", proto.EncodeFarmingRequest(farmingIDs, c.GID)); err == nil {
 			recordOperation(accountID, "farming", int64(len(farmingIDs)))
+			// 金虫单独统计（对齐 Node recordOperation('goldenBugClear')）
+			if len(a.needGoldenBug) > 0 {
+				recordOperation(accountID, "goldenBugClear", int64(len(a.needGoldenBug)))
+			}
 			appendOpLog(accountID, "farm", fmt.Sprintf("一键务农 %d 块地", len(farmingIDs)))
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -394,15 +401,16 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 
 // farmAnalysis 地块分类（对齐 Node farm-land-analyzer.js analyzeLands），只处理已解锁且非从属地块
 type farmAnalysis struct {
-	needWater    []int64
-	needWeed     []int64
-	needBug      []int64
-	harvestable  []int64
-	dead         []int64
-	empty        []int64
-	growing      []int64
-	couldUnlock  []int64
-	couldUpgrade []int64
+	needWater     []int64
+	needWeed      []int64
+	needBug       []int64
+	needGoldenBug []int64
+	harvestable   []int64
+	dead          []int64
+	empty         []int64
+	growing       []int64
+	couldUnlock   []int64
+	couldUpgrade  []int64
 }
 
 func analyzeFarmLands(lands []*proto.LandInfo, now int64) farmAnalysis {
@@ -449,8 +457,26 @@ func analyzeFarmLands(lands []*proto.LandInfo, now int64) farmAnalysis {
 		if len(l.Plant.InsectOwners) > 0 || (ph.InsectTime > 0 && ph.InsectTime <= now) {
 			a.needBug = append(a.needBug, l.ID)
 		}
+		// 黄金虫判定：好友放置到作物上的社交金虫（plantpb.proto social_items 字段35）
+		// 对齐 Node farm-land-analyzer.js hasGoldenBug：item_id==301101 && type==2
+		if hasGoldenBug(l.Plant) {
+			a.needGoldenBug = append(a.needGoldenBug, l.ID)
+		}
 	}
 	return a
+}
+
+// hasGoldenBug 判断作物上是否有好友放置的黄金虫（对齐 Node hasGoldenBug）
+func hasGoldenBug(p *proto.PlantInfo) bool {
+	if p == nil {
+		return false
+	}
+	for _, si := range p.SocialItems {
+		if si != nil && si.Type == 2 && si.ID == 301101 {
+			return true
+		}
+	}
+	return false
 }
 
 func dedupeInt64(in []int64) []int64 {
