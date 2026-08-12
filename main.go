@@ -124,6 +124,7 @@ func main() {
 	registerAnalyticsAPI(api)
 	registerActivityAPI(api)
 	registerShopAPI(api)
+	registerTaskAPI(api)
 	registerAdminAuthAPI(api)
 
 	mux.Handle("/api/", corsHandler(adminAuthMiddleware(api)))

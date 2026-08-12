@@ -179,3 +179,9 @@ func handleTaskClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "claimed_task": req.TaskID})
 }
+
+// registerTaskAPI 注册每日/成长任务相关接口（b6a4961 仅加了 handler 却漏注册，导致 /api/task/daily 一直 404 → 每日任务页长期无数据）
+func registerTaskAPI(mux *http.ServeMux) {
+	mux.HandleFunc("/api/task/daily", handleTaskDaily)
+	mux.HandleFunc("/api/task/claim", handleTaskClaim)
+}
