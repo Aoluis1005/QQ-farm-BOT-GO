@@ -54,6 +54,7 @@ type Client struct {
 	coupon       int64
 	goldBean     int64
 	avatar       string // 玩家头像 URL（登录后或首次获取生涯统计时缓存）
+	openID       string // 登录用户 openId（ACE 反作弊身份绑定，对齐 Node bindUser）
 
 	ace *ace.Runtime
 
@@ -132,6 +133,16 @@ func (c *Client) Connect(ctx context.Context, code string) error {
 	if err := c.login(ctx, code); err != nil {
 		return err
 	}
+	// ACE 反作弊身份绑定：登录拿到 openId 后必须先 BindUser 再重新生成初始化凭据，
+	// 否则后续请求携带的 ACE 令牌为"无用户"状态，反作弊上报身份残缺 → 风控封号。
+	// 对齐 Node network.js: bindUser(openId) → getEncryptedInitInfo() → startHeartbeat/startAce。
+	if c.openID != "" {
+		if berr := c.ace.BindUser(c.openID); berr != nil {
+			log.Printf("[gw] 账号 %s ACE BindUser 失败: %v", c.openID, berr)
+		} else if initInfo, ierr := c.ace.EncryptedInitInfo(); ierr == nil && initInfo != "" {
+			c.firstToken = initInfo // 覆盖登录前生成的未绑定令牌，供后续请求使用
+		}
+	}
 	return nil
 }
 
@@ -154,6 +165,7 @@ func (c *Client) login(ctx context.Context, code string) error {
 	if lr.Basic.Avatar != "" {
 		c.avatar = lr.Basic.Avatar
 	}
+	c.openID = lr.Basic.OpenID // 缓存 openId 供 ACE BindUser 使用
 	return nil
 }
 
