@@ -392,6 +392,13 @@ func (c *Client) StartHeartbeat(ctx context.Context) {
 	}()
 }
 
+// SetClientVersion 更新客户端版本号（热更新：保存系统配置后秒级生效，无需重连；对齐 Node config_sync）
+func (c *Client) SetClientVersion(v string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cfg.ClientVersion = v
+}
+
 // IsClosed 连接是否已断开（幂等，非阻塞）
 func (c *Client) IsClosed() bool {
 	select {

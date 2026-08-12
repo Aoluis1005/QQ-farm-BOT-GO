@@ -1584,11 +1584,21 @@ body{
   <!-- ============ 设置占位 ============ -->
   <section class="page" id="page-settings">
     <div class="subbar"><button class="icon-btn" data-back>‹</button><h3>设置</h3></div>
-    <div class="placeholder">
-      <div class="big">⚙️</div>
-      <h3>设置</h3>
-      <p>主题 · 通知 · 账号与云备份</p>
-      <span class="badge">占位</span>
+    <div style="padding:12px;">
+      <!-- 客户端版本号（对齐 Node AdminSystemPanel 系统配置） -->
+      <div class="sec-title" style="margin:2px 0 12px"><span>系统配置</span></div>
+      <div style="background:#151d27;border:1px solid #232f3d;border-radius:14px;padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-size:12px;color:#8b99a8;">当前客户端版本</span>
+          <span id="sysCurVer" style="font-size:13px;font-weight:700;color:#3b82f6;">加载中…</span>
+        </div>
+        <div style="font-size:11px;color:#8b99a8;margin-bottom:10px;line-height:1.6;">
+          客户端版本号用于网关登录与心跳。保存后对所有已连接账号<strong style="color:#e8a23d;">秒级生效，无需重启</strong>。
+          版本与服务器地址通常需成对调整，请勿随意改动，建议先在测试环境验证再同步生产。
+        </div>
+        <input class="field" id="sysClientVersion" type="text" placeholder="1.13.0.4_20260723" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+        <button id="sysSaveVer" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;">保存客户端版本</button>
+      </div>
     </div>
   </section>
 
@@ -1812,6 +1822,35 @@ body{
         .finally(function () { chgBtn.disabled = false; chgBtn.textContent = t; });
     });
   }
+})();
+
+/* ===== 系统配置：客户端版本号（对齐 Node AdminSystemPanel） ===== */
+(function () {
+  function $id(i) { return document.getElementById(i); }
+  function loadSysVer() {
+    fetch('/api/admin/system-config').then(function (r) { return r.json(); }).then(function (d) {
+      if (!(d && d.ok && d.data)) return;
+      var cur = $id('sysCurVer'); if (cur) cur.textContent = d.data.clientVersion || '-';
+      var inp = $id('sysClientVersion'); if (inp) inp.value = d.data.clientVersion || '';
+    }).catch(function () {});
+  }
+  var btn = $id('sysSaveVer');
+  if (btn) btn.addEventListener('click', function () {
+    var inp = $id('sysClientVersion');
+    var v = (inp ? inp.value : '').trim();
+    if (!v) { toast('请输入客户端版本号', false); return; }
+    if (!confirm('确认将客户端版本号改为：' + v + ' ？保存后立即使所有已连接账号生效。')) return;
+    btn.disabled = true; var t = btn.textContent; btn.textContent = '保存中…';
+    fetch('/api/admin/system-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientVersion: v }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) { toast('已保存并热更新', true); var c = $id('sysCurVer'); if (c) c.textContent = v; }
+        else toast((d && d.error) || '保存失败', false);
+      })
+      .catch(function () { toast('网络错误', false); })
+      .finally(function () { btn.disabled = false; btn.textContent = t; });
+  });
+  loadSysVer();
 })();
 /* 全局 toast 提示（对齐 Node；替换原生 alert 阻塞弹窗） */
 function toast(msg, ok){

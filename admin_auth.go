@@ -137,6 +137,7 @@ func registerAdminAuthAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/admin/setup", handleAdminSetup)
 	api.HandleFunc("/api/admin/change-password", handleAdminChangePassword)
 	api.HandleFunc("/api/admin/logout", handleAdminLogout)
+	api.HandleFunc("/api/admin/system-config", handleAdminSystemConfig)
 }
 
 // status: 后台鉴权状态（是否已初始化密码）
@@ -233,6 +234,40 @@ func handleAdminChangePassword(w http.ResponseWriter, r *http.Request) {
 func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	adminTokenRevoke(adminTokenFromRequest(r))
 	writeJSON(w, map[string]interface{}{"ok": true})
+}
+
+// handleAdminSystemConfig 读取/更新系统配置（客户端版本号热更新，对齐 Node /api/admin/system-config）
+func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetSystemConfig()})
+		return
+	case "POST":
+		var body struct {
+			ClientVersion string `json:"clientVersion"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeError(w, 400, "参数错误")
+			return
+		}
+		cv := strings.TrimSpace(body.ClientVersion)
+		if cv == "" {
+			writeError(w, 400, "客户端版本号不能为空")
+			return
+		}
+		sc := models.GetSystemConfig()
+		sc.ClientVersion = cv
+		if err := models.SetSystemConfig(sc); err != nil {
+			writeError(w, 500, "保存失败: "+err.Error())
+			return
+		}
+		// 热更新所有已连接账号（秒级生效，无需重启，对齐 Node config_sync）
+		clientPool.UpdateClientVersion(sc.ClientVersion)
+		writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetSystemConfig()})
+		return
+	default:
+		writeError(w, 405, "method not allowed")
+	}
 }
 
 // ---- apiPublicPath: 免鉴权的公开路径 ----

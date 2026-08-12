@@ -49,9 +49,14 @@ func gwConfig(platform string) gw.Config {
 		// YYB 扫码等渠道本质是 WX 渠道（对标 Node platform='wx'）
 		platform = "wx"
 	}
+	// 客户端版本号从系统配置读取（对齐 Node CONFIG.clientVersion），空则回退默认
+	cv := models.GetSystemConfig().ClientVersion
+	if cv == "" {
+		cv = "1.13.0.4_20260723"
+	}
 	return gw.Config{
 		ServerURL:       "wss://gate-obt.nqf.qq.com/prod/ws",
-		ClientVersion:   "1.13.0.4_20260723",
+		ClientVersion:   cv,
 		Platform:        platform,
 		OS:              "iOS",
 		HeartbeatMillis: 25000,
@@ -241,6 +246,17 @@ func (p *ClientPool) evict(accountID string) {
 	delete(p.stopped, accountID)
 	delete(p.kickBackoffUntil, accountID)
 	p.mu.Unlock()
+}
+
+// UpdateClientVersion 热更新所有已连接账号的客户端版本号（保存系统配置后秒级生效，对齐 Node config_sync，无需重启）
+func (p *ClientPool) UpdateClientVersion(v string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.m {
+		if c != nil {
+			c.SetClientVersion(v)
+		}
+	}
 }
 
 // Close 关闭全部连接

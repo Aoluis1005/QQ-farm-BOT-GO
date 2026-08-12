@@ -387,6 +387,17 @@ func GetSystemConfig() config.SystemConfig {
 	return globalConfig.SystemConfig
 }
 
+// SetSystemConfig 保存系统配置（客户端版本号等；空 clientVersion 回退默认值）
+func SetSystemConfig(c config.SystemConfig) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if c.ClientVersion == "" {
+		c.ClientVersion = config.DefaultSystemConfig().ClientVersion
+	}
+	globalConfig.SystemConfig = c
+	return saveGlobalConfig()
+}
+
 // GetGatewayConfig 获取网关配置（环境变量优先）
 func GetGatewayConfig() config.GatewayConfig {
 	cfg := config.DefaultGatewayConfig()
