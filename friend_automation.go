@@ -57,6 +57,10 @@ var (
 	firstFriendFetchMu   sync.Mutex
 	firstFriendFetchDone = map[string]bool{}
 
+	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求改为 60min）
+	lastFullDogInfoRefreshAt int64
+	dogInfoBootstrapReadyAt  int64
+
 	// expLimitCallback 经验上限跨日重置回调（对齐 Node ensureExpLimitCallback）
 	onExpLimitReachedFn func()
 	onExpLimitResetFn   func()
@@ -296,6 +300,43 @@ func isIgnorableBadFailureMessage(msg string) bool {
 
 // checkFriends 好友巡查主流程（对齐 Node friend-orchestrator.js checkFriends：
 // 偷 → 卖 → 帮 → 捣；护主犬信息随进入好友农场时刷新，见 doFriendOperation 内 cacheFriendDog）。
+// bootstrapFriendDogInfoCacheIfNeeded 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded）
+// 缓存为空或距上次全量刷新超 60min → 遍历好友进农场重建护主犬缓存；失败下轮重试
+func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends []*proto.GameFriend) {
+	now := time.Now().Unix()
+	// 首次启动延迟 2min（上号稳定后再拉，对齐 Node dogInfoBootstrapReadyAt）
+	if dogInfoBootstrapReadyAt == 0 {
+		dogInfoBootstrapReadyAt = now + 120
+		return
+	}
+	if now < dogInfoBootstrapReadyAt {
+		return
+	}
+	m, _ := readDogCache(accountID)
+	cacheEmpty := len(m) == 0
+	stale := now-lastFullDogInfoRefreshAt > 3600 // 60min（用户要求，Node 默认 30min）
+	if !cacheEmpty && !stale {
+		return
+	}
+	lastFullDogInfoRefreshAt = now
+	appendOpLog(accountID, "friend", "护主犬缓存全量刷新开始")
+	for _, f := range friends {
+		if f == nil || f.GID <= 0 {
+			continue
+		}
+		_, rep, err := enterFriendFarm(c, f.GID, 2, "")
+		if err != nil {
+			// 进入失败：清理该好友缓存（对齐 Node 失败下轮重试/清除伪护主犬）
+			cacheFriendDog(f.GID, &proto.VisitEnterReply{})
+			continue
+		}
+		cacheFriendDog(f.GID, rep)
+		leaveFriendFarm(c, f.GID)
+		time.Sleep(randomIntervalMs(800, 1500))
+	}
+	appendOpLog(accountID, "friend", "护主犬缓存全量刷新完成")
+}
+
 func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) {
 	// 防并发（对齐 Node isCheckingFriends 互斥）
 	checkingFriendsMu.Lock()
@@ -360,6 +401,9 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	if err != nil || len(friends) == 0 {
 		return
 	}
+
+	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求 60min）
+	bootstrapFriendDogInfoCacheIfNeeded(c, accountID, friends)
 
 	bl := readBlacklist(accountID)
 	isBlacklisted := func(gid int64) (skipSteal, skipHelp bool) {
