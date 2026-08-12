@@ -128,6 +128,11 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 	appendOpLog(accountID, "重连", "正在自动重连...")
 	_, err := p.connectLocked(acc)
 	if err != nil {
+		// 封号（权限不足 code=1000016）：永久关闭该号自动重连，避免反复打无效登录。
+		if gw.IsBanError(err) {
+			p.disableAutoReconnectForBan(accountID)
+			return
+		}
 		// 失败：计数已在调度时累加，这里保持计数，等待下一轮重试
 		p.mu.Lock()
 		att := p.reconnectAttempts[accountID]
@@ -162,6 +167,23 @@ func (p *ClientPool) TryReconnectNow(accountID string) {
 	// 手动触发：先重置状态（对齐 Node 手动操作清零），再执行重连
 	p.resetAutoReconnect(accountID)
 	p.reconnectAccount(accountID)
+}
+
+// disableAutoReconnectForBan 账号被封(1000016)时永久关闭自动重连：写库 disabled + 标记 stopped，
+// 使后台扫描与手动重试都不再登录该号（封号后任何登录都是无效且可能加重风险）。
+func (p *ClientPool) disableAutoReconnectForBan(accountID string) {
+	cfg := models.GetAutoReconnect(accountID)
+	if cfg.Enabled {
+		if serr := models.SetAutoReconnect(accountID, false, cfg.ReconnectDelayMin, cfg.ReconnectMaxAttempts); serr != nil {
+			log.Printf("[reconnect] 账号 %s 保存封号停用配置失败: %v", accountID, serr)
+		}
+	}
+	p.mu.Lock()
+	p.stopped[accountID] = true
+	delete(p.reconnectAttempts, accountID)
+	p.mu.Unlock()
+	log.Printf("[reconnect] 账号 %s 返回封号码(1000016)，已永久关闭自动重连", accountID)
+	appendOpLog(accountID, "重连", "账号已被封禁(1000016)，已永久关闭自动重连")
 }
 
 // resetAutoReconnect 清零某账号的断线/重连计数/停止标记（手动触发或踢下线/删除调用）

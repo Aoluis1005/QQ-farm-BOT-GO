@@ -165,8 +165,8 @@ func (p *ClientPool) connectLocked(acc *models.Account) (*gw.Client, error) {
 	p.mu.Unlock()
 
 	c, err := connect(acc)
-	if err != nil {
-		// code 过期 → 用持久 openid 自动刷新重试一次
+	if err != nil && !gw.IsBanError(err) {
+		// code 过期 → 用持久 openid 自动刷新重试一次（封号 1000016 直接放弃，不再无效重试）
 		if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
 			acc.Code = newCode
 			models.AddOrUpdateAccount(*acc)

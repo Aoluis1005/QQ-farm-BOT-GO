@@ -4,6 +4,7 @@ package gw
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -216,7 +217,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	}
 
 	select {
-	case msg := <-ch:
+		case msg := <-ch:
 		if msg.Meta != nil && msg.Meta.ErrorCode != 0 {
 			// 账号在别处登录等致命码：触发连接池重连（对齐 Node kickout 事件），并关闭当前连接。
 			if isKickCode(msg.Meta.ErrorCode) && c.kickHook != nil {
@@ -224,7 +225,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 				go c.kickHook()
 				c.Close()
 			}
-			return msg, fmt.Errorf("%s.%s code=%d %s", service, method, msg.Meta.ErrorCode, msg.Meta.ErrorMessage)
+			return msg, &gwError{Code: msg.Meta.ErrorCode, Message: msg.Meta.ErrorMessage}
 		}
 		return msg, nil
 	case <-ctx2.Done():
@@ -351,6 +352,30 @@ func (c *Client) SetKickHook(f func()) {
 // 仅识别已确认的踢下线码，避免把瞬时错误误判为被踢而频繁重连。
 func isKickCode(code int64) bool {
 	return code == 1000014
+}
+
+// gwError 携带网关错误码的结构化错误（对标 Node 网关返回的 ErrorCode/ErrorMessage），
+// 供连接池在不依赖字符串匹配的前提下判断封号等致命错误。
+type gwError struct {
+	Code    int64
+	Message string
+}
+
+func (e *gwError) Error() string {
+	return fmt.Sprintf("code=%d %s", e.Code, e.Message)
+}
+
+// BanCode 封号错误码：权限不足，不能登录（账号被封禁，任何重连都是无效且可能加重风险）。
+const BanCode int64 = 1000016
+
+// IsBanError 判断错误是否为封号错误（权限不足，不能登录 code=1000016）。
+// 通过 errors.As 解开 fmt.Errorf("%w") 包装链，可靠匹配而非字符串硬匹配。
+func IsBanError(err error) bool {
+	var ge *gwError
+	if errors.As(err, &ge) {
+		return ge.Code == BanCode
+	}
+	return false
 }
 
 // prime 登录成功后预拉首页所需数据缓存（对齐 Node 常驻预载）
