@@ -33,6 +33,13 @@ var (
 	// farm 执行互斥：farm_push 推送触发与 automationLoop 串行 farm 不能同时执行（对齐 Node isCheckingFarm）
 	farmBusyMu  sync.Mutex
 	farmBusySet = map[string]bool{}
+
+	// 2x2 预留机制（对齐 Node plantPrioritized2x2Crops 预留等待四格清空）
+	reserved2x2Mu      sync.Mutex
+	reserved2x2        = map[string][]int64{} // groupKey -> landIDs
+	failed2x2RetriesMu sync.Mutex
+	failed2x2Retries   = map[string]int64{} // retryKey -> retryUntil Unix
+	last2x2WaitKey     string               // 避免重复日志（对齐 Node last2x2WaitingSignature）
 )
 
 type automationRunner struct {
@@ -520,14 +527,74 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		strategy = "level"
 	}
 
-	// 2x2 优先：用背包四格种子预留并种植（对齐 Node plantPrioritized2x2Crops，简化为种植当前完整空闲组）
+	// 2x2 优先：背包四格种子预留 + 等待四格清空（对齐 Node plantPrioritized2x2Crops）
 	if cfg.Prioritize2x2Crops {
 		var remainUnits []unit
+		// 提前拉取2x2种子列表（对齐 Node size2Seeds 筛选 plantSize==2）
+		seeds, seedsErr := listBagSeeds(accountID, c, cfg, 2)
+		if seedsErr != nil {
+			seeds = nil
+		} else {
+			has2x2 := false
+			for _, s := range seeds {
+				if s.count > 0 {
+					has2x2 = true
+					break
+				}
+			}
+			if !has2x2 {
+				seeds = nil
+			}
+		}
 		for _, u := range units {
 			if !u.is2x2 {
 				remainUnits = append(remainUnits, u)
 				continue
 			}
+			groupKey := fmt.Sprintf("2x2:%d", u.master)
+
+			// (A) 检查已预留：若预留地全空 → 种植并释放预留
+			reserved2x2Mu.Lock()
+			if reservedIDs, isReserved := reserved2x2[groupKey]; isReserved {
+				reserved2x2Mu.Unlock()
+				allReady := true
+				for _, lid := range reservedIDs {
+					if l := landByID[lid]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
+						allReady = false
+						break
+					}
+				}
+				if allReady && seeds != nil && len(seeds) > 0 {
+					realSeed, e2 := ensureSeedOwned(c, seeds[0].seedID, 0, 0, 1)
+					if e2 == nil && realSeed > 0 {
+						if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{u.master})); err == nil {
+							recordOperation(accountID, "plant", int64(len(u.ids)))
+							appendOpLog(accountID, "farm", fmt.Sprintf("2x2预留种植种子 %d → %d 块地", realSeed, len(u.ids)))
+							reserved2x2Mu.Lock()
+							delete(reserved2x2, groupKey)
+							reserved2x2Mu.Unlock()
+							time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+							continue
+						}
+						// 种植失败：记录重试冷却
+						retryKey := fmt.Sprintf("%s:%d", groupKey, seeds[0].seedID)
+						failed2x2RetriesMu.Lock()
+						failed2x2Retries[retryKey] = time.Now().Unix() + 600 // 10min冷却
+						failed2x2RetriesMu.Unlock()
+						appendOpLog(accountID, "farm", fmt.Sprintf("2x2 预留种植失败 seed=%d group=%s", realSeed, groupKey))
+					} else {
+						// 种子不可用，释放预留
+						reserved2x2Mu.Lock()
+						delete(reserved2x2, groupKey)
+						reserved2x2Mu.Unlock()
+					}
+				}
+				remainUnits = append(remainUnits, u)
+				continue
+			}
+			reserved2x2Mu.Unlock()
+
+			// (B) 未预留：全部空闲 → 立即种植；否则预留等待
 			allEmpty := true
 			for _, id := range u.ids {
 				if l := landByID[id]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
@@ -535,28 +602,45 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 					break
 				}
 			}
-			if !allEmpty {
+			if allEmpty {
+				if seeds != nil && len(seeds) > 0 {
+					realSeed, e2 := ensureSeedOwned(c, seeds[0].seedID, 0, 0, 1)
+					if e2 == nil && realSeed > 0 {
+						if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{u.master})); err == nil {
+							recordOperation(accountID, "plant", int64(len(u.ids)))
+							appendOpLog(accountID, "farm", fmt.Sprintf("2x2 种植种子 %d → %d 块地", realSeed, len(u.ids)))
+							time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+							continue
+						}
+					}
+				}
 				remainUnits = append(remainUnits, u)
 				continue
 			}
-			seeds, e := listBagSeeds(accountID, c, cfg, 2)
-			if e != nil || len(seeds) == 0 {
+
+			// (C) 不全空：检查失败重试冷却 → 预留
+			if seeds == nil || len(seeds) == 0 || seeds[0].seedID <= 0 {
 				remainUnits = append(remainUnits, u)
 				continue
 			}
-			realSeed, e2 := ensureSeedOwned(c, seeds[0].seedID, 0, 0, 1)
-			if e2 != nil || realSeed <= 0 {
+			retryKey := fmt.Sprintf("%s:%d", groupKey, seeds[0].seedID)
+			failed2x2RetriesMu.Lock()
+			if retryUntil, hasRetry := failed2x2Retries[retryKey]; hasRetry && time.Now().Unix() < retryUntil {
+				failed2x2RetriesMu.Unlock()
 				remainUnits = append(remainUnits, u)
 				continue
 			}
-			if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{u.master})); err != nil {
-				appendOpLog(accountID, "farm", fmt.Sprintf("2x2 种植 %d 失败: %v", realSeed, err))
-				remainUnits = append(remainUnits, u)
-				continue
+			failed2x2RetriesMu.Unlock()
+
+			// 预留
+			reserved2x2Mu.Lock()
+			reserved2x2[groupKey] = u.ids
+			reserved2x2Mu.Unlock()
+			if last2x2WaitKey != groupKey {
+				appendOpLog(accountID, "farm", fmt.Sprintf("2x2预留 种子%d 等待地块%v", seeds[0].seedID, u.ids))
+				last2x2WaitKey = groupKey
 			}
-			recordOperation(accountID, "plant", int64(len(u.ids)))
-			appendOpLog(accountID, "farm", fmt.Sprintf("2x2 种植种子 %d → %d 块地", realSeed, len(u.ids)))
-			time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
+			remainUnits = append(remainUnits, u)
 		}
 		units = remainUnits
 	}
