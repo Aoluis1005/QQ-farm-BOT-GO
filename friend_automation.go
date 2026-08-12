@@ -281,7 +281,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	}
 
 	// 3. 捣乱（受每日上限约束，对齐 Node BAD_DAILY_LIMIT）
-	if !onlySteal && cfg.Automation.FriendBad {
+	if !onlySteal && cfg.Automation.FriendBad && !cfg.Automation.FriendTurboMode {
 		for _, t := range badTargets {
 			if getBadRemainingTimes(accountID) <= 0 {
 				appendOpLog(accountID, "friend", "今日捣乱次数已达上限")

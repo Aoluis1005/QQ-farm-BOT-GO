@@ -21,9 +21,9 @@ type ClientPool struct {
 	inflight map[string]chan connectResult
 
 	// 掉线自动重连状态（accountID -> 状态）
-	offlineSince     map[string]time.Time // 首次检测到断线的时间
-	reconnectAttempts map[string]int      // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
-	stopped           map[string]bool     // 达上限后停止自动重连，直到手动触发/重新连上
+	offlineSince      map[string]time.Time // 首次检测到断线的时间
+	reconnectAttempts map[string]int       // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
+	stopped           map[string]bool      // 达上限后停止自动重连，直到手动触发/重新连上
 	kickBackoffUntil  map[string]time.Time // 被踢后重连防抖：下次允许重连的最早时间（避免与别处登录互踢自旋）
 }
 
@@ -122,6 +122,7 @@ func connect(acc *models.Account) (*gw.Client, error) {
 		return nil, fmt.Errorf("连接网关失败: %w", err)
 	}
 	c.SetGiftHook(acc.ID, recordGift)
+	c.SetFarmPushHook(newFarmPushHandler(acc.ID))
 	c.Prime() // 登录后立即预拉首页数据缓存
 	c.StartHeartbeat(context.Background())
 	// 对齐 Node network.js:583-584：登录成功后 startHeartbeat() + startAceService()

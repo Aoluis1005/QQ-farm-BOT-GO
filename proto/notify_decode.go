@@ -1,5 +1,22 @@
 package proto
 
+// DecodeLandsNotifyHostGid 解码土地变化通知的 host_gid（plantpb.proto LandsNotify: lands=1, host_gid=2）
+// 仅取 host_gid 用于判断通知是否属于本账号农场；0 或等于自身 GID 即本账号。
+func DecodeLandsNotifyHostGid(body []byte) int64 {
+	if len(body) == 0 {
+		return 0
+	}
+	r := NewReader(body)
+	var host int64
+	r.EachField(func(field, wire int, r *Reader) bool {
+		if field == 2 && wire == WireVarint {
+			host = r.ReadInt64()
+		}
+		return true
+	})
+	return host
+}
+
 // ItemChg 物品变化（notifypb.ItemNotify -> corepb.ItemChg）
 type ItemChg struct {
 	ID    int64

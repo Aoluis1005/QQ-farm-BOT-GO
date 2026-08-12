@@ -32,27 +32,28 @@ type Config struct {
 
 // Client 网关客户端
 type Client struct {
-	cfg        Config
-	conn       *websocket.Conn
-	authToken  string
-	firstToken string // 首次请求(登录)的 ACE 初始化凭据
-	seq        int64
-	mu         sync.Mutex
-	writeMu    sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
-	pending    map[int64]chan *proto.Message
-	kickHook   func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
-	accountID  string
-	giftHook   func(accountID string, delta int64)
-	GID        int64
-	landsBytes []byte // 预拉缓存：AllLands 原始 body
-	landsAt    time.Time
-	userName   string
-	level      int64
-	gold       int64
-	exp        int64
-	coupon     int64
-	goldBean   int64
-	avatar     string // 玩家头像 URL（登录后或首次获取生涯统计时缓存）
+	cfg          Config
+	conn         *websocket.Conn
+	authToken    string
+	firstToken   string // 首次请求(登录)的 ACE 初始化凭据
+	seq          int64
+	mu           sync.Mutex
+	writeMu      sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
+	pending      map[int64]chan *proto.Message
+	kickHook     func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
+	accountID    string
+	giftHook     func(accountID string, delta int64)
+	farmPushHook func(accountID string)
+	GID          int64
+	landsBytes   []byte // 预拉缓存：AllLands 原始 body
+	landsAt      time.Time
+	userName     string
+	level        int64
+	gold         int64
+	exp          int64
+	coupon       int64
+	goldBean     int64
+	avatar       string // 玩家头像 URL（登录后或首次获取生涯统计时缓存）
 
 	ace *ace.Runtime
 
@@ -253,6 +254,14 @@ func (c *Client) readLoop() {
 			strings.Contains(msg.Meta.MethodName, "ItemNotify") {
 			c.applyItemNotify(msg.Body)
 		}
+		// Notify 推送：LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push（对齐 Node landsChanged→onLandsChangedPush）
+		if msg.Meta.MessageType == proto.MsgTypeNotify &&
+			strings.Contains(msg.Meta.MethodName, "LandsNotify") {
+			host := proto.DecodeLandsNotifyHostGid(msg.Body)
+			if c.farmPushHook != nil && (host == 0 || host == c.GID) {
+				c.farmPushHook(c.accountID)
+			}
+		}
 	}
 }
 
@@ -315,6 +324,11 @@ func max64(a, b int64) int64 {
 func (c *Client) SetGiftHook(accountID string, hook func(accountID string, delta int64)) {
 	c.accountID = accountID
 	c.giftHook = hook
+}
+
+// SetFarmPushHook 注入农场推送回调（推送触发巡田；由连接池在创建时注册）
+func (c *Client) SetFarmPushHook(hook func(accountID string)) {
+	c.farmPushHook = hook
 }
 
 // SetKickHook 设置被踢回调（连接池在创建连接时注册，用于触发自动重连）

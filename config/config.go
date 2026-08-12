@@ -107,7 +107,7 @@ func DefaultAccountConfig() AccountConfig {
 		Automation: AutomationConfig{
 			Farm:                   true,
 			FarmPush:               true,
-			LandUpgrade:            false,
+			LandUpgrade:            true,
 			Friend:                 true,
 			FriendHelpExpLimit:     true,
 			FriendTurboMode:        false,
@@ -120,7 +120,7 @@ func DefaultAccountConfig() AccountConfig {
 			FertilizerBuyOrganic:   false,
 			FertilizerBuyNormal:    false,
 			MysteryAutoBuy:         false,
-			Sell:                   false,
+			Sell:                   true,
 			Fertilizer:             "smart_normal",
 			FertilizerMultiSeason:  true,
 			FertilizerSmartSeconds: 300,

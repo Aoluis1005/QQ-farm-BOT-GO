@@ -28,6 +28,9 @@ import (
 var (
 	automationMu      sync.Mutex
 	automationRunners = map[string]*automationRunner{}
+	// farm 执行互斥：farm_push 推送触发与 automationLoop 串行 farm 不能同时执行（对齐 Node isCheckingFarm）
+	farmBusyMu  sync.Mutex
+	farmBusySet = map[string]bool{}
 )
 
 type automationRunner struct {
@@ -112,20 +115,25 @@ func automationLoop(accountID string, stop chan struct{}) {
 	nextHelp := time.Now().Add(randomIntervalMs(30*1000, 35*1000))
 	// 买化肥首跑延迟 30s（对齐原 fertilizeBuyLoop），此后按配置间隔
 	nextBuy := time.Now().Add(30 * time.Second)
+	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
+	nextTask := time.Now().Add(15 * time.Second)
 
 	for {
 		cfg := getCfg()
 		now := time.Now()
 
 		shouldFarm := cfg.Automation.Farm && now.After(nextFarm)
-		shouldSteal := cfg.Automation.Friend && cfg.Automation.FriendSteal && now.After(nextSteal)
+		// 极速务农(turbo)：对齐 Node friend-orchestrator doHelp=(helpEnabled||turbo)、doSteal=(stealEnabled&&!turbo)、doBad=(badEnabled&&!turbo)
+		turbo := cfg.Automation.FriendTurboMode
+		shouldSteal := cfg.Automation.Friend && cfg.Automation.FriendSteal && !turbo && now.After(nextSteal)
 		shouldHelp := cfg.Automation.Friend &&
-			(cfg.Automation.FriendHelp || cfg.Automation.FriendBad || cfg.Automation.FriendGoldenBug) &&
+			(cfg.Automation.FriendHelp || cfg.Automation.FriendBad || cfg.Automation.FriendGoldenBug || turbo) &&
 			now.After(nextHelp)
 		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && now.After(nextBuy)
+		shouldTask := cfg.Automation.Task && now.After(nextTask)
 
 		// 无到期任务：睡到最近到期时刻再驱动一次 tick（对齐 scheduleUnifiedNextTick 取 nearest）
-		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy {
+		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask {
 			nearest := nextFarm
 			if nextSteal.Before(nearest) {
 				nearest = nextSteal
@@ -135,6 +143,9 @@ func automationLoop(accountID string, stop chan struct{}) {
 			}
 			if nextBuy.Before(nearest) {
 				nearest = nextBuy
+			}
+			if nextTask.Before(nearest) {
+				nearest = nextTask
 			}
 			wait := nearest.Sub(now)
 			if wait < 100*time.Millisecond {
@@ -159,7 +170,10 @@ func automationLoop(accountID string, stop chan struct{}) {
 		}
 
 		if shouldFarm {
-			runFarmOnce(accountID, c, cfg)
+			if tryLockFarm(accountID) {
+				runFarmOnce(accountID, c, cfg)
+				unlockFarm(accountID)
+			}
 			// 化肥礼包并入 farm tick（对齐 Node runFarmTick 内 openFertilizerGiftPacksSilently；
 			// 每日一次由 runFertilizerGiftOnce 内部防重）
 			if cfg.Automation.FertilizerGift {
@@ -179,6 +193,10 @@ func automationLoop(accountID string, stop chan struct{}) {
 			doCheckAndBuyFertilizer(accountID, c, cfg)
 			nextBuy = time.Now().Add(fetchBuyInterval(accountID))
 		}
+		if shouldTask {
+			runTaskAuto(accountID, c)
+			nextTask = time.Now().Add(30 * time.Second)
+		}
 	}
 }
 
@@ -189,6 +207,53 @@ func fetchBuyInterval(accountID string) time.Duration {
 		ivMin = 60
 	}
 	return time.Duration(ivMin) * time.Minute
+}
+
+// tryLockFarm 尝试占用指定账号的 farm 执行权（成功返回 true 并加锁；已被占用则跳过）
+func tryLockFarm(accountID string) bool {
+	farmBusyMu.Lock()
+	defer farmBusyMu.Unlock()
+	if farmBusySet[accountID] {
+		return false
+	}
+	farmBusySet[accountID] = true
+	return true
+}
+
+// unlockFarm 释放指定账号的 farm 执行权
+func unlockFarm(accountID string) {
+	farmBusyMu.Lock()
+	delete(farmBusySet, accountID)
+	farmBusyMu.Unlock()
+}
+
+// newFarmPushHandler 构建农场推送触发巡田处理器（对齐 Node onLandsChangedPush）：
+// 收到 LandsNotify 后 500ms 去抖，再延迟 1s 执行 runFarmOnce；若 farm 正在执行则跳过。
+func newFarmPushHandler(accountID string) func(string) {
+	last := time.Now().Add(-time.Hour)
+	var mu sync.Mutex
+	return func(_ string) {
+		now := time.Now()
+		mu.Lock()
+		if now.Sub(last) < 500*time.Millisecond {
+			mu.Unlock()
+			return
+		}
+		last = now
+		mu.Unlock()
+		time.AfterFunc(1*time.Second, func() {
+			if !tryLockFarm(accountID) {
+				return
+			}
+			defer unlockFarm(accountID)
+			c, err := clientPool.Get(accountID)
+			if err != nil || c == nil {
+				return
+			}
+			cfg := models.GetAccountConfig(accountID)
+			runFarmOnce(accountID, c, cfg)
+		})
+	}
 }
 
 // runFarmOnce 单次巡田（对齐 Node farming-orchestrator.js runFarmOperation('all') 顺序）
@@ -280,15 +345,15 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 
 // farmAnalysis 地块分类（对齐 Node farm-land-analyzer.js analyzeLands），只处理已解锁且非从属地块
 type farmAnalysis struct {
-	needWater     []int64
-	needWeed      []int64
-	needBug       []int64
-	harvestable   []int64
-	dead          []int64
-	empty         []int64
-	growing       []int64
-	couldUnlock   []int64
-	couldUpgrade  []int64
+	needWater    []int64
+	needWeed     []int64
+	needBug      []int64
+	harvestable  []int64
+	dead         []int64
+	empty        []int64
+	growing      []int64
+	couldUnlock  []int64
+	couldUpgrade []int64
 }
 
 func analyzeFarmLands(lands []*proto.LandInfo, now int64) farmAnalysis {
@@ -358,9 +423,9 @@ func dedupeInt64(in []int64) []int64 {
 
 // autoPlantLands 在给定空地/枯死地上种植（targetLandIDs 为 master/standalone 地块）
 // 对齐 Node planting-service.js autoPlantEmptyLands：
-//  1) 枯死先铲除；2) 2x2 优先（用背包四格种子预留并种植）；
-//  3) bag_priority 按背包种子顺序消耗（并按地块品质拆分），其余/剩余走第二优先策略；
-//  4) 其余策略走商城购买种植。
+//  1. 枯死先铲除；2) 2x2 优先（用背包四格种子预留并种植）；
+//  3. bag_priority 按背包种子顺序消耗（并按地块品质拆分），其余/剩余走第二优先策略；
+//  4. 其余策略走商城购买种植。
 func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, lands []*proto.LandInfo, targetLandIDs []int64) {
 	landByID := map[int64]*proto.LandInfo{}
 	for _, l := range lands {
