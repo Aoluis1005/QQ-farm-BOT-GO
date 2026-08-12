@@ -21,6 +21,8 @@ func registerFriendExtraAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/friend/batch-delete", handleFriendBatchDelete)
 	mux.HandleFunc("/api/friend-blacklist/update", handleFriendBlacklistUpdate)
 	mux.HandleFunc("/api/friend/dog/", handleFriendDogRoute)
+	mux.HandleFunc("/api/dog/gifts", handleDogGifts)
+	mux.HandleFunc("/api/dog/gifts/claim", handleDogGiftsClaim)
 }
 
 func randomDelay(min, max int) {

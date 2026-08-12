@@ -1434,10 +1434,12 @@ body{
 
   <!-- ============ 个人（农场/背包/好友） ============ -->
   <section class="page" id="page-profile">
-    <div class="seg">
+    <div class="seg seg-5">
       <button class="seg-btn active" data-seg="p-farm">🌾 农场</button>
       <button class="seg-btn" data-seg="p-bag">🎒 背包</button>
       <button class="seg-btn" data-seg="p-friends">👥 好友</button>
+      <button class="seg-btn" data-seg="p-daily">每日任务</button>
+      <button class="seg-btn" data-seg="p-dog">护主犬</button>
     </div>
 
     <!-- 农场子页 -->
@@ -1551,6 +1553,38 @@ body{
           <span id="delCount" style="font-size:11px;color:var(--muted);margin-left:8px"></span>
         </div>
         <div id="delList"></div>
+      </div>
+    </div>
+
+    <!-- 每日任务子页 -->
+    <div class="seg-pane" id="p-daily">
+      <div class="sec-title" style="margin-top:16px;margin-bottom:10px"><span>📋 每日任务</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1;border-radius:14px;background:var(--card-strong);padding:12px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--primary)" id="tdDone">--</div><div style="font-size:11px;color:var(--muted);margin-top:2px">今日已完成</div></div>
+        <div style="flex:1;border-radius:14px;background:var(--card-strong);padding:12px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--primary)" id="tdClaim">--</div><div style="font-size:11px;color:var(--muted);margin-top:2px">可领取</div></div>
+      </div>
+      <div style="border-radius:14px;background:var(--card-strong);padding:12px;margin-bottom:10px">
+        <div class="f-label" style="margin:2px 0 8px">每日任务</div>
+        <div id="dailyTaskList" style="font-size:12.5px"><p style="color:var(--muted)">加载中…</p></div>
+      </div>
+      <div style="border-radius:14px;background:var(--card-strong);padding:12px">
+        <div class="f-label" style="margin:2px 0 8px">成长任务</div>
+        <div id="growthTaskList" style="font-size:12.5px"><p style="color:var(--muted)">加载中…</p></div>
+      </div>
+    </div>
+
+    <!-- 护主犬奖励子页 -->
+    <div class="seg-pane" id="p-dog">
+      <div class="sec-title" style="margin-top:16px;margin-bottom:10px"><span>🐕 护主犬奖励</span></div>
+      <div style="border-radius:16px;background:var(--card-strong);padding:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--secondary)">同气连枝礼包</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-top:12px">
+          <span id="dogClaimable" style="font-size:34px;font-weight:800;color:var(--primary)">--</span>
+          <span style="font-size:12px;color:var(--muted)">个可领取</span>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.7">帮忙好友有机会获得「同气连枝礼包」，点击领取即收入背包，可开出金币/道具。</p>
+        <button class="f-batch" id="dogClaimBtn" style="margin-top:14px;width:100%">🎁 领取同气礼包</button>
+        <p id="dogGiftMsg" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:16px"></p>
       </div>
     </div>
   </section>
@@ -1918,6 +1952,8 @@ document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', (
   }
   if(b.dataset.seg === 'm-codex' && typeof loadCodex === 'function'){ loadCodex(); }
   if(b.dataset.seg === 'm-analysis' && typeof loadAnalysis === 'function'){ loadAnalysis(); }
+  if(b.dataset.seg === 'p-dog' && typeof loadDogGift === 'function'){ loadDogGift(); }
+  if(b.dataset.seg === 'p-daily' && typeof loadDailyTasks === 'function'){ loadDailyTasks(); }
 }));
 
 /* 好友页 5 子tab 切换（独立 .f-sub 容器） */
@@ -4570,6 +4606,74 @@ function loadShop(seg){
 }
 document.querySelectorAll('#page-shop .seg-btn').forEach(function(b){ b.addEventListener('click',function(){ if(typeof loadShop==='function') loadShop(b.dataset.seg); }); });
 document.querySelectorAll('[data-tab="page-shop"]').forEach(function(b){ b.addEventListener('click',function(){ if(typeof loadShop==='function') loadShop(); }); });
+
+/* ===== 护主犬奖励 子tab（对齐 Node DogGiftsPanel） ===== */
+let dogClaimBtnBound=false;
+function loadDogGift(){
+  const acc=accIdQ();
+  const el=document.getElementById('dogClaimable');
+  if(!el) return;
+  fetch('/api/dog/gifts?accountId='+encodeURIComponent(acc)).then(r=>r.json()).then(d=>{
+    el.textContent=(d&&d.ok!==false&&d.claimable!=null)?d.claimable:'--';
+  }).catch(()=>{ el.textContent='--'; });
+  if(dogClaimBtnBound) return;
+  dogClaimBtnBound=true;
+  const btn=document.getElementById('dogClaimBtn');
+  if(!btn) return;
+  btn.addEventListener('click', async function(){
+    const b=this, old=b.textContent; b.disabled=true; b.textContent='领取中…';
+    const msg=document.getElementById('dogGiftMsg'); if(msg) msg.textContent='';
+    try{
+      const r=await postJSON('/api/dog/gifts/claim?accountId='+encodeURIComponent(acc),{});
+      if(r&&r.ok){ toast('领取成功，同气礼包 +'+r.claimed, true); if(msg) msg.textContent='本次领取 '+r.claimed+' 个（已入背包，可打开获得金币/道具）'; loadDogGift(); }
+      else{ toast((r&&r.error)||'领取失败', false); if(msg) msg.textContent=(r&&r.error)||''; }
+    }catch(e){ toast('领取失败: '+e.message, false); }
+    b.disabled=false; b.textContent=old;
+  });
+}
+
+/* ===== 每日任务 子tab（对齐 Node TaskPanel/DailyOverview） ===== */
+function renderTaskList(containerId, tasks){
+  const c=document.getElementById(containerId);
+  if(!c) return;
+  if(!tasks||!tasks.length){ c.innerHTML='<p style="color:var(--muted);padding:6px 0">暂无任务</p>'; return; }
+  c.innerHTML=tasks.map(t=>{
+    const pct=t.total>0?Math.min(100,Math.round(t.progress/t.total*100)):0;
+    const canClaim=t.is_unlocked&&!t.is_claimed&&t.total>0&&t.progress>=t.total;
+    return '<div style="padding:9px 0;border-bottom:1px solid var(--line,rgba(128,128,128,.15))">'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<div style="flex:1;font-size:12.5px">'+(t.desc||('任务#'+t.id))+
+          '<div style="font-size:10.5px;color:var(--muted);margin-top:2px">'+t.progress+'/'+t.total+(t.is_claimed?' · 已领取':'')+'</div>'+
+        '</div>'+
+        (canClaim?'<button class="chip" data-claim="'+t.id+'">领取</button>':(t.is_claimed?'<span style="font-size:12px;color:var(--primary)">✓ 已领</span>':''))+
+      '</div>'+
+      '<div style="height:4px;border-radius:2px;background:var(--line,rgba(128,128,128,.2));margin-top:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--primary);border-radius:2px"></div></div>'+
+    '</div>';
+  }).join('');
+  c.querySelectorAll('button[data-claim]').forEach(btn=>btn.addEventListener('click', async function(){
+    const b=this; b.disabled=true; b.textContent='…';
+    try{
+      const r=await postJSON('/api/task/claim?accountId='+encodeURIComponent(accIdQ()),{taskId:Number(b.dataset.claim)});
+      toast((r&&r.ok)?'领取成功':('失败：'+((r&&r.error)||'未知')), !!(r&&r.ok));
+      loadDailyTasks();
+    }catch(e){ toast('领取失败: '+e.message, false); b.disabled=false; b.textContent='领取'; }
+  }));
+}
+function loadDailyTasks(){
+  const td=document.getElementById('tdDone'), tc=document.getElementById('tdClaim');
+  fetch('/api/task/daily?accountId='+encodeURIComponent(accIdQ())).then(r=>r.json()).then(d=>{
+    if(d&&d.ok!==false){
+      if(td) td.textContent=(d.daily_done!=null?d.daily_done:(d.daily||[]).length);
+      if(tc) tc.textContent=(d.daily_claimable!=null?d.daily_claimable:0);
+    }
+    renderTaskList('dailyTaskList', (d&&d.daily)||[]);
+    renderTaskList('growthTaskList', (d&&d.growth)||[]);
+  }).catch(()=>{
+    if(td) td.textContent='-'; if(tc) tc.textContent='-';
+    renderTaskList('dailyTaskList', null);
+    renderTaskList('growthTaskList', null);
+  });
+}
 </script>
 </body>
 </html>
