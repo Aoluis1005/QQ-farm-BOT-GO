@@ -9,15 +9,20 @@ const account = useAccountStore()
 const router = useRouter()
 const route = useRoute()
 
-// 底部 dock / 侧栏 6 个 tab（用户要求：图标统一用「更多」风格的 ☰ 符号）
+// 底部 dock / 侧栏 6 个 tab 图标：同一种细线风格、但各不相同的 SVG（「更多」保留用户喜欢的 ☰）
+const ICON_SHELL =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
 const tabs = [
-  { to: '/', label: '首页', icon: '☰' },
-  { to: '/profile', label: '个人', icon: '☰' },
-  { to: '/account', label: '账号', icon: '☰' },
-  { to: '/event', label: '活动', icon: '☰' },
-  { to: '/shop', label: '商城', icon: '☰' },
-  { to: '/more', label: '更多', icon: '☰' },
+  { to: '/', label: '首页', icon: '<path d="M3 10.5 12 4l9 6.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>' },
+  { to: '/profile', label: '个人', icon: '<circle cx="12" cy="8" r="4"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>' },
+  { to: '/account', label: '账号', icon: '<circle cx="8" cy="8" r="4"/><path d="M11 11l8 8"/><path d="M16 16l2-2"/><path d="M19 19l2-2"/>' },
+  { to: '/event', label: '活动', icon: '<path d="M12 3l2.6 5.6L20 9.4l-4 4 1 5.8L12 16.6 7 19l1-5.8-4-4 5.4-.8z"/>' },
+  { to: '/shop', label: '商城', icon: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 6H6"/>' },
+  { to: '/more', label: '更多', icon: '<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>' },
 ]
+function iconSvg(inner) {
+  return ICON_SHELL + inner + '</svg>'
+}
 
 function isActive(t) {
   if (t.to === '/') return route.path === '/'
@@ -56,7 +61,7 @@ function onSwitchAccount() {
           :class="{ active: isActive(t) }"
           @click="go(t.to)"
         >
-          <span class="di">{{ t.icon }}</span>{{ t.label }}
+          <span class="di" v-html="iconSvg(t.icon)"></span>{{ t.label }}
         </button>
       </nav>
     </aside>
@@ -87,7 +92,7 @@ function onSwitchAccount() {
         :class="{ active: isActive(t) }"
         @click="go(t.to)"
       >
-        <span class="di">{{ t.icon }}</span>{{ t.label }}
+        <span class="di" v-html="iconSvg(t.icon)"></span>{{ t.label }}
       </button>
     </nav>
 
