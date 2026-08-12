@@ -182,42 +182,6 @@ func incBadDaily(accountID string) {
 	badDailyCnt[accountID]++
 }
 
-// friendStealLoop 偷菜循环（对齐 Node unifiedScheduler runStealTick：25–30s）
-func friendStealLoop(accountID string, stop chan struct{}) {
-	for {
-		cfg := models.GetAccountConfig(accountID)
-		if cfg.Automation.Friend && cfg.Automation.FriendSteal {
-			if c, err := clientPool.Get(accountID); err == nil && c != nil {
-				checkFriends(c, accountID, cfg, true, false)
-			}
-		}
-		cfg = models.GetAccountConfig(accountID)
-		select {
-		case <-stop:
-			return
-		case <-time.After(randomIntervalMs(25*1000, 30*1000)):
-		}
-	}
-}
-
-// friendHelpLoop 帮忙/捣乱循环（对齐 Node unifiedScheduler runHelpTick：30–35s）
-func friendHelpLoop(accountID string, stop chan struct{}) {
-	for {
-		cfg := models.GetAccountConfig(accountID)
-		if cfg.Automation.Friend && cfg.Automation.FriendHelp {
-			if c, err := clientPool.Get(accountID); err == nil && c != nil {
-				checkFriends(c, accountID, cfg, false, true)
-			}
-		}
-		cfg = models.GetAccountConfig(accountID)
-		select {
-		case <-stop:
-			return
-		case <-time.After(randomIntervalMs(30*1000, 35*1000)):
-		}
-	}
-}
-
 // checkFriends 好友巡查主流程（对齐 Node friend-orchestrator.js checkFriends：
 // 偷 → 卖 → 帮 → 捣；护主犬信息随进入好友农场时刷新，见 doFriendOperation 内 cacheFriendDog）。
 func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) {

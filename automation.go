@@ -34,7 +34,8 @@ type automationRunner struct {
 	stop chan struct{}
 }
 
-// startAutomationForAccount 为账号启动所有自动化 goroutine（已存在则先停后起）
+// startAutomationForAccount 为账号启动自动化调度器（已存在则先停后起）
+// 对齐 Node worker.js：每账号只有【一个】串行调度器，绝不为同账号起多个并行 goroutine。
 func startAutomationForAccount(accountID string) {
 	automationMu.Lock()
 	if r, ok := automationRunners[accountID]; ok {
@@ -45,10 +46,7 @@ func startAutomationForAccount(accountID string) {
 	automationRunners[accountID] = &automationRunner{stop: stop}
 	automationMu.Unlock()
 
-	go farmAutomationLoop(accountID, stop)
-	go fertilizeBuyLoop(accountID, stop)
-	go friendStealLoop(accountID, stop)
-	go friendHelpLoop(accountID, stop)
+	go automationLoop(accountID, stop)
 	log.Printf("[automation] 账号 %s 自动化已启动", accountID)
 }
 
@@ -100,33 +98,97 @@ func farmInterval(iv config.IntervalsConfig) time.Duration {
 	return randomIntervalMs(minS*1000, maxS*1000)
 }
 
-// ── 农场巡田主循环（对齐 Node unifiedScheduler.runFarmTick → checkFarm） ──
+// ── 单账号统一串行调度器（对齐 Node unifiedScheduler.runUnifiedTick + scheduleUnifiedNextTick） ──
 
-func farmAutomationLoop(accountID string, stop chan struct{}) {
+// automationLoop 每个账号仅一个 goroutine：把农场巡田、帮忙、偷菜、买化肥统一到【一条串行时间线】。
+// 参考 Node runUnifiedTick —— 一次 tick 内按 farm→help→steal 顺序 await 执行，绝不并发；
+// scheduleUnifiedNextTick —— sleep 到最近到期时刻再驱动下一次 tick。
+func automationLoop(accountID string, stop chan struct{}) {
+	getCfg := func() config.AccountConfig { return models.GetAccountConfig(accountID) }
+
+	// 各任务下次运行时刻（对齐 Node runUnifiedTick 的 nextFarmRunAt/nextStealRunAt/nextHelpRunAt）
+	nextFarm := time.Now().Add(farmInterval(getCfg().Intervals))
+	nextSteal := time.Now().Add(randomIntervalMs(25*1000, 30*1000))
+	nextHelp := time.Now().Add(randomIntervalMs(30*1000, 35*1000))
+	// 买化肥首跑延迟 30s（对齐原 fertilizeBuyLoop），此后按配置间隔
+	nextBuy := time.Now().Add(30 * time.Second)
+
 	for {
-		cfg := models.GetAccountConfig(accountID)
-		if cfg.Automation.Farm {
-			if c, err := clientPool.Get(accountID); err == nil && c != nil {
-				runFarmOnce(accountID, c, cfg)
+		cfg := getCfg()
+		now := time.Now()
+
+		shouldFarm := cfg.Automation.Farm && now.After(nextFarm)
+		shouldSteal := cfg.Automation.Friend && cfg.Automation.FriendSteal && now.After(nextSteal)
+		shouldHelp := cfg.Automation.Friend &&
+			(cfg.Automation.FriendHelp || cfg.Automation.FriendBad || cfg.Automation.FriendGoldenBug) &&
+			now.After(nextHelp)
+		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && now.After(nextBuy)
+
+		// 无到期任务：睡到最近到期时刻再驱动一次 tick（对齐 scheduleUnifiedNextTick 取 nearest）
+		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy {
+			nearest := nextFarm
+			if nextSteal.Before(nearest) {
+				nearest = nextSteal
 			}
+			if nextHelp.Before(nearest) {
+				nearest = nextHelp
+			}
+			if nextBuy.Before(nearest) {
+				nearest = nextBuy
+			}
+			wait := nearest.Sub(now)
+			if wait < 100*time.Millisecond {
+				wait = 100 * time.Millisecond
+			}
+			select {
+			case <-stop:
+				return
+			case <-time.After(wait):
+			}
+			continue
 		}
-		// 自动填充化肥（对齐 Node worker.js:312 farmCheckLoop 内
-		// `if (autoConfig.fertilizer_gift) await openFertilizerGiftPacksSilently()`；
-		// 每日一次由 runFertilizerGiftOnce 内部防重）
-		cfg = models.GetAccountConfig(accountID)
-		if cfg.Automation.FertilizerGift {
-			if c, err := clientPool.Get(accountID); err == nil && c != nil {
+
+		// 统一 tick：按序【串行】执行，同账号绝不并发（对齐 Node runUnifiedTick 的 farm→help→steal await）
+		c, err := clientPool.Get(accountID)
+		if err != nil || c == nil {
+			// 连接不可用：各任务整体顺延一轮，避免忙等
+			nextFarm = now.Add(farmInterval(getCfg().Intervals))
+			nextSteal = now.Add(randomIntervalMs(25*1000, 30*1000))
+			nextHelp = now.Add(randomIntervalMs(30*1000, 35*1000))
+			continue
+		}
+
+		if shouldFarm {
+			runFarmOnce(accountID, c, cfg)
+			// 化肥礼包并入 farm tick（对齐 Node runFarmTick 内 openFertilizerGiftPacksSilently；
+			// 每日一次由 runFertilizerGiftOnce 内部防重）
+			if cfg.Automation.FertilizerGift {
 				runFertilizerGiftOnce(accountID, c)
 			}
+			nextFarm = time.Now().Add(farmInterval(getCfg().Intervals))
 		}
-		cfg = models.GetAccountConfig(accountID)
-		iv := farmInterval(cfg.Intervals)
-		select {
-		case <-stop:
-			return
-		case <-time.After(iv):
+		if shouldSteal {
+			checkFriends(c, accountID, cfg, true, false)
+			nextSteal = time.Now().Add(randomIntervalMs(25*1000, 30*1000))
+		}
+		if shouldHelp {
+			checkFriends(c, accountID, cfg, false, true)
+			nextHelp = time.Now().Add(randomIntervalMs(30*1000, 35*1000))
+		}
+		if shouldBuy {
+			doCheckAndBuyFertilizer(accountID, c, cfg)
+			nextBuy = time.Now().Add(fetchBuyInterval(accountID))
 		}
 	}
+}
+
+// fetchBuyInterval 自动买化肥间隔（对齐原 fertilizeBuyLoop：FertilizerBuyCheckIntervalMinutes，默认 60 分钟）
+func fetchBuyInterval(accountID string) time.Duration {
+	ivMin := models.GetAccountConfig(accountID).FertilizerBuyCheckIntervalMinutes
+	if ivMin <= 0 {
+		ivMin = 60
+	}
+	return time.Duration(ivMin) * time.Minute
 }
 
 // runFarmOnce 单次巡田（对齐 Node farming-orchestrator.js runFarmOperation('all') 顺序）
@@ -1214,34 +1276,6 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 
 // ── 自动买化肥（对齐 Node farm-scheduler.js + mall.js checkAndBuyFertilizerBoth） ──
 // 化肥容器：普通 1011 / 有机 1012（count 为秒，/3600 为小时）；商品：有机 1002 / 普通 1003（slot_type=1）
-
-func fertilizeBuyLoop(accountID string, stop chan struct{}) {
-	cfg := models.GetAccountConfig(accountID)
-	ivMin := cfg.FertilizerBuyCheckIntervalMinutes
-	if ivMin <= 0 {
-		ivMin = 60
-	}
-	ticker := time.NewTicker(time.Duration(ivMin) * time.Minute)
-	defer ticker.Stop()
-	select {
-	case <-stop:
-		return
-	case <-time.After(30 * time.Second):
-	}
-	for {
-		cfg = models.GetAccountConfig(accountID)
-		if cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal {
-			if c, err := clientPool.Get(accountID); err == nil && c != nil {
-				doCheckAndBuyFertilizer(accountID, c, cfg)
-			}
-		}
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-		}
-	}
-}
 
 func doCheckAndBuyFertilizer(accountID string, c *gw.Client, cfg config.AccountConfig) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
