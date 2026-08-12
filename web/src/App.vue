@@ -12,7 +12,7 @@ const route = useRoute()
 // 严格对齐原 HTML 的侧栏/底部导航 6 个 tab（不自行发明）
 const tabs = [
   { to: '/', label: '首页', icon: '🏠' },
-  { to: '/profile', label: '个人', icon: '🧑🌾' },
+  { to: '/profile', label: '个人', icon: '🧑‍🌾' },
   { to: '/account', label: '账号', icon: '👤' },
   { to: '/event', label: '活动', icon: '🎁' },
   { to: '/shop', label: '商城', icon: '🛒' },
