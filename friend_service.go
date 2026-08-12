@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/gw"
+	"github.com/Aoluis1005/go-farm-bot/models"
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
@@ -153,6 +156,9 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 	// 1. 进入好友农场
 	_, enterReply, err := enterFriendFarm(c, gid, 2, "")
 	if err != nil {
+		// 分类处理进入失败（对齐 Node friend-api.js handleFriendEnterError）：
+		// 1002003 封禁→自动加黑名单；1002002/关键词→无效好友自动移出已知列表
+		handleFriendEnterError(c, accountID, gid, err)
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid,
 			Message: "进入好友农场失败: " + err.Error(), EnterError: err.Error()}
 	}
@@ -364,14 +370,29 @@ func getFriendBasic(c *gw.Client, gid int64) *proto.VisitBasic {
 // 首次调用且有已知 GID 时，额外调用 VisitorList RPC 合并结果作为初始好友列表（去重）。
 func fetchAllFriends(c *gw.Client, platform string, knownGids []int64) ([]*proto.GameFriend, error) {
 	if platform == "qq" && len(knownGids) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		msg, err := c.Request(ctx, "gamepb.friendpb.FriendService", "GetGameFriends",
-			proto.EncodeGetGameFriendsRequest(knownGids), 15*time.Second)
-		cancel()
-		if err == nil {
-			return proto.DecodeGetGameFriendsReply(msg.Body).Friends, nil
+		// 对齐 Node fetchQqFriendsByKnownGids：按 35 一批分批请求 GetGameFriends，批次间随机延时 100-200ms
+		const qqFriendListBatchSize = 35
+		var all []*proto.GameFriend
+		for i := 0; i < len(knownGids); i += qqFriendListBatchSize {
+			end := i + qqFriendListBatchSize
+			if end > len(knownGids) {
+				end = len(knownGids)
+			}
+			batch := knownGids[i:end]
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			msg, err := c.Request(ctx, "gamepb.friendpb.FriendService", "GetGameFriends",
+				proto.EncodeGetGameFriendsRequest(batch), 15*time.Second)
+			cancel()
+			if err == nil {
+				all = append(all, proto.DecodeGetGameFriendsReply(msg.Body).Friends...)
+			}
+			// 批次间随机延时 100-200ms（对齐 Node randomDelay(100,200)）
+			time.Sleep(time.Duration(100+rand.Intn(100)) * time.Millisecond)
 		}
-		// 失败回退 GetAll
+		if len(all) > 0 {
+			return all, nil
+		}
+		// 全批失败回退 GetAll
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -400,7 +421,7 @@ func dogCachePath(accountID string) string {
 
 // cacheFriendDog 把进入好友农场解析出的狗信息写入本地缓存
 func cacheFriendDog(gid int64, reply *proto.VisitEnterReply) {
-	if reply == nil || gid <= 0 || reply.DogID <= 0 {
+	if reply == nil || gid <= 0 {
 		return
 	}
 	name := reply.DogName
@@ -415,8 +436,68 @@ func cacheFriendDog(gid int64, reply *proto.VisitEnterReply) {
 		return
 	}
 	m, _ := readDogCache(accID)
+	// 非护主犬（换狗/删好友后的伪护主犬残留）：删除旧缓存记录（对齐 Node friend-visit.js cacheDogInfoFromEnterReply）
+	if reply.DogID != guardDogID {
+		if _, ok := m[gid]; ok {
+			delete(m, gid)
+			writeDogCache(accID, m)
+		}
+		return
+	}
 	m[gid] = dogInfo{DogID: reply.DogID, DogName: name}
 	writeDogCache(accID, m)
+}
+
+// handleFriendEnterError 分类处理进入好友农场失败（对齐 Node friend-api.js handleFriendEnterError）
+// 返回处理类型："blacklist"（封禁→加黑名单） / "invalid_removed"（无效好友→移出已知列表） / ""（未处理）
+func handleFriendEnterError(c *gw.Client, accountID string, gid int64, err error) string {
+	msg := err.Error()
+	// isEnterFarmBannedError：错误消息含 1002003 → 封禁，自动加黑名单
+	if strings.Contains(msg, "1002003") {
+		addFriendBlacklist(accountID, gid, fmt.Sprintf("GID:%d", gid))
+		appendOpLog(accountID, "friend", fmt.Sprintf("检测到封禁好友 GID=%d，已自动加入黑名单", gid))
+		return "blacklist"
+	}
+	// isInvalidFriendAccessError：code=1002002 硬匹配 或 关键词 → 失效/被删好友，自动移出已知列表
+	if isInvalidFriendAccessErr(msg) {
+		removeKnownFriendGid(accountID, gid)
+		appendOpLog(accountID, "friend", fmt.Sprintf("好友 GID=%d 已失效/被删，自动移出已知好友列表", gid))
+		return "invalid_removed"
+	}
+	return ""
+}
+
+// isInvalidFriendAccessErr 判断是否是「不是好友/无效好友」错误（对齐 Node isInvalidFriendAccessError）
+func isInvalidFriendAccessErr(msg string) bool {
+	// 错误码硬匹配：VisitService.Enter 返回 code=1002002「不是好友无法拜访」
+	if strings.Contains(msg, "1002002") {
+		return true
+	}
+	low := strings.ToLower(msg)
+	for _, kw := range []string{"无效", "不存在", "删除", "关系", "not found", "invalid", "not friend", "friend"} {
+		if strings.Contains(low, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// removeKnownFriendGid 从 config 已知好友列表移除失效 GID（对齐 Node removeKnownFriendGid）
+func removeKnownFriendGid(accountID string, gid int64) {
+	cfg := models.GetAccountConfig(accountID)
+	if len(cfg.KnownFriendGIDs) == 0 {
+		return
+	}
+	filtered := cfg.KnownFriendGIDs[:0]
+	for _, g := range cfg.KnownFriendGIDs {
+		if g != gid {
+			filtered = append(filtered, g)
+		}
+	}
+	if len(filtered) != len(cfg.KnownFriendGIDs) {
+		cfg.KnownFriendGIDs = filtered
+		_ = models.SetAccountConfig(accountID, cfg)
+	}
 }
 
 func readDogCache(accountID string) (map[int64]dogInfo, error) {
