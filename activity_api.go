@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -49,6 +50,48 @@ func registerActivityAPI(api *http.ServeMux) {
 
 func handleActivityList(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	if accountID == "" {
+		writeJSONMap(w, "ok", false, "error", "缺少 accountId")
+		return
+	}
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		scope = "ongoing"
+	}
+	refresh := r.URL.Query().Get("refresh") == "1"
+	key := "actlist:" + accountID + ":" + scope
+
+	// 正常访问（非强制刷新）→ 直接返回缓存，不再向游戏发 List（防风控）
+	if !refresh {
+		if cached, ok := actCacheGet(key, actListTTL); ok {
+			var out []*outItem
+			if err := json.Unmarshal(cached, &out); err == nil {
+				writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "now": time.Now().Unix(), "scope": scope, "items": out, "cached": true})
+				return
+			}
+			actCacheDel(key)
+		}
+	}
+	// 强制刷新：60s 冷却内连点 → 仍返回缓存（防高频刺激 ActivityService）
+	if refresh {
+		actListFetchMu.Lock()
+		last, ok := actListFetchAt[key]
+		inCooldown := ok && time.Since(last) < actListRefreshCooldown
+		if !inCooldown {
+			actListFetchAt[key] = time.Now()
+		}
+		actListFetchMu.Unlock()
+		if inCooldown {
+			if cached, ok := actCacheGet(key, actListTTL); ok {
+				var out []*outItem
+				if err := json.Unmarshal(cached, &out); err == nil {
+					writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "now": time.Now().Unix(), "scope": scope, "items": out, "cached": true, "cooldown": true})
+					return
+				}
+			}
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
@@ -58,19 +101,9 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 	}
 	items := ParseActivityList(body)
 	now := time.Now().Unix()
-	scope := r.URL.Query().Get("scope")
+	scope = r.URL.Query().Get("scope")
 	if scope == "" {
 		scope = "ongoing"
-	}
-	type outItem struct {
-		ID        int64  `json:"id"`
-		Title     string `json:"title"`
-		StartTime int64  `json:"start_time"`
-		EndTime   int64  `json:"end_time"`
-		Group     bool   `json:"group"` // 主活动组(id%100==0)
-		Ongoing   bool   `json:"ongoing"`
-		Upcoming  bool   `json:"upcoming"`
-		Finished  bool   `json:"finished"`
 	}
 	var out []*outItem
 	// 组根（id%100==0）自身常为哨兵时间（-62135596800），真实时间在其子活动上。
@@ -114,8 +147,31 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 			Group: it.ID%100 == 0, Ongoing: ongoing, Upcoming: upcoming, Finished: finished,
 		})
 	}
+	if b, err := json.Marshal(out); err == nil {
+		actCacheSet(key, b, actListTTL)
+	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "now": now, "scope": scope, "items": out})
 }
+
+// outItem 活动列表条目（包级：便于 list 缓存反序列化）
+type outItem struct {
+	ID        int64  `json:"id"`
+	Title     string `json:"title"`
+	StartTime int64  `json:"start_time"`
+	EndTime   int64  `json:"end_time"`
+	Group     bool   `json:"group"` // 主活动组(id%100==0)
+	Ongoing   bool   `json:"ongoing"`
+	Upcoming  bool   `json:"upcoming"`
+	Finished  bool   `json:"finished"`
+}
+
+// 活动列表缓存：正常进出活动页直接命中缓存，不再向游戏发 List RPC（防风控）。
+// “获取新活动”强制刷新，但带 60s 冷却：冷却内连点仍返回缓存，避免高频刺激 ActivityService。
+const actListTTL = 10 * time.Minute
+const actListRefreshCooldown = 60 * time.Second
+
+var actListFetchMu sync.Mutex
+var actListFetchAt = map[string]time.Time{} // actlist key -> 上次真实下发时间
 
 // ----- Group：活动分组树 + 商店 -----
 

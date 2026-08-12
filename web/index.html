@@ -4112,6 +4112,7 @@ async function loadActivity(){
     if(rf) rf.addEventListener('click', function(){
       var self=this; self.disabled=true; self.textContent='⏳ 获取中…';
       ACT_GROUP_INDEX=0; ACT_LAST='';
+      window.__actRefresh = true; // 强制后端重新拉取(带60s冷却防风控)
       Promise.resolve(loadActivity()).catch(function(){}).then(function(){
         if(!self.isConnected) return;
         self.disabled=false; self.textContent='✅ 已获取最新活动';
