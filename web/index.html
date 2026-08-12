@@ -800,6 +800,20 @@ body{
 <body data-theme="dark">
 <div class="aura"></div>
 
+<!-- 后台登录/设密遮罩（补鉴权：未登录或未设置密码时覆盖全屏） -->
+<div id="adminGate" style="display:none;position:fixed;inset:0;z-index:100001;align-items:center;justify-content:center;padding:24px;background:rgba(10,14,20,.86);backdrop-filter:blur(6px);">
+  <div style="width:100%;max-width:340px;background:#1c2530;border:1px solid #2a3744;border-radius:18px;padding:26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5);box-sizing:border-box;">
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:40px">🔐</div>
+      <h2 id="adminGateTitle" style="margin:10px 0 4px;font-size:18px;color:#eef2f6;">管理员验证</h2>
+      <p id="adminGateSub" style="margin:0;font-size:12px;color:#8b99a8;">请输入后台登录密码</p>
+    </div>
+    <input id="adminPass" type="password" placeholder="输入密码" autocomplete="current-password" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid #2f3b48;background:#111820;color:#eef2f6;font-size:14px;margin-bottom:14px;box-sizing:border-box;">
+    <button id="adminGateBtn" style="width:100%;padding:13px;border-radius:10px;background:#3b82f6;color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;">确定</button>
+    <div id="adminGateErr" style="text-align:center;font-size:12px;color:#ff5a4e;margin-top:10px;min-height:16px;"></div>
+  </div>
+</div>
+
 <!-- 桌面侧边栏（≥920px 显示；手机端隐藏，用底部 dock） -->
 <aside class="sidebar">
   <div class="sb-brand"><span class="logo">🌾</span> QQ农场 Bot</div>
@@ -1580,11 +1594,14 @@ body{
 
   <section class="page" id="page-backend">
     <div class="subbar"><button class="icon-btn" data-back>‹</button><h3>后台</h3></div>
-    <div class="placeholder">
-      <div class="big">🖥️</div>
-      <h3>后台管理</h3>
-      <p>服务器运行状态 · 账号管理 · 数据监控<br>待补充内容</p>
-      <span class="badge">占位</span>
+    <div style="padding:12px;">
+      <div class="sec-title" style="margin:2px 0 12px"><span>修改后台登录密码</span></div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <input class="field" id="bkOldPwd" type="password" placeholder="原密码" autocomplete="current-password">
+        <input class="field" id="bkNewPwd" type="password" placeholder="新密码（至少 6 位）" autocomplete="new-password">
+        <input class="field" id="bkNewPwd2" type="password" placeholder="确认新密码" autocomplete="new-password">
+        <button id="bkChangePwd" style="padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;">修改密码</button>
+      </div>
     </div>
   </section>
 
@@ -1681,6 +1698,121 @@ body{
 </div>
 
 <script>
+/* ===== 后台管理员鉴权（补鉴权：登录/设密 + fetch 注入 token + 401 拦截） ===== */
+(function () {
+  var K = 'admin_token';
+  function getTok() { try { return localStorage.getItem(K) || ''; } catch (e) { return ''; } }
+  function setTok(t) { try { if (t) localStorage.setItem(K, t); else localStorage.removeItem(K); } catch (e) {} }
+
+  var gate = document.getElementById('adminGate');
+  var pass = document.getElementById('adminPass');
+  var btn = document.getElementById('adminGateBtn');
+  var errBox = document.getElementById('adminGateErr');
+  var title = document.getElementById('adminGateTitle');
+  var sub = document.getElementById('adminGateSub');
+
+  function setErr(m) { if (errBox) errBox.textContent = m || ''; }
+  function busy(on) { if (btn) { btn.disabled = on; btn.textContent = on ? '请稍候…' : '确定'; } }
+  function showGate(mode) {
+    if (gate) {
+      if (mode === 'setup') { if (title) title.textContent = '设置后台密码'; if (sub) sub.textContent = '首次使用，请设置管理员登录密码'; }
+      else { if (title) title.textContent = '管理员验证'; if (sub) sub.textContent = '请输入后台登录密码'; }
+      gate.style.display = 'flex';
+    }
+    if (pass) pass.value = '';
+  }
+  function hideGate() { if (gate) { gate.style.display = 'none'; } setErr(''); }
+  function gateVisible() { return gate ? gate.style.display === 'flex' : true; }
+
+  // 全局 fetch：统一注入 x-admin-token + 401 拦截
+  var origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var hs = init.headers instanceof Headers ? init.headers : new Headers(init.headers || {});
+    if (url.indexOf('/api/') === 0) {
+      var t = getTok();
+      if (t && !hs.has('x-admin-token')) hs.set('x-admin-token', t);
+    }
+    init.headers = hs;
+    return origFetch.apply(window, arguments).then(function (resp) {
+      if (resp.status === 401 && url.indexOf('/api/') === 0 && url.indexOf('/api/admin/') !== 0) {
+        setTok('');
+        if (!gateVisible()) showGate('login');
+      }
+      return resp;
+    });
+  };
+
+  function doLogin(pw) {
+    return fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok && d.token) { setTok(d.token); hideGate(); return true; } return false; });
+  }
+  function doSetup(pw) {
+    return fetch('/api/admin/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { return !!(d && d.ok); });
+  }
+  function handleSubmit() {
+    var pw = pass ? pass.value : '';
+    if (!pw) { setErr('请输入密码'); return; }
+    busy(true); setErr('');
+    fetch('/api/admin/status').then(function (r) { return r.json(); }).then(function (s) {
+      if (s && s.hasPassword) {
+        doLogin(pw).then(function (ok) { busy(false); if (!ok) { setErr('密码错误'); } else { setTimeout(function(){ location.reload(); }, 200); } });
+      } else {
+        doSetup(pw).then(function (ok) {
+          if (!ok) { busy(false); setErr('设置失败'); return; }
+          doLogin(pw).then(function (ok2) { busy(false); if (!ok2) { setErr('设置成功但登录失败，请重试'); } setTimeout(function(){ location.reload(); }, 200); });
+        });
+      }
+    }).catch(function () { busy(false); setErr('网络错误'); });
+  }
+  if (btn) btn.addEventListener('click', handleSubmit);
+  if (pass) pass.addEventListener('keydown', function (e) { if (e.key === 'Enter') handleSubmit(); });
+
+  // 启动：有 token 则探测有效性；无 token 按 status 决定登录或设密
+  function initGate() {
+    if (getTok()) {
+      fetch('/api/logs?limit=1').then(function (r) {
+        if (r.status === 401) { setTok(''); showGate('login'); }
+      }).catch(function () {});
+      return;
+    }
+    fetch('/api/admin/status').then(function (r) { return r.json(); }).then(function (s) {
+      showGate((s && s.hasPassword) ? 'login' : 'setup');
+    }).catch(function () {});
+  }
+  initGate();
+})();
+
+/* ===== 后台 tab：修改登录密码 ===== */
+(function () {
+  function $id(i) { return document.getElementById(i); }
+  var chgBtn = $id('bkChangePwd');
+  if (chgBtn) {
+    chgBtn.addEventListener('click', function () {
+      var oldpw = ($id('bkOldPwd') || {}).value || '';
+      var np1 = ($id('bkNewPwd') || {}).value || '';
+      var np2 = ($id('bkNewPwd2') || {}).value || '';
+      if (!oldpw) { toast('请输入原密码', false); return; }
+      if (!np1 || np1.length < 6) { toast('新密码至少 6 位', false); return; }
+      if (np1 !== np2) { toast('两次新密码不一致', false); return; }
+      chgBtn.disabled = true; var t = chgBtn.textContent; chgBtn.textContent = '提交中…';
+      fetch('/api/admin/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldPassword: oldpw, newPassword: np1 }) })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
+        .then(function (res) {
+          var d = res.d;
+          if (d && d.ok) { toast('密码修改成功', true); $id('bkOldPwd').value = ''; $id('bkNewPwd').value = ''; $id('bkNewPwd2').value = ''; }
+          else if (d && d.error) { toast(d.error, false); }
+          else { toast('修改失败', false); }
+        })
+        .catch(function () { toast('网络错误', false); })
+        .finally(function () { chgBtn.disabled = false; chgBtn.textContent = t; });
+    });
+  }
+})();
 /* 全局 toast 提示（对齐 Node；替换原生 alert 阻塞弹窗） */
 function toast(msg, ok){
   var box=document.getElementById('toastBox');

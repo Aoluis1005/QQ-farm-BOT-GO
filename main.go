@@ -124,8 +124,9 @@ func main() {
 	registerAnalyticsAPI(api)
 	registerActivityAPI(api)
 	registerShopAPI(api)
+	registerAdminAuthAPI(api)
 
-	mux.Handle("/api/", corsHandler(api))
+	mux.Handle("/api/", corsHandler(adminAuthMiddleware(api)))
 
 	// 游戏静态资源（种子/作物图片等）：/game-config/** → game-config/ 目录
 	mux.Handle("/game-config/", http.StripPrefix("/game-config/", http.FileServer(http.Dir("game-config"))))

@@ -408,6 +408,21 @@ func GetGatewayConfig() config.GatewayConfig {
 	return cfg
 }
 
+// GetAdminPasswordHash 获取管理员密码哈希（自用后台鉴权；空=未设置）
+func GetAdminPasswordHash() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	return globalConfig.AdminPasswordHash
+}
+
+// SetAdminPasswordHash 保存管理员密码哈希（持久化，重启不丢）
+func SetAdminPasswordHash(hash string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	globalConfig.AdminPasswordHash = hash
+	return saveGlobalConfig()
+}
+
 // GetActiveAccountID 返回当前活跃账号ID（空表示未设）
 func GetActiveAccountID() string {
 	cfg := GetGlobalConfig()
