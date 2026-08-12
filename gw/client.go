@@ -104,11 +104,10 @@ func (c *Client) Connect(ctx context.Context, code string) error {
 	if err := c.ace.Init(ctx); err != nil {
 		return fmt.Errorf("ace init: %w", err)
 	}
-	initInfo, err := c.ace.EncryptedInitInfo()
-	if err != nil || initInfo == "" {
-		return fmt.Errorf("ace initInfo: %w", err)
-	}
-	c.firstToken = initInfo
+	// 注意：ACE 初始化凭据(firstToken)不在此预生成。对齐 Node network.js：登录请求用
+	// 随机 gatewayToken（initialGamePackInfo 此时为空），bindUser(openId) 之后才
+	// getEncryptedInitInfo 生成“带用户”令牌供后续请求使用。故登录请求将走 c.authToken
+	// （随机），与 Node createGatewayToken() 行为逐字节一致；绑定后的 firstToken 仅用于登录后首请求(Prime)。
 
 	url := fmt.Sprintf("%s?platform=%s&os=%s&ver=%s&code=%s&openID=",
 		c.cfg.ServerURL, c.cfg.Platform, c.cfg.OS, c.cfg.ClientVersion, code)
