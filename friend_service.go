@@ -48,12 +48,13 @@ func leaveFriendFarm(c *gw.Client, gid int64) {
 
 // friendLandsAnalysis 好友地块分类结果（对齐 Node friend-land-analyzer.js analyzeFriendLands）
 type friendLandsAnalysis struct {
-	Stealable  []int64
-	NeedWater  []int64
-	NeedWeed   []int64
-	NeedBug    []int64
-	CanPutWeed []int64
-	CanPutBug  []int64
+	Stealable       []int64
+	NeedWater       []int64
+	NeedWeed        []int64
+	NeedBug         []int64
+	CanPutWeed      []int64
+	CanPutBug       []int64
+	CanPutGoldenBug []int64
 }
 
 // analyzeFriendLands 分析好友所有地块，产出可操作分类。
@@ -104,6 +105,11 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64) *friendLandsAnalys
 		}
 		if len(bugOwners) < 2 && !alreadyBug {
 			out.CanPutBug = append(out.CanPutBug, land.ID)
+		}
+		// 可放黄金虫：植物未成熟/未枯死且尚无金虫（对齐 Node friend-land-analyzer.js canPutGoldenBug）
+		// phase 至此已排除 mature/dead（前文 continue 跳过）
+		if !hasGoldenBug(p) {
+			out.CanPutGoldenBug = append(out.CanPutGoldenBug, land.ID)
 		}
 	}
 	return out
@@ -285,6 +291,17 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
 		}
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: total, Message: fmt.Sprintf("帮忙完成 %d 块", total)}
+
+	case "goldenbug":
+		if len(analysis.CanPutGoldenBug) == 0 {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可放金虫土地"}
+		}
+		if err := execFriendOp(c, "PutSocialItem", proto.EncodePutSocialItemRequest(gid, analysis.CanPutGoldenBug, 301101, 2)); err != nil {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "放金虫失败"}
+		}
+		okCount = int64(len(analysis.CanPutGoldenBug))
+		recordOperation(accountID, "goldenBugPut", okCount)
+		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: okCount, Message: fmt.Sprintf("放金虫 %d 块", okCount)}
 
 	default:
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Count: 0, Message: "未知操作类型"}

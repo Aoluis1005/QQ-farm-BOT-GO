@@ -461,6 +461,17 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
+	// 2.5 黄金虫放置（对齐 Node golden-bug-service.js runGoldenBugPlacement：对好友农场放置金虫）
+	if cfg.Automation.FriendGoldenBug {
+		for _, t := range helpTargets {
+			res := doFriendOperation(c, accountID, t.gid, "goldenbug")
+			if res != nil && res.EnterError != "" {
+				continue // 进入失败跳过
+			}
+			time.Sleep(randomIntervalMs(800, 1500))
+		}
+	}
+
 	// 3. 捣乱（受每日上限约束，对齐 Node BAD_DAILY_LIMIT）
 	if !onlySteal && cfg.Automation.FriendBad && !cfg.Automation.FriendTurboMode {
 		if isBadPaused(accountID) {

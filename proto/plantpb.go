@@ -297,7 +297,18 @@ func EncodeRemovePlantRequest(landIDs []int64) []byte {
 	return b.Bytes()
 }
 
-// EncodeUpgradeLandRequest 升级土地
+// EncodePutSocialItemRequest 放置背包型社交道具（黄金虫）
+// PutSocialItemRequest: host_gid=1, land_ids=2, item_id=3, social_type=5（对齐 plantpb.proto）
+func EncodePutSocialItemRequest(hostGid int64, landIDs []int64, itemID int64, socialType int64) []byte {
+	b := NewBuilder()
+	b.FieldInt64(1, hostGid)
+	for _, id := range landIDs {
+		b.FieldInt64(2, id)
+	}
+	b.FieldInt64(3, itemID)
+	b.FieldInt64(5, socialType)
+	return b.Bytes()
+}
 func EncodeUpgradeLandRequest(landID int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, landID)
