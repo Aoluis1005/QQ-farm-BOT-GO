@@ -21,7 +21,8 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/harvest", handleFarmHarvest)
 	mux.HandleFunc("/api/farm/action", handleFarmAction)
 	mux.HandleFunc("/api/farm/plant", handleFarmPlant)
-	mux.HandleFunc("/api/bag/items", handleBagItems)
+	mux.HandleFunc("/api/bag", handleBagItems)       // 对齐 Node admin-bag-routes.js GET /api/bag
+	mux.HandleFunc("/api/bag/items", handleBagItems) // 兼容旧路径
 	mux.HandleFunc("/api/bag/seeds", handleBagSeeds)
 	mux.HandleFunc("/api/bag/use", handleBagUse)
 	mux.HandleFunc("/api/bag/sell", handleBagSell)
@@ -598,14 +599,20 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 	br := proto.DecodeBagReply(rep.Body)
 
 	type bagOut struct {
-		ID       int64  `json:"id"`
-		Name     string `json:"name"`
-		Count    int64  `json:"count"`
-		Category string `json:"category"`
-		Img      string `json:"img,omitempty"`
-		Icon     string `json:"icon,omitempty"`
-		ItemType int64  `json:"itemType"` // 对齐 Node info.type：6/17=果实可售, 11=道具可用
-		UID      int64  `json:"uid"`      // 物品实例 uid，出售时回传
+		ID              int64  `json:"id"`
+		Name            string `json:"name"`
+		Count           int64  `json:"count"`
+		Category        string `json:"category"`
+		Img             string `json:"img,omitempty"`
+		Icon            string `json:"icon,omitempty"`
+		ItemType        int64  `json:"itemType"`        // 对齐 Node info.type：6/17=果实可售, 11=道具可用
+		UID             int64  `json:"uid"`             // 物品实例 uid，出售时回传
+		Price           int64  `json:"price"`           // 对齐 Node getBagDetail info.price
+		PriceID         int64  `json:"priceId"`         // 对齐 Node getBagDetail info.price_id
+		PriceUnit       string `json:"priceUnit"`       // 对齐 Node getBagDetail：1005=金豆豆/200=点券/else金
+		Level           int64  `json:"level"`           // 对齐 Node getBagDetail info.level
+		InteractionType string `json:"interactionType"` // 对齐 Node getBagDetail info.interaction_type
+		HoursText       string `json:"hoursText"`       // 对齐 Node getBagDetail（默认空）
 	}
 	items := make([]bagOut, 0, len(br.Items))
 	for _, it := range br.Items {
@@ -613,8 +620,17 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		cat, name := classifyBagCategory(it.ID)
+		entry := itemInfoMap[int(it.ID)]
+		priceUnit := "金"
+		if entry.PriceID == 1005 {
+			priceUnit = "金豆豆"
+		} else if entry.PriceID == 200 {
+			priceUnit = "点券"
+		}
 		outItem := bagOut{ID: it.ID, Name: name, Count: it.Count, Category: cat,
-			ItemType: int64(itemInfoMap[int(it.ID)].Type), UID: it.UID}
+			ItemType: int64(entry.Type), UID: it.UID,
+			Price: int64(entry.Price), PriceID: int64(entry.PriceID), PriceUnit: priceUnit,
+			Level: int64(entry.Level), InteractionType: entry.InteractionType, HoursText: ""}
 		if img := GetItemImageURL(int(it.ID)); img != "" {
 			outItem.Img = img
 		} else {
@@ -807,12 +823,15 @@ func handleBagSell(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	if _, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Sell",
-		proto.EncodeSellRequest(items), 12*time.Second); err != nil {
+	rep, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Sell",
+		proto.EncodeSellRequest(items), 12*time.Second)
+	if err != nil {
 		writeError(w, 500, "出售失败: "+err.Error())
 		return
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "message": "sell ok"})
+	// 解析卖果实金币收益（对齐 Node warehouse.js deriveGoldGainFromSellReply + emit('sell')）
+	soldCount, gold := proto.DecodeSellReply(rep.Body)
+	writeJSON(w, map[string]interface{}{"ok": true, "message": "sell ok", "gold": gold, "count": soldCount})
 }
 
 // classifyBagCategory 对齐 Node warehouse.js getBagDetail 的 category 判定。

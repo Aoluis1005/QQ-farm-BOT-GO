@@ -41,25 +41,26 @@ type mutantEffectEntry struct {
 
 // itemInfoEntry ItemInfo.json 条目
 type itemInfoEntry struct {
-	ID              int      `json:"id"`
-	Type            int      `json:"type"` // 5=种子物品；4=果实物品；6=果实/装扮
-	Name            string   `json:"name"`
-	Price           float64  `json:"price"`
-	Level           int      `json:"level"`
-	PriceID         int      `json:"price_id"`
-	InteractionType string   `json:"interaction_type"`
-	Layer           int      `json:"layer"` // 果实层级（图鉴 getFruitLayerByFruitId 用）
-	AssetName       string   `json:"asset_name"` // 图鉴/物品图片映射用
+	ID              int     `json:"id"`
+	Type            int     `json:"type"` // 5=种子物品；4=果实物品；6=果实/装扮
+	Name            string  `json:"name"`
+	Price           float64 `json:"price"`
+	Level           int     `json:"level"`
+	PriceID         int     `json:"price_id"`
+	InteractionType string  `json:"interaction_type"`
+	EffectDesc      string  `json:"effect_desc"` // 对齐 Node admin-seed-shop-routes.js 展示名优先 effectDesc`
+	Layer           int     `json:"layer"`       // 果实层级（图鉴 getFruitLayerByFruitId 用）
+	AssetName       string  `json:"asset_name"`  // 图鉴/物品图片映射用
 }
 
 // 运行期从配置文件建立的映射
 var (
-	seedToPlantMap   = map[int]plantEntry{}    // seed_id -> 植物
-	fruitToPlantMap  = map[int]plantEntry{}    // fruit.id -> 植物
-	plantByIDMap     = map[int]plantEntry{}    // plant.id -> 植物（对齐 Node plantMap）
-	itemInfoMap      = map[int]itemInfoEntry{}
-	seedItemSet      = map[int]bool{}          // ItemInfo type==5 的种子物品 id
-	mutantEffectMap  = map[int]mutantEffectEntry{} // mutant id -> 效果（对齐 Node mutantEffectMap）
+	seedToPlantMap  = map[int]plantEntry{} // seed_id -> 植物
+	fruitToPlantMap = map[int]plantEntry{} // fruit.id -> 植物
+	plantByIDMap    = map[int]plantEntry{} // plant.id -> 植物（对齐 Node plantMap）
+	itemInfoMap     = map[int]itemInfoEntry{}
+	seedItemSet     = map[int]bool{}              // ItemInfo type==5 的种子物品 id
+	mutantEffectMap = map[int]mutantEffectEntry{} // mutant id -> 效果（对齐 Node mutantEffectMap）
 )
 
 // initGameConfig 从 gameConfigDir 加载 Plant.json / ItemInfo.json。

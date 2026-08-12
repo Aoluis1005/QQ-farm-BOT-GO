@@ -38,19 +38,19 @@ func DecodeBagReply(buf []byte) *BagReply {
 					itemRaw := r2.ReadBytes()
 					st := NewReader(itemRaw)
 					var it BagItem
-				st.EachField(func(f3, w3 int, r3 *Reader) bool {
-					switch f3 {
-					case 1:
-						it.ID = r3.ReadInt64()
-					case 2:
-						it.Count = r3.ReadInt64()
-					case 6:
-						it.UID = r3.ReadInt64()
-					default:
-						r3.Skip(w3)
-					}
-					return true
-				})
+					st.EachField(func(f3, w3 int, r3 *Reader) bool {
+						switch f3 {
+						case 1:
+							it.ID = r3.ReadInt64()
+						case 2:
+							it.Count = r3.ReadInt64()
+						case 6:
+							it.UID = r3.ReadInt64()
+						default:
+							r3.Skip(w3)
+						}
+						return true
+					})
 					rep.Items = append(rep.Items, it)
 				} else {
 					r2.Skip(w2)
@@ -143,4 +143,41 @@ func IsFertilizerContainerFullError(msg string) bool {
 		strings.Contains(msg, "普通化肥容器已满") ||
 		strings.Contains(msg, "有机化肥容器已达到上限") ||
 		strings.Contains(msg, "有机化肥容器已满")
+}
+
+// DecodeSellReply 解析 SellReply，返回(出售物品总件数, 获得金币数)
+// 对齐 Node deriveGoldGainFromSellReply：SellReply sell_items=1 / get_items=2，金币 item id==1001
+func DecodeSellReply(buf []byte) (soldCount, gold int64) {
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		if wire != WireLen {
+			r.Skip(wire)
+			return true
+		}
+		itemRaw := r.ReadBytes()
+		st := NewReader(itemRaw)
+		var it SellItem
+		st.EachField(func(f3, w3 int, r3 *Reader) bool {
+			switch f3 {
+			case 1:
+				it.ID = r3.ReadInt64()
+			case 2:
+				it.Count = r3.ReadInt64()
+			case 6:
+				it.UID = r3.ReadInt64()
+			default:
+				r3.Skip(w3)
+			}
+			return true
+		})
+		if field == 1 { // sell_items
+			soldCount += it.Count
+		} else if field == 2 { // get_items：金币 id==1001
+			if it.ID == 1001 {
+				gold += it.Count
+			}
+		}
+		return true
+	})
+	return soldCount, gold
 }

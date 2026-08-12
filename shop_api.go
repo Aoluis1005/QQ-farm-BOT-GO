@@ -27,7 +27,7 @@ import (
 // ============================================================
 
 const (
-	petShopType      = 3    // 宠物商店 shop_id（Node PET_SHOP_TYPE=3）
+	petShopType      = 3 // 宠物商店 shop_id（Node PET_SHOP_TYPE=3）
 	shopRequestTO    = 15 * time.Second
 	mysteryRequestTO = 60 * time.Second // Node 神秘超时 60s
 )
@@ -125,6 +125,10 @@ func buildSeedGoods(g proto.GoodsInfo, userLevel int64) (map[string]interface{},
 		assetName = fmt.Sprintf("Crop_%d", itemID-20000)
 	}
 	name := itemConfig.Name
+	// 展示名优先 effectDesc（对齐 Node admin-seed-shop-routes.js:119 itemConfig.effectDesc || itemConfig.name）
+	if itemConfig.EffectDesc != "" {
+		name = itemConfig.EffectDesc
+	}
 	if name == "" {
 		name = "种子" + strconv.Itoa(itemID)
 	}
