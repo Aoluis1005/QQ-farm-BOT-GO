@@ -1735,7 +1735,7 @@ body{
       if (t && !hs.has('x-admin-token')) hs.set('x-admin-token', t);
     }
     init.headers = hs;
-    return origFetch.apply(window, arguments).then(function (resp) {
+    return origFetch(input, init).then(function (resp) {
       if (resp.status === 401 && url.indexOf('/api/') === 0 && url.indexOf('/api/admin/') !== 0) {
         setTok('');
         if (!gateVisible()) showGate('login');
