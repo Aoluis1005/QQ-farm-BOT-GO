@@ -2639,6 +2639,19 @@ function renderBagSellBar(){
     });
   }).catch(()=>{});
 
+  // 刷新首页巡查卡片文本+开关（策略设置/自动控制保存后调用）
+  window.refreshPatrolCards = function(){
+    fetch('/api/home/patrol?accountId='+accId()).then(r=>r.json()).then(d=>{
+      if(!(d&&d.ok&&d.data)) return;
+      const p=d.data;
+      const timers={'偷菜':'tSteal','帮忙':'tHelp','收菜':'tHarvest'};
+      [['偷菜','steal'],['帮忙','help'],['收菜','farm']].forEach(([label,key])=>{
+        const t=document.getElementById(timers[label]); if(t) t.textContent=`随机 ${p[key].min}~${p[key].max} 秒`;
+        const sw=document.querySelector(`#page-home .switch[data-who="${label}"]`); if(sw) sw.classList.toggle('on', !!p[key].enabled);
+      });
+    }).catch(()=>{});
+  };
+
   // 农场操作按钮
   const actMap={'fa-harvest':'harvest','fa-work':'work','fa-plant':'plant','fa-upgrade':'upgrade','fa-full':'full','fa-clear':'clear'};
   document.querySelectorAll('#p-farm .fa-btn').forEach(btn=>{
@@ -3642,9 +3655,9 @@ window.loadLogs();
   }
   bindSave('mAutoSave', () => {
     const aut = collectAuto();
-    return postJSON('/api/automation?accountId=' + accId(), aut);
+    return postJSON('/api/automation?accountId=' + accId(), aut).then(function(d){ if(d && d.ok && window.refreshPatrolCards) window.refreshPatrolCards(); return d; });
   });
-  bindSave('mStrategySave', () => postJSON('/api/settings/save?accountId=' + accId(), collectStrategy()));
+  bindSave('mStrategySave', () => postJSON('/api/settings/save?accountId=' + accId(), collectStrategy()).then(function(d){ if(d && d.ok && window.refreshPatrolCards) window.refreshPatrolCards(); return d; }));
   bindSave('dStrategySave', () => fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: document.getElementById('dAutoApply') ? document.getElementById('dAutoApply').classList.contains('on') : true, config: collectDefault() }) }).then(r => r.json()));
   bindSave('dAutoSave', () => fetch('/api/settings/default-plan', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled: document.getElementById('dAutoApply') ? document.getElementById('dAutoApply').classList.contains('on') : true, config: collectDefault() }) }).then(r => r.json()));
 
