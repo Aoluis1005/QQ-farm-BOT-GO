@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -101,6 +102,7 @@ func mysteryAutoBuyForClient(ctx context.Context, accountID string, c *gw.Client
 		}
 		log.Printf("[mystery] 自动购买成功(账号 %s): %s ×%d（%s）",
 			accountID, mysteryItemName(npc.ItemID), npc.ItemCount, mysteryCurrencyName(npc.CurrencyID))
+		appendOpLog(accountID, "商城", fmt.Sprintf("神秘商人购买: %s ×%d", mysteryItemName(npc.ItemID), npc.ItemCount))
 		lastNpcID = npc.NpcID
 		select {
 		case <-ctx.Done():

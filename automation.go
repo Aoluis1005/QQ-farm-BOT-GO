@@ -127,6 +127,8 @@ func automationLoop(accountID string, stop chan struct{}) {
 	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
 	nextTask := time.Now().Add(15 * time.Second)
 
+	appendOpLog(accountID, "系统", "自动化循环已启动")
+
 	for {
 		cfg := getCfg()
 		now := time.Now()

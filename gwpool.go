@@ -133,6 +133,7 @@ func connect(acc *models.Account) (*gw.Client, error) {
 		aceSvc.stop()
 	}()
 	appendOpLog(acc.ID, "登录", "账号上线")
+	appendOpLog(acc.ID, "系统", "网关已连接，开始心跳与数据预拉取")
 	return c, nil
 }
 
