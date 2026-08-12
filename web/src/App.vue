@@ -9,13 +9,13 @@ const account = useAccountStore()
 const router = useRouter()
 const route = useRoute()
 
-// 底部 dock / 侧栏 6 个 tab（用户要求：简洁、单字符、无 ZWJ 的稳定 emoji）
+// 底部 dock / 侧栏 6 个 tab（用户要求：图标统一用「更多」风格的 ☰ 符号）
 const tabs = [
-  { to: '/', label: '首页', icon: '🏠' },
-  { to: '/profile', label: '个人', icon: '👤' },
-  { to: '/account', label: '账号', icon: '🔑' },
-  { to: '/event', label: '活动', icon: '🎁' },
-  { to: '/shop', label: '商城', icon: '🛒' },
+  { to: '/', label: '首页', icon: '☰' },
+  { to: '/profile', label: '个人', icon: '☰' },
+  { to: '/account', label: '账号', icon: '☰' },
+  { to: '/event', label: '活动', icon: '☰' },
+  { to: '/shop', label: '商城', icon: '☰' },
   { to: '/more', label: '更多', icon: '☰' },
 ]
 
