@@ -9,11 +9,11 @@ const account = useAccountStore()
 const router = useRouter()
 const route = useRoute()
 
-// 严格对齐原 HTML 的侧栏/底部导航 6 个 tab（不自行发明）
+// 底部 dock / 侧栏 6 个 tab（用户要求：简洁、单字符、无 ZWJ 的稳定 emoji）
 const tabs = [
   { to: '/', label: '首页', icon: '🏠' },
-  { to: '/profile', label: '个人', icon: '🧑‍🌾' },
-  { to: '/account', label: '账号', icon: '👤' },
+  { to: '/profile', label: '个人', icon: '👤' },
+  { to: '/account', label: '账号', icon: '🔑' },
   { to: '/event', label: '活动', icon: '🎁' },
   { to: '/shop', label: '商城', icon: '🛒' },
   { to: '/more', label: '更多', icon: '☰' },
