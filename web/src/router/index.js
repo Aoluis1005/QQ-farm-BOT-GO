@@ -1,18 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+// 路由严格对齐原 HTML 的 6 个页面（page-home/profile/account/event/shop/more），不再自行发明 tab。
 const routes = [
-  { path: '/login', name: 'login', component: () => import('@/views/Login.vue'), meta: { public: true } },
-  { path: '/', name: 'dashboard', component: () => import('@/views/Dashboard.vue') },
-  { path: '/farm', name: 'farm', component: () => import('@/views/Farm.vue') },
-  { path: '/bag', name: 'bag', component: () => import('@/views/Bag.vue') },
-  { path: '/friends', name: 'friends', component: () => import('@/views/Friends.vue') },
+  { path: '/login', name: 'login', component: () => import('@/views/Login.vue') },
+  { path: '/', name: 'home', component: () => import('@/views/Dashboard.vue') },
+  { path: '/profile', name: 'profile', component: () => import('@/views/Profile.vue') },
+  { path: '/account', name: 'account', component: () => import('@/views/Account.vue') },
+  { path: '/event', name: 'event', component: () => import('@/views/Activity.vue') },
   { path: '/shop', name: 'shop', component: () => import('@/views/Shop.vue') },
-  { path: '/activity', name: 'activity', component: () => import('@/views/Activity.vue') },
-  { path: '/illustrated', name: 'illustrated', component: () => import('@/views/Illustrated.vue') },
-  { path: '/task', name: 'task', component: () => import('@/views/Task.vue') },
-  { path: '/settings', name: 'settings', component: () => import('@/views/Settings.vue') },
-  { path: '/backend', name: 'backend', component: () => import('@/views/Backend.vue') },
-  { path: '/event', name: 'event', component: () => import('@/views/Event.vue') },
+  { path: '/more', name: 'more', component: () => import('@/views/More.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

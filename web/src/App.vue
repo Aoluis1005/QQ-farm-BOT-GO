@@ -9,22 +9,20 @@ const account = useAccountStore()
 const router = useRouter()
 const route = useRoute()
 
-const navItems = [
+// 严格对齐原 HTML 的侧栏/底部导航 6 个 tab（不自行发明）
+const tabs = [
   { to: '/', label: '首页', icon: '🏠' },
-  { to: '/farm', label: '农场', icon: '🌱' },
-  { to: '/bag', label: '背包', icon: '🎒' },
-  { to: '/friends', label: '好友', icon: '👫' },
-  { to: '/shop', label: '商店', icon: '🛒' },
-  { to: '/activity', label: '活动', icon: '🎉' },
-  { to: '/illustrated', label: '图鉴', icon: '📖' },
-  { to: '/task', label: '任务', icon: '✅' },
-  { to: '/settings', label: '设置', icon: '⚙️' },
-  { to: '/backend', label: '后台', icon: '🖥️' },
+  { to: '/profile', label: '个人', icon: '🧑🌾' },
+  { to: '/account', label: '账号', icon: '👤' },
+  { to: '/event', label: '活动', icon: '🎁' },
+  { to: '/shop', label: '商城', icon: '🛒' },
+  { to: '/more', label: '更多', icon: '☰' },
 ]
 
-const dockItems = navItems.slice(0, 5)
-
-const currentLabel = computed(() => navItems.find((n) => n.to === route.path)?.label || 'QQ 农场')
+function isActive(t) {
+  if (t.to === '/') return route.path === '/'
+  return route.path === t.to || route.path.startsWith(t.to + '/')
+}
 
 onMounted(async () => {
   await account.loadAdminStatus()
@@ -32,63 +30,64 @@ onMounted(async () => {
     try {
       await account.loadAccounts()
     } catch (e) {
-      /* 未登录则跳转登录 */
+      /* 未登录则停留在登录页 */
     }
   }
 })
 
-function onSwitch(id) {
-  account.switchAccount(id)
-  // 切换账号后刷新当前页
-  router.go(0)
+function go(to) {
+  router.push(to)
+}
+function onSwitchAccount() {
+  router.push('/account')
 }
 </script>
 
 <template>
-  <div class="app-shell" v-if="account.adminLoggedIn">
-    <nav class="sb-nav">
-      <div class="brand">🌾 QQ 农场</div>
-      <button
-        v-for="n in navItems"
-        :key="n.to"
-        class="sb-item"
-        :class="{ active: route.path === n.to }"
-        @click="router.push(n.to)"
-      >
-        <span class="mi">{{ n.icon }}</span><span class="lb">{{ n.label }}</span>
-      </button>
-    </nav>
+  <div v-if="account.adminLoggedIn">
+    <!-- 左侧栏（桌面 ≥920px 显示，移动端由 style.css 隐藏） -->
+    <aside class="sidebar">
+      <div class="sb-brand"><span class="logo">🌾</span> QQ农场 Bot</div>
+      <nav class="sb-nav">
+        <button
+          v-for="t in tabs"
+          :key="t.to"
+          class="nav-btn"
+          :class="{ active: isActive(t) }"
+          @click="go(t.to)"
+        >
+          <span class="di">{{ t.icon }}</span>{{ t.label }}
+        </button>
+      </nav>
+    </aside>
 
-    <div class="main">
+    <!-- 主区 -->
+    <div class="app">
       <header class="topbar">
-        <div class="tb-title">{{ currentLabel }}</div>
-        <div class="tb-right">
-          <select class="acct-select" :value="account.currentId" @change="onSwitch($event.target.value)">
-            <option v-for="a in account.accounts" :key="a.id" :value="a.id">
-              {{ a.remark || a.name || a.id }}
-            </option>
-            <option v-if="!account.accounts.length" value="">（无账号）</option>
-          </select>
+        <div class="brand">
+          <span class="logo">🌾</span>
+          <span>QQ农场 Bot<small>鸿蒙光感 · 原型</small></span>
+        </div>
+        <div class="icon-group">
           <button class="icon-btn" @click="app.toggleTheme()" :title="app.theme === 'dark' ? '切浅色' : '切暗色'">
             {{ app.theme === 'dark' ? '🌙' : '☀️' }}
           </button>
+          <button class="icon-btn" @click="onSwitchAccount" title="切换账号">🪪</button>
         </div>
       </header>
 
-      <main class="content">
-        <router-view />
-      </main>
+      <router-view />
     </div>
 
+    <!-- 底部 dock（移动端 <920px 显示，沿用 HTML 原 .dock 居中悬浮药丸样式） -->
     <nav class="dock">
       <button
-        v-for="n in dockItems"
-        :key="n.to"
-        class="dock-item"
-        :class="{ active: route.path === n.to }"
-        @click="router.push(n.to)"
+        v-for="t in tabs"
+        :key="t.to"
+        :class="{ active: isActive(t) }"
+        @click="go(t.to)"
       >
-        <span class="mi">{{ n.icon }}</span><span class="lb">{{ n.label }}</span>
+        <span class="di">{{ t.icon }}</span>{{ t.label }}
       </button>
     </nav>
 
