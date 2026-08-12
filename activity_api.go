@@ -23,9 +23,10 @@ import (
 // 对齐 Node core/src/services/activity.js。禁止并发（游戏内容相关，均顺序单发）。
 
 const (
-	actSvc  = "gamepb.activitypb.ActivityService"
+	actSvc   = "gamepb.activitypb.ActivityService"
 	seasonSvc = "gamepb.seasonpb.SeasonService"
 	solarSvc  = "gamepb.solartermspb.SolarTermsService"
+	shareSvc  = "gamepb.sharepb.ShareService"
 )
 
 func registerActivityAPI(api *http.ServeMux) {
@@ -861,9 +862,45 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 	}
 	finalBrew := brews[len(brews)-1]
 
-	// 出售（默认 multiple=1；分享翻倍 multiple=2 暂未接入分享上报）
+	// 分享翻倍（对齐 Node brewAndSellQingmeiWine：精酿结果可翻倍才做分享上报，成功则 multiple=2 出售）
+	shared := false
+	if finalBrew.CanDouble {
+		// 1) CheckCanShare：判断当前是否可分享
+		checkBody, cErr := rpcRequest(ctx, accountID, shareSvc, "CheckCanShare", []byte{}, 20*time.Second)
+		if cErr != nil {
+			writeJSONMap(w, "ok", false, "error", "青梅酿分享翻倍失败: "+actErrMsg(cErr))
+			return
+		}
+		if actNum(readActFields(checkBody), 1) == 0 {
+			writeJSONMap(w, "ok", false, "error", "当前不可分享，无法执行青梅酿售卖翻倍")
+			return
+		}
+		// 2) ReportShare：上报已分享 {shared:true}
+		repB := proto.NewBuilder()
+		repB.FieldBool(1, true)
+		repBody := repB.Bytes()
+		reportBody, rErr := rpcRequest(ctx, accountID, shareSvc, "ReportShare", repBody, 20*time.Second)
+		if rErr != nil {
+			writeJSONMap(w, "ok", false, "error", "青梅酿分享上报失败: "+actErrMsg(rErr))
+			return
+		}
+		// 仅当返回体显式 success=false 才算失败（对齐 Node success !== false）
+		for _, f := range readActFields(reportBody) {
+			if f.No == 1 && f.Wire == 0 && f.Varint == 0 {
+				writeJSONMap(w, "ok", false, "error", "青梅酿分享上报失败")
+				return
+			}
+		}
+		shared = true
+		time.Sleep(qingmeiStepDelay)
+	}
+	sellMultiple := int32(1)
+	if shared {
+		sellMultiple = 2
+	}
+	// 出售（分享成功 multiple=2 翻倍；否则 multiple=1）
 	sellSub := proto.NewBuilder()
-	sellSub.FieldInt32(1, 1)
+	sellSub.FieldInt32(1, sellMultiple)
 	sellBody, sErr := qingmeiOperate(ctx, accountID, wineID, qingmeiSellCmd, qingmeiWineSellF, sellSub.Bytes())
 	if sErr != nil {
 		writeJSONMap(w, "ok", false, "error", "青梅酿售卖失败: "+actErrMsg(sErr))
@@ -890,6 +927,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 		"brew_steps": len(brews), "brews": brews,
 		"preview": map[string]int64{"price": previewPrice}, "preview_warning": previewWarning,
 		"wine": finalBrew,
+		"shared": shared,
 		"sell": sell,
 	})
 }
