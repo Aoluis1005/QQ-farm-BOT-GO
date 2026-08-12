@@ -3150,6 +3150,8 @@ window.loadLogs=function(){
   });
 })();
 window.loadLogs();
+/* 对齐 Node WebSocket 实时推送：用定时轮询实现准实时刷新后台自动化日志 */
+setInterval(function(){ if(window.loadLogs) window.loadLogs(); }, 5000);
 </script>
 
 <script>
