@@ -583,16 +583,17 @@ type ConstellationSummary struct {
 }
 
 type ConstellationInfo struct {
-	ActivityID int64                `json:"activity_id"`
-	Title      string               `json:"title"`
-	StartTime  int64                `json:"start_time"`
-	EndTime    int64                `json:"end_time"`
-	NowTime    int64                `json:"now_time"`
-	CurrentDay int64                `json:"current_day"`
-	TotalDays  int                  `json:"total_days"`
-	Nodes      []*ConstellationNode `json:"nodes"`
-	Summary    ConstellationSummary `json:"summary"`
-	Warning    string               `json:"warning,omitempty"`
+	ActivityID  int64                `json:"activity_id"`
+	Title       string               `json:"title"`
+	SeasonTitle  string               `json:"seasonTitle"` // 对齐 Node normalizeGuanxingActivity base.seasonTitle=观星礼录
+	StartTime   int64                `json:"start_time"`
+	EndTime     int64                `json:"end_time"`
+	NowTime     int64                `json:"now_time"`
+	CurrentDay  int64                `json:"current_day"`
+	TotalDays   int                  `json:"total_days"`
+	Nodes       []*ConstellationNode `json:"nodes"`
+	Summary     ConstellationSummary `json:"summary"`
+	Warning     string               `json:"warning,omitempty"`
 }
 
 // parseConstGroup 解析星宿分组（field:1=id,3=name,4=links,5=configText(JSON category/explain)）
@@ -693,7 +694,7 @@ func findConstellationBytes(body []byte) []byte {
 func ParseConstellation(body []byte) *ConstellationInfo {
 	defer func() { _ = recover() }()
 	now := timeNow()
-	base := &ConstellationInfo{ActivityID: guanxingActivityID, Title: "观星礼录", StartTime: 0, EndTime: 0, NowTime: now}
+	base := &ConstellationInfo{ActivityID: guanxingActivityID, Title: "观星礼录", SeasonTitle: "观星礼录", StartTime: 0, EndTime: 0, NowTime: now}
 	// 定位 activity info（ActivityInfo: 1=id 4=title 6=start 7=end，对齐 findActivityInfoEntries）
 	for _, blk := range collectBytes(body, 1, 5) {
 		fs := readActFields(blk)

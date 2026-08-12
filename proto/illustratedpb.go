@@ -66,3 +66,30 @@ func DecodeGetIllustratedListV2Reply(buf []byte) *IllustratedListReply {
 	})
 	return rep
 }
+
+// ClaimAllRewardsV2 领取全部已达标图鉴奖励（对齐 Node task.js checkAndClaimIllustratedRewards）
+// ClaimAllRewardsV2Request: only_claimable=1
+func EncodeClaimAllRewardsV2Request(onlyClaimable bool) []byte {
+	b := NewBuilder()
+	b.FieldBool(1, onlyClaimable)
+	return b.Bytes()
+}
+
+// ClaimAllRewardsV2Reply: items=1, bonus_items=4（仅统计奖品数量用）
+func DecodeClaimAllRewardsV2Reply(buf []byte) (itemCount int) {
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		switch field {
+		case 1, 4:
+			// repeated corepb.Item：逐条统计
+			if wire == WireLen {
+				r.Skip(wire)
+				itemCount++
+			}
+		default:
+			r.Skip(wire)
+		}
+		return true
+	})
+	return
+}
