@@ -21,8 +21,11 @@ import (
 var dataDir string
 
 // 前端 Vue 构建产物（web/dist）在编译期嵌入二进制，部署只需换二进制。
+// 注意：必须用 all: 前缀，否则 embed 默认跳过文件名以 _ 或 . 开头的文件；
+// Vite 产出的共享块 _plugin-vue_export-helper-*.js 以 _ 开头，漏嵌会导致该块
+// 线上返回 index.html(content-type=text/html) → 浏览器解析模块报错 → 整页黑屏。
 //
-//go:embed web/dist
+//go:embed all:web/dist
 var webDistFS goembed.FS
 
 // 内置应用宝(YYB)服务：BOT 自带换 code 能力，不依赖外部 YYB_API_URL/YYB_API_KEY。
