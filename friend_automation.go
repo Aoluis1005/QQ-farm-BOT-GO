@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -28,6 +30,12 @@ const guardDogID = 90021
 // 作为服务端未回传 day_times_lt 时的兜底）
 const badDailyLimit = 100
 
+// badFailLimit 捣乱连续失败暂停阈值（对齐 Node BAD_FAILURE_LIMIT）
+const badFailLimit = 3
+
+// badPauseDuration 捣乱连续失败后暂停时长
+const badPauseDuration = 12 * time.Hour
+
 // 好友操作类型 ID（对齐 Node friend-operation-limits.js OP_NAMES）
 const (
 	opHelpWater  = 10001
@@ -44,6 +52,14 @@ var (
 	opLimits      = map[int64]*opLimitState{}
 	opLimitsKey   string // UTC+8 日期，跨日重置
 	canGetHelpExp = true // 经验上限后仅帮护主犬（对齐 Node canGetHelpExp）
+
+	// VisitorList 首次拉取标志（对齐 Node 首次加载用 VisitorList 做初始 friendList）
+	firstFriendFetchMu   sync.Mutex
+	firstFriendFetchDone = map[string]bool{}
+
+	// expLimitCallback 经验上限跨日重置回调（对齐 Node ensureExpLimitCallback）
+	onExpLimitReachedFn func()
+	onExpLimitResetFn   func()
 )
 
 type opLimitState struct {
@@ -60,24 +76,53 @@ var (
 	badDailyKey string
 )
 
+// ===== 防并发（对齐 Node isCheckingFriends） =====
+var (
+	checkingFriendsMu sync.Mutex
+	isCheckingFriends bool
+)
+
+// ===== 捣乱连续失败暂停状态 =====
+var (
+	badFailMu          sync.Mutex
+	badFailCount       int
+	badPausedUntil     time.Time
+	badPausedAccountID string
+)
+
 func checkOpLimitsDailyReset() {
 	t := time.Now().UTC().Add(8 * time.Hour)
 	key := t.Format("2006-01-02")
 	opLimitsMu.Lock()
-	defer opLimitsMu.Unlock()
+	prevKey := opLimitsKey
 	if key != opLimitsKey {
-		if opLimitsKey != "" {
+		if prevKey != "" {
 			opLimits = map[int64]*opLimitState{}
 			canGetHelpExp = true
+			// 调用跨日重置回调（对齐 Node onExpLimitResetCallback：清持久化经验上限标志）
+			if onExpLimitResetFn != nil {
+				onExpLimitResetFn()
+			}
 		}
 		opLimitsKey = key
 	}
+	opLimitsMu.Unlock()
 	badDailyMu.Lock()
 	if key != badDailyKey {
 		badDailyKey = key
 		badDailyCnt = map[string]int{}
 	}
 	badDailyMu.Unlock()
+}
+
+// setOnExpLimitReachedCallback 注册经验上限回调（对齐 Node setOnExpLimitReachedCallback）
+func setOnExpLimitReachedCallback(fn func()) {
+	onExpLimitReachedFn = fn
+}
+
+// setOnExpLimitResetCallback 注册跨日重置回调（对齐 Node setOnExpLimitResetCallback）
+func setOnExpLimitResetCallback(fn func()) {
+	onExpLimitResetFn = fn
 }
 
 // updateOperationLimits 从每次农场/好友操作 reply 的 operation_limits 刷新缓存（对齐 Node updateOperationLimits）
@@ -155,11 +200,25 @@ func setCanGetHelpExp(v bool) {
 	canGetHelpExp = v
 }
 
-// checkHelpExpLimitReached 帮忙后检测经验是否已满（对齐 Node autoDisableHelpByExpLimit：
-// 用服务端 dayExpTimes/dayExpTimesLimit 判定，无需 sleep 比对 exp）
-func checkHelpExpLimitReached() {
-	if !canGetExp(opHelpWater) && !canGetExp(opHelpWeed) && !canGetExp(opHelpInsect) {
-		setCanGetHelpExp(false)
+// autoDisableHelpByExpLimit 经验满后自动切换仅帮护主犬模式（对齐 Node autoDisableHelpByExpLimit）
+func autoDisableHelpByExpLimit(accountID string) {
+	if !getCanGetHelpExp() {
+		return
+	}
+	setCanGetHelpExp(false)
+	appendOpLog(accountID, "friend", "今日帮助经验已达上限，自动停止普通帮忙，仅帮助护主犬好友")
+	// 持久化经验上限状态（对齐 Node onExpLimitReachedCallback → applyConfigSnapshot）
+	if onExpLimitReachedFn != nil {
+		onExpLimitReachedFn()
+	}
+}
+
+// detectExpFull 帮忙后通过 exp 增量比对判定经验是否已满（对齐 Node helpWater 内的 detectExpFull：
+// 每次 help RPC 后 sleep 200ms，比对 expBefore vs expAfter，若 expAfter <= expBefore 则判定经验满）
+func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
+	expAfter := c.Exp()
+	if expAfter <= expBefore {
+		autoDisableHelpByExpLimit(accountID)
 	}
 }
 
@@ -182,14 +241,121 @@ func incBadDaily(accountID string) {
 	badDailyCnt[accountID]++
 }
 
+// ===== 捣乱连续失败暂停（对齐 Node recordBadFailure + pauseFriendBadUntilTomorrow） =====
+
+func isBadPaused(accountID string) bool {
+	badFailMu.Lock()
+	defer badFailMu.Unlock()
+	if !badPausedUntil.IsZero() && time.Now().Before(badPausedUntil) {
+		return true
+	}
+	if !badPausedUntil.IsZero() && time.Now().After(badPausedUntil) {
+		badPausedUntil = time.Time{}
+		badFailCount = 0
+		badPausedAccountID = ""
+	}
+	return false
+}
+
+func resetBadFailureCount() {
+	badFailMu.Lock()
+	defer badFailMu.Unlock()
+	badFailCount = 0
+}
+
+func recordBadFailure(accountID, reason string) bool {
+	badFailMu.Lock()
+	defer badFailMu.Unlock()
+	badFailCount++
+	fmt.Printf("[friend] 捣乱失败 %d/%d: %s\n", badFailCount, badFailLimit, reason)
+	if badFailCount >= badFailLimit {
+		badPausedUntil = time.Now().Add(badPauseDuration)
+		badPausedAccountID = accountID
+		appendOpLog(accountID, "friend", fmt.Sprintf("捣乱连续失败 %d 次，暂停至 %s", badFailLimit, badPausedUntil.Format("2006-01-02 15:04")))
+		return true
+	}
+	return false
+}
+
+// isIgnorableBadFailureMessage 可忽略的捣乱失败消息（对齐 Node isIgnorableBadFailureMessage）
+func isIgnorableBadFailureMessage(msg string) bool {
+	ignorable := []string{"??", "No target", "?????", "1001046", "used up", "no target",
+		"没有可捣乱土地", "捣乱失败或今日次数已用完", "今日次数已用完", "次数已用完",
+		"已经放过", "来晚一步"}
+	for _, kw := range ignorable {
+		if len(kw) > 0 && len(msg) > 0 {
+			for i := 0; i <= len(msg)-len(kw); i++ {
+				if msg[i:i+len(kw)] == kw {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // checkFriends 好友巡查主流程（对齐 Node friend-orchestrator.js checkFriends：
 // 偷 → 卖 → 帮 → 捣；护主犬信息随进入好友农场时刷新，见 doFriendOperation 内 cacheFriendDog）。
 func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) {
+	// 防并发（对齐 Node isCheckingFriends 互斥）
+	checkingFriendsMu.Lock()
+	if isCheckingFriends {
+		checkingFriendsMu.Unlock()
+		return
+	}
+	isCheckingFriends = true
+	checkingFriendsMu.Unlock()
+	defer func() {
+		checkingFriendsMu.Lock()
+		isCheckingFriends = false
+		checkingFriendsMu.Unlock()
+	}()
+
+	// 静默时段检查（对齐 Node inFriendQuietHours）
+	if inQuietHours(cfg) {
+		return
+	}
+
+	// 从持久化配置恢复经验上限状态（对齐 Node checkFriends 开头恢复 friendHelpExpExhausted）
+	if cfg.FriendHelpExpExhausted && getCanGetHelpExp() {
+		setCanGetHelpExp(false)
+		appendOpLog(accountID, "friend", "从配置恢复：经验已达上限状态，仅帮助护主犬好友")
+	}
+
 	acc := models.GetAccountByID(accountID)
 	platform := "qq"
 	if acc != nil && acc.Platform != "" {
 		platform = acc.Platform
 	}
+	// 首次加载：额外调用 VisitorList RPC 合并初始好友列表（对齐 Node 首次用 VisitorList 做初始 friendList）
+	firstFriendFetchMu.Lock()
+	if !firstFriendFetchDone[accountID] {
+		firstFriendFetchMu.Unlock()
+		firstFriendFetchDone[accountID] = true
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		visitorReply, visitorErr := c.Request(ctx, "gamepb.interactpb.VisitorService", "GetInteractRecords",
+			proto.EncodeInteractRecordsRequest(), 12*time.Second)
+		cancel()
+		if visitorErr == nil {
+			records := proto.DecodeInteractRecordsReply(visitorReply.Body)
+			seen := map[int64]bool{}
+			for _, g := range cfg.KnownFriendGIDs {
+				seen[g] = true
+			}
+			for _, rec := range records {
+				if rec.VisitorGID > 0 && !seen[rec.VisitorGID] {
+					seen[rec.VisitorGID] = true
+					cfg.KnownFriendGIDs = append(cfg.KnownFriendGIDs, rec.VisitorGID)
+				}
+			}
+			if len(cfg.KnownFriendGIDs) > len(seen) {
+				_ = models.SetAccountConfig(accountID, cfg)
+			}
+		}
+	} else {
+		firstFriendFetchMu.Unlock()
+	}
+
 	friends, err := fetchAllFriends(c, platform, cfg.KnownFriendGIDs)
 	if err != nil || len(friends) == 0 {
 		return
@@ -216,6 +382,8 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		need  int64
 	}
 	var stealTargets, helpTargets, badTargets []ft
+	expLimitEnabled := cfg.Automation.FriendHelpExpLimit
+	helpExpReached := expLimitEnabled && !getCanGetHelpExp()
 	for _, f := range friends {
 		if f == nil || f.GID <= 0 {
 			continue
@@ -228,7 +396,9 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 		// 帮忙目标：缺水/草/虫，need 降序、护主犬优先（对齐 Node helpTargets need desc + guard dog 优先）
 		if !onlySteal && !skHelp && p != nil && (p.DryNum > 0 || p.WeedNum > 0 || p.InsectNum > 0) {
-			if cfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp() && !hasGuardDog(f.GID) {
+			// 极速务农模式下忽略滞后快照筛选，进全部护主犬（对齐 Node turboMode 条件）
+			isTurbo := cfg.Automation.FriendTurboMode
+			if helpExpReached && !hasGuardDog(f.GID) && !isTurbo {
 				continue // 经验满限制：仅帮护主犬
 			}
 			need := p.DryNum + p.WeedNum + p.InsectNum
@@ -275,23 +445,149 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	// 2. 帮忙（对齐 Node 执行 help → visitFriendForHelp，单次进入内浇水/除草/除虫）
 	if !onlySteal {
 		for _, t := range helpTargets {
-			doFriendOperation(c, accountID, t.gid, "help")
+			// 经验满判定可能在巡逻中途触发并翻转 canGetHelpExp=false。
+			// 对非护主犬好友实时复核，否则开关触发后本轮剩余普通好友仍会被无差别帮助。
+			if expLimitEnabled && !hasGuardDog(t.gid) && !getCanGetHelpExp() {
+				continue
+			}
+			// 帮忙用 exp 增量比对检测经验上限（对齐 Node visitFriendForHelp 内 checkExpLimit）
+			expBefore := c.Exp()
+			res := doFriendOperation(c, accountID, t.gid, "help")
+			if res != nil && res.Count > 0 && expLimitEnabled && getCanGetHelpExp() {
+				time.Sleep(200 * time.Millisecond)
+				detectExpFull(c, expBefore, accountID)
+			}
 			time.Sleep(randomIntervalMs(800, 1500))
 		}
 	}
 
 	// 3. 捣乱（受每日上限约束，对齐 Node BAD_DAILY_LIMIT）
 	if !onlySteal && cfg.Automation.FriendBad && !cfg.Automation.FriendTurboMode {
-		for _, t := range badTargets {
-			if getBadRemainingTimes(accountID) <= 0 {
-				appendOpLog(accountID, "friend", "今日捣乱次数已达上限")
-				break
+		if isBadPaused(accountID) {
+			appendOpLog(accountID, "friend", "捣乱已暂停，等待恢复")
+		} else {
+			for _, t := range badTargets {
+				if getBadRemainingTimes(accountID) <= 0 {
+					appendOpLog(accountID, "friend", "今日捣乱次数已达上限")
+					break
+				}
+				res := doFriendOperation(c, accountID, t.gid, "bad")
+				if res != nil {
+					if res.Count > 0 {
+						incBadDaily(accountID)
+						resetBadFailureCount()
+					} else {
+						msg := res.Message
+						if !isIgnorableBadFailureMessage(msg) {
+							if recordBadFailure(accountID, msg) {
+								break
+							}
+						}
+					}
+				}
+				time.Sleep(randomIntervalMs(800, 1500))
 			}
-			res := doFriendOperation(c, accountID, t.gid, "bad")
-			if res != nil && res.Count > 0 {
-				incBadDaily(accountID)
-			}
-			time.Sleep(randomIntervalMs(800, 1500))
 		}
 	}
+
+	// 4. 好友巡查后：对好友列表中已失效的好友自动移除（对齐 Node delBuddy 调用：检查未知 UID 自动删除）
+	// Go 在进入好友农场失败时会触发 handleFriendEnterError 处理，此处补充对列表内 fetchDogInfo 返回 unknown 的好友调 DelBuddy
+	for _, f := range friends {
+		if f == nil || f.GID <= 0 {
+			continue
+		}
+		// 如果好友的 plant 为 nil 且 level 为 0（可能是失效好友），尝试 DelBuddy
+		if f.Plant == nil && f.Level <= 0 {
+			// 静默删除：尝试 DelBuddy RPC，失败不报错
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_, err := c.Request(ctx, "gamepb.friendpb.FriendService", "DelFriend",
+				proto.EncodeDelFriendRequest(f.GID), 10*time.Second)
+			cancel()
+			if err == nil {
+				appendOpLog(accountID, "friend", fmt.Sprintf("已自动移除失效好友 GID=%d", f.GID))
+			}
+		}
+	}
+
+	// 5. 自动同意好友申请（对齐 Node autoAcceptFriendApply：检查待处理申请并自动同意）
+	autoAcceptFriendApply(c, accountID, cfg)
+}
+
+// autoAcceptFriendApply 自动同意好友申请（对齐 Node autoAcceptFriendApply + checkAndAcceptApplications）
+func autoAcceptFriendApply(c *gw.Client, accountID string, cfg config.AccountConfig) {
+	minLevel := cfg.AutoAcceptFriendMinLevel
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	rep, err := c.Request(ctx, "gamepb.friendpb.FriendService", "GetApplications",
+		proto.EncodeGetApplicationsRequest(), 12*time.Second)
+	if err != nil {
+		return
+	}
+	apps := proto.DecodeGetApplicationsReply(rep.Body)
+	if apps == nil || len(apps.Applications) == 0 {
+		return
+	}
+	var acceptGIDs []int64
+	for _, a := range apps.Applications {
+		if a == nil || a.GID <= 0 {
+			continue
+		}
+		if minLevel > 0 && a.Level < int64(minLevel) {
+			fmt.Printf("[friend] 好友申请 %s 等级 %d < %d，跳过\n", a.Name, a.Level, minLevel)
+			continue
+		}
+		acceptGIDs = append(acceptGIDs, a.GID)
+	}
+	if len(acceptGIDs) == 0 {
+		return
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel2()
+	arep, err := c.Request(ctx2, "gamepb.friendpb.FriendService", "AcceptFriends",
+		proto.EncodeAcceptFriendsRequest(acceptGIDs), 12*time.Second)
+	if err != nil {
+		fmt.Printf("[friend] 自动同意好友申请失败: %v\n", err)
+		return
+	}
+	accepted := proto.DecodeAcceptFriendsReply(arep.Body)
+	if len(accepted) > 0 {
+		var names []string
+		for _, f := range accepted {
+			name := f.Name
+			if f.Remark != "" {
+				name = f.Remark
+			}
+			names = append(names, name)
+		}
+		appendOpLog(accountID, "friend", fmt.Sprintf("自动同意好友申请 %d 人: %v", len(accepted), names))
+		// 同步新好友 GID 到已知列表
+		for _, f := range accepted {
+			if f.GID > 0 {
+				models.SetKnownFriendGids(accountID, append(cfg.KnownFriendGIDs, f.GID))
+			}
+		}
+	}
+}
+
+// initExpLimitPersistence 注册经验上限持久化回调（对齐 Node ensureExpLimitCallback：
+// 跨日重置清掉 persistent friendHelpExpExhausted，经验满时持久化应用 configSnapshot）
+func initExpLimitPersistence() {
+	setOnExpLimitReachedCallback(func() {
+		accID := models.GetDefaultAccountID()
+		if accID == "" {
+			return
+		}
+		cfg := models.GetAccountConfig(accID)
+		cfg.FriendHelpExpExhausted = true
+		_ = models.SetAccountConfig(accID, cfg)
+	})
+	setOnExpLimitResetCallback(func() {
+		accID := models.GetDefaultAccountID()
+		if accID == "" {
+			return
+		}
+		cfg := models.GetAccountConfig(accID)
+		cfg.FriendHelpExpExhausted = false
+		_ = models.SetAccountConfig(accID, cfg)
+	})
 }
