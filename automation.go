@@ -7,6 +7,8 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -225,6 +227,46 @@ func unlockFarm(accountID string) {
 	farmBusyMu.Lock()
 	delete(farmBusySet, accountID)
 	farmBusyMu.Unlock()
+}
+
+// inQuietHours 检查是否处于好友静默时段（对齐 Node friend-api.js inFriendQuietHours）
+func inQuietHours(cfg config.AccountConfig) bool {
+	qh := cfg.FriendQuietHours
+	if !qh.Enabled || qh.Start == "" || qh.End == "" {
+		return false
+	}
+	now := time.Now()
+	startMin := parseTimeToMinutes(qh.Start)
+	endMin := parseTimeToMinutes(qh.End)
+	if startMin < 0 || endMin < 0 {
+		return false
+	}
+	curMin := now.Hour()*60 + now.Minute()
+	if startMin == endMin {
+		return true // Full-day quiet
+	}
+	if startMin < endMin {
+		return curMin >= startMin && curMin < endMin
+	}
+	// Crosses midnight (e.g. 23:00 - 07:30)
+	return curMin >= startMin || curMin < endMin
+}
+
+// parseTimeToMinutes 解析 HH:MM 格式的时间字符串转为分钟数
+func parseTimeToMinutes(s string) int {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return -1
+	}
+	h, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return -1
+	}
+	m, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return -1
+	}
+	return h*60 + m
 }
 
 // newFarmPushHandler 构建农场推送触发巡田处理器（对齐 Node onLandsChangedPush）：

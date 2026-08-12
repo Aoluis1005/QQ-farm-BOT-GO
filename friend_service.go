@@ -45,12 +45,12 @@ func leaveFriendFarm(c *gw.Client, gid int64) {
 
 // friendLandsAnalysis 好友地块分类结果（对齐 Node friend-land-analyzer.js analyzeFriendLands）
 type friendLandsAnalysis struct {
-	Stealable    []int64
-	NeedWater    []int64
-	NeedWeed     []int64
-	NeedBug      []int64
-	CanPutWeed   []int64
-	CanPutBug    []int64
+	Stealable  []int64
+	NeedWater  []int64
+	NeedWeed   []int64
+	NeedBug    []int64
+	CanPutWeed []int64
+	CanPutBug  []int64
 }
 
 // analyzeFriendLands 分析好友所有地块，产出可操作分类。
@@ -274,8 +274,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 				rec(int64(len(analysis.NeedBug)), "helpBug")
 			}
 		}
-		// 帮忙后检测经验是否已满（对齐 Node help* 的 checkExpLimit：用服务端 operation_limits 判定）
-		checkHelpExpLimitReached()
+		// 经验上限检测已改为 exp 增量比对（detectExpFull），见 checkFriends 内 doHelp 循环
 		if total == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
 		}
@@ -360,6 +359,9 @@ func getFriendBasic(c *gw.Client, gid int64) *proto.VisitBasic {
 // 好友列表拉取（对齐 Node friend-api.js）：wx 用 GetAll；qq 用 GetGameFriends(已知GID) 回退 GetAll。
 // ============================================================
 
+// fetchAllFriends 拉取所有好友（对齐 Node getAllFriends）
+// QQ 平台：GetGameFriends(已知GID) → 失败回退 GetAll
+// 首次调用且有已知 GID 时，额外调用 VisitorList RPC 合并结果作为初始好友列表（去重）。
 func fetchAllFriends(c *gw.Client, platform string, knownGids []int64) ([]*proto.GameFriend, error) {
 	if platform == "qq" && len(knownGids) > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -456,12 +458,12 @@ func getFriendDog(accountID string, gid int64) (dogInfo, bool) {
 
 // blacklistEntry 黑名单条目（对齐 Node BlacklistItem：gid/name + skipSteal/skipHelp）
 type blacklistEntry struct {
-	GID      int64  `json:"gid"`
-	Name     string `json:"name"`
-	Reason   string `json:"reason"`
-	AddedAt  string `json:"addedAt"`
-	SkipSteal bool  `json:"skipSteal"`
-	SkipHelp  bool  `json:"skipHelp"`
+	GID       int64  `json:"gid"`
+	Name      string `json:"name"`
+	Reason    string `json:"reason"`
+	AddedAt   string `json:"addedAt"`
+	SkipSteal bool   `json:"skipSteal"`
+	SkipHelp  bool   `json:"skipHelp"`
 }
 
 var blacklistMu sync.Mutex
@@ -552,4 +554,39 @@ func addFriendBlacklist(accountID string, gid int64, name string) {
 	}
 	m[gid] = blacklistEntry{GID: gid, Name: name, Reason: "手动拉黑", AddedAt: time.Now().Format("2006-01-02 15:04"), SkipSteal: true, SkipHelp: true}
 	writeBlacklist(accountID, m)
+}
+
+// seedKnownFriendGidsFromVisitors 从访客记录获取初始好友 GID（对齐 Node syncKnownFriendGidsFromRecentVisitorsOnce）
+func seedKnownFriendGidsFromVisitors(c *gw.Client) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	// Try each RPC candidate for InteractRecords
+	var records []*proto.InteractRecord
+	for _, cand := range proto.InteractRecordCandidates {
+		rep, err := c.Request(ctx, cand[0], cand[1], proto.EncodeInteractRecordsRequest(), 12*time.Second)
+		if err == nil {
+			records = proto.DecodeInteractRecordsReply(rep.Body)
+			break
+		}
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("no visitor records")
+	}
+	// 去重收集 visitorGid
+	seen := map[int64]bool{}
+	var gids []int64
+	for _, r := range records {
+		if r == nil || r.VisitorGID <= 0 {
+			continue
+		}
+		if !seen[r.VisitorGID] {
+			seen[r.VisitorGID] = true
+			gids = append(gids, r.VisitorGID)
+		}
+	}
+	if len(gids) == 0 {
+		return fmt.Errorf("no visitor GIDs")
+	}
+	fmt.Printf("[friend] 首次登录从访客获取 %d 个好友GID\n", len(gids))
+	return nil
 }
