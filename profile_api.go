@@ -204,12 +204,12 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 			"matureInSec": matureInSec, "totalGrowTime": totalGrowTime,
 			"needWater": needWater, "needWeed": needWeed, "needBug": needBug,
 			"stealable": plant.Stealable,
-			"level": level, "maxLevel": maxLevel, "landsLevel": landsLevel,
+			"level":     level, "maxLevel": maxLevel, "landsLevel": landsLevel,
 			"landSize": landSize, "landTypeName": landTypeName,
 			"couldUnlock": couldUnlock, "couldUpgrade": couldUpgrade,
 			"occupiedByMaster": ctx.OccupiedByMaster, "masterLandId": ctx.MasterLandID,
 			"occupiedLandIds": ctx.OccupiedLandIDs,
-			"plantSize": plantSize, "mutantEffects": me,
+			"plantSize":       plantSize, "mutantEffects": me,
 		})
 	}
 
@@ -309,10 +309,10 @@ func farmLinkedMasterLand(land *proto.LandInfo, landMap map[int64]*proto.LandInf
 
 // farmDisplayLandContext 显示上下文（对齐 Node getDisplayLandContext：处理合种 master/slave）
 type farmLandContext struct {
-	SourceLand      *proto.LandInfo
+	SourceLand       *proto.LandInfo
 	OccupiedByMaster bool
-	MasterLandID    int64
-	OccupiedLandIDs []int64
+	MasterLandID     int64
+	OccupiedLandIDs  []int64
 }
 
 func getFarmDisplayLandContext(land *proto.LandInfo, landMap map[int64]*proto.LandInfo) farmLandContext {
@@ -537,7 +537,7 @@ func handleFarmHarvest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad landId")
 		return
 	}
-	if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(ids, c.GID, false)); err != nil {
+	if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(ids, c.GID, true)); err != nil {
 		writeError(w, 500, "收获失败: "+err.Error())
 		return
 	}
@@ -605,7 +605,7 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		Img      string `json:"img,omitempty"`
 		Icon     string `json:"icon,omitempty"`
 		ItemType int64  `json:"itemType"` // 对齐 Node info.type：6/17=果实可售, 11=道具可用
-		UID      int64  `json:"uid"`       // 物品实例 uid，出售时回传
+		UID      int64  `json:"uid"`      // 物品实例 uid，出售时回传
 	}
 	items := make([]bagOut, 0, len(br.Items))
 	for _, it := range br.Items {
@@ -895,21 +895,21 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 
 		name := firstNonEmpty(f.Remark, f.Name, fmt.Sprintf("GID:%d", f.GID))
 		item := map[string]interface{}{
-			"uid":    f.GID,
-			"gid":    f.GID,
-			"name":   name,
-			"avatar": f.AvatarURL,
-			"level":  f.Level,
-			"coins":  f.Gold,
-			"hasDog": false,
-			"dogId":  int64(0),
-			"dogName": "",
-			"canSteal": false,
-			"canHelp":  false,
-			"canBad":   true,
-			"ripeLands": 0,
+			"uid":        f.GID,
+			"gid":        f.GID,
+			"name":       name,
+			"avatar":     f.AvatarURL,
+			"level":      f.Level,
+			"coins":      f.Gold,
+			"hasDog":     false,
+			"dogId":      int64(0),
+			"dogName":    "",
+			"canSteal":   false,
+			"canHelp":    false,
+			"canBad":     true,
+			"ripeLands":  0,
 			"totalLands": 0,
-			"tip": "",
+			"tip":        "",
 		}
 
 		// 护主犬：本地缓存优先（对齐 Node getFriendsList 的 dogInfoCache）
@@ -1100,23 +1100,23 @@ func handleFriendVisitors(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = fmt.Sprintf("GID:%d", rec.VisitorGID)
 		}
-			out = append(out, map[string]interface{}{
-		"key":          fmt.Sprintf("%d-%d-%d-%d", rec.ServerTime, rec.VisitorGID, rec.ActionType, i),
-		"visitorGid":   rec.VisitorGID,
-		"nick":         name,
-		"avatarUrl":    rec.AvatarURL,
-		"actionType":   rec.ActionType,
-		"actionLabel":  interactActionLabel(rec.ActionType),
-		"actionDetail": buildInteractDetail(rec),
-		"serverTimeMs": serverTimeMs(rec.ServerTime),
-		"level":        rec.Level,
-		"landId":       rec.LandID,
-		"times":        rec.Times,
-		"name":         name,
-		"avatar":       rec.AvatarURL,
-		"action":       interactActionLabel(rec.ActionType),
-		"time":         formatVisitorTime(rec.ServerTime),
-	})
+		out = append(out, map[string]interface{}{
+			"key":          fmt.Sprintf("%d-%d-%d-%d", rec.ServerTime, rec.VisitorGID, rec.ActionType, i),
+			"visitorGid":   rec.VisitorGID,
+			"nick":         name,
+			"avatarUrl":    rec.AvatarURL,
+			"actionType":   rec.ActionType,
+			"actionLabel":  interactActionLabel(rec.ActionType),
+			"actionDetail": buildInteractDetail(rec),
+			"serverTimeMs": serverTimeMs(rec.ServerTime),
+			"level":        rec.Level,
+			"landId":       rec.LandID,
+			"times":        rec.Times,
+			"name":         name,
+			"avatar":       rec.AvatarURL,
+			"action":       interactActionLabel(rec.ActionType),
+			"time":         formatVisitorTime(rec.ServerTime),
+		})
 
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
@@ -1178,7 +1178,6 @@ func serverTimeMs(sec int64) int64 {
 	}
 	return sec * 1000
 }
-
 
 // formatVisitorTime 服务器时间(秒) → 可读时间
 func formatVisitorTime(sec int64) string {
@@ -1265,7 +1264,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			recordOperation(accountID, "harvest", int64(len(all)))
 			detail = "全部收获"
 		} else {
-			if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(ids, c.GID, false)); err != nil {
+			if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(ids, c.GID, true)); err != nil {
 				writeError(w, 500, err.Error())
 				return
 			}

@@ -328,7 +328,7 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 
 	// 2. 收获（对齐 Node 步骤2，harvest 后触发自动卖）
 	if len(a.harvestable) > 0 {
-		if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(a.harvestable, c.GID, false)); err == nil {
+		if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(a.harvestable, c.GID, true)); err == nil {
 			recordOperation(accountID, "harvest", int64(len(a.harvestable)))
 			appendOpLog(accountID, "farm", fmt.Sprintf("收获 %d 块地", len(a.harvestable)))
 			if cfg.Automation.Sell {
