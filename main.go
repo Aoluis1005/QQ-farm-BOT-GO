@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	goembed "embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/models"
@@ -16,6 +19,11 @@ import (
 )
 
 var dataDir string
+
+// 前端 Vue 构建产物（web/dist）在编译期嵌入二进制，部署只需换二进制。
+//
+//go:embed web/dist
+var webDistFS goembed.FS
 
 // 内置应用宝(YYB)服务：BOT 自带换 code 能力，不依赖外部 YYB_API_URL/YYB_API_KEY。
 // embeddedYybBaseURL 非空时表示内置服务已成功监听 127.0.0.1 随机端口。
@@ -132,9 +140,31 @@ func main() {
 	// 游戏静态资源（种子/作物图片等）：/game-config/** → game-config/ 目录
 	mux.Handle("/game-config/", http.StripPrefix("/game-config/", http.FileServer(http.Dir("game-config"))))
 
-	// 根路径：serve 前端静态页面（1:1 HTML 原型）
-	webFS := http.FileServer(http.Dir("web"))
-	mux.Handle("/", webFS)
+	// 根路径：serve 嵌入的前端静态产物（Vue 构建的 web/dist），带 SPA history 回退。
+	distSub, err := fs.Sub(webDistFS, "web/dist")
+	if err != nil {
+		log.Fatalf("[admin] 嵌入前端失败: %v", err)
+	}
+	distFileServer := http.FileServer(http.FS(distSub))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		p := strings.TrimPrefix(r.URL.Path, "/")
+		// 资源文件存在则直接返回（带正确 Content-Type）
+		if p != "" {
+			if f, openErr := distSub.Open(p); openErr == nil {
+				f.Close()
+				distFileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+		// 否则回退到 index.html（客户端路由 /farm、/shop 等直接刷新可命中）
+		idx, readErr := webDistFS.ReadFile("web/dist/index.html")
+		if readErr != nil {
+			http.Error(w, "前端未构建", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(idx)
+	})
 
 	addr := fmt.Sprintf("0.0.0.0:%d", adminPort)
 	log.Printf("[admin] QQ Farm Bot Go · http://localhost:%d", adminPort)

@@ -3,3 +3,8 @@ go-farm-bot-linux-amd64
 store.json
 *.bak-*
 go-farm-bot
+
+# 前端：依赖不入库，构建产物 web/dist 需入库（供 //go:embed 嵌入二进制）
+node_modules/
+web/node_modules/
+
