@@ -5,10 +5,13 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/tetratelabs/wazero"
@@ -20,6 +23,9 @@ var wasmBin []byte
 
 // 进程启动时间，用于模拟 performance.now()
 var startTS = time.Now()
+
+// 服务器时间同步间隔（对齐 Node q 每次异步校准的语义）
+const serverTimeSyncInterval = 10 * time.Minute
 
 // Runtime TSDK 运行时封装
 type Runtime struct {
@@ -33,6 +39,9 @@ type Runtime struct {
 	gameID int64
 	appKey string
 	dir    string
+
+	// serverTime 服务器时间（秒），由后台 goroutine 从官方接口同步（对齐 Node q）
+	serverTime atomic.Int64
 }
 
 // New 创建运行时
@@ -94,6 +103,8 @@ func (r *Runtime) Init(ctx context.Context) error {
 	if _, err := initFn.Call(ctx, uint64(r.gameID), uint64(keyPtr)); err != nil {
 		return fmt.Errorf("initRuntime: %w", err)
 	}
+	r.serverTime.Store(time.Now().Unix()) // 初始用本地秒，后台同步后校正
+	go r.syncServerTimeLoop()
 	r.ready = true
 	return nil
 }
@@ -150,18 +161,17 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 		}
 		return r.writeCS(ctx, m, outPtr, capacity, string(data))
 	}).Export("g")
-	// h: clock
+	// h: clock（对齐 Node：微秒级，clockId 0=Date.now()，否则 performance.now()）
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, clockID, low, high, outPtr uint32) uint32 {
 		if clockID > 3 {
 			return 28
 		}
 		var value int64
 		if clockID == 0 {
-			value = time.Now().UnixNano()
+			value = time.Now().UnixMicro() // 对齐 Node Date.now()*1e6（微秒）
 		} else {
-			value = time.Since(startTS).Nanoseconds()
+			value = time.Since(startTS).Microseconds() // 对齐 Node performance.now()*1e6
 		}
-		fmt.Fprintln(os.Stderr, "[host h] clockID =", clockID, "value =", value)
 		m.Memory().WriteUint64Le(outPtr, uint64(value))
 		return 0
 	}).Export("h")
@@ -209,11 +219,9 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 		}
 		return uint32(out[0])
 	}).Export("p")
-	// q: server time (写本地秒，保真可后续 http)
+	// q: server time（对齐 Node：优先服务器时间，未同步则本地秒）
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, outPtr uint32) uint32 {
-		now := time.Now().Unix()
-		fmt.Fprintln(os.Stderr, "[host q] server time second =", now)
-		m.Memory().WriteUint32Le(outPtr, uint32(now))
+		m.Memory().WriteUint32Le(outPtr, uint32(r.serverTime.Load()))
 		return 1
 	}).Export("q")
 	// r: memory grow -> throw
@@ -244,6 +252,39 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module) { panic("TSDK aborted") }).Export("u")
 	// v: tqos report -> 0
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, ptr, length uint32) uint32 { return 0 }).Export("v")
+}
+
+// syncServerTimeLoop 后台同步官方服务器时间（对齐 Node q 的异步校准）
+func (r *Runtime) syncServerTimeLoop() {
+	r.syncServerTimeOnce()
+	ticker := time.NewTicker(serverTimeSyncInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			r.syncServerTimeOnce()
+		}
+	}
+}
+
+// syncServerTimeOnce 拉取官方 ACE 服务器时间写入 serverTime（失败保持原值）
+func (r *Runtime) syncServerTimeOnce() {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("https://api.anticheatexpert.com/test")
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	hd := resp.Header.Get("Date")
+	if hd == "" {
+		return
+	}
+	if t, err := http.ParseTime(hd); err == nil {
+		r.serverTime.Store(t.Unix())
+	}
 }
 
 func (r *Runtime) deviceString() string {
