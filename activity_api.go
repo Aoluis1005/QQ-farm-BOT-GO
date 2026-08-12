@@ -129,14 +129,16 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 		upcoming := it.EndTime > 0 && it.StartTime > now
 		finished := it.EndTime > 0 && it.EndTime < now
 		show := false
-		switch scope {
-		case "all", "default":
-			show = true
-		case "upcoming":
-			show = upcoming
-		case "finished":
-			show = finished
-		}
+	switch scope {
+	case "all", "default":
+		show = true
+	case "ongoing":
+		show = ongoing
+	case "upcoming":
+		show = upcoming
+	case "finished":
+		show = finished
+	}
 		if !show {
 			continue
 		}

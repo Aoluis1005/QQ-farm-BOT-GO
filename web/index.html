@@ -295,8 +295,8 @@ body{
   transition:transform .2s var(--ease);
 }
 .friend:active{ transform:scale(.98); }
-.friend .f-av{ width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft); }
-.friend .f-av img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
+.friend .f-av, .friend-card .f-av{ width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft); overflow:hidden; }
+.friend .f-av img, .friend-card .f-av img{ width:100%;height:100%;border-radius:14px;object-fit:cover;display:block; }
 .friend .f-info{ flex:1; min-width:0; }
 .friend .f-info h4{ font-size:14px; font-weight:600; }
 .friend .f-info p{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
@@ -3023,7 +3023,10 @@ document.addEventListener('click', async (e)=>{
     ]).then(([ad,av])=>{
       if(!(ad&&ad.ok)) return;
       var list=(Array.isArray(ad.data))?ad.data:[];
-      var cur=(av&&av.data&&av.data.accountId)||new URLSearchParams(location.search).get('accountId')||'';
+      var cur=(av&&av.data&&av.data.accountId)||(list[0]&&list[0].id)||new URLSearchParams(location.search).get('accountId')||'';
+      // 首次打开若 URL 未带 accountId 但已有 active/首个账号，则同步进 URL 并重载，
+      // 确保所有依赖 accountId 的面板（商城/图鉴/分析/每日任务/活动）能取到账号。
+      if(cur && !new URLSearchParams(location.search).get('accountId')){ switchTo(cur); return; }
       // 账号管理页列表
       var am=document.getElementById('accManage');
       if(am){
