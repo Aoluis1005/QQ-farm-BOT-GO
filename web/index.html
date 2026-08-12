@@ -1847,6 +1847,18 @@ function go(tabId, btn){
   if(btn){ dockBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
 }
 dockBtns.forEach(btn => btn.addEventListener('click', () => go(btn.dataset.tab, btn)));
+/* 对齐 Node：切号整体刷新后，恢复到刷新前停留的页面 */
+(function(){
+  try{
+    var _t=sessionStorage.getItem('acc_tab');
+    if(!_t) return;
+    sessionStorage.removeItem('acc_tab');
+    var _pg=document.getElementById(_t);
+    if(!_pg) return;
+    var _b=dockBtns.filter(function(x){ return x.dataset.tab===_t; })[0];
+    go(_t, _b||null);
+  }catch(e){}
+})();
 const moreBtn = document.querySelector('.dock button[data-tab="page-more"]');
 /* 更多页 → 子页入口 */
 document.querySelectorAll('.sub-item[data-page]').forEach(it => it.addEventListener('click', () => go(it.dataset.page, moreBtn)));
@@ -2892,12 +2904,11 @@ document.addEventListener('click', async (e)=>{
     fetch('/api/accounts/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})
       .then(r=>r.json()).then(d=>{ if(d.ok){
         var u=new URL(location.href); u.searchParams.set('accountId',id); history.replaceState(null,'',u);
-        if(window.refreshAccount) window.refreshAccount();
-        if(window.loadLands) window.loadLands();
-        if(window.loadRealAccounts) window.loadRealAccounts();
-        if(typeof loadFriendSub === 'function') loadFriendSub('list');
-        var sh=document.getElementById('sheet'); if(sh) sh.classList.remove('show');
-        var mask=document.getElementById('sheetMask'); if(mask) mask.classList.remove('show');
+        // 对齐 Node：记录当前停留页并整体刷新，确保所有游戏数据/操作随账号热切换
+        var _cur=document.querySelector('.page.active');
+        var _tab=_cur?(_cur.id||'page-home'):'page-home';
+        try{ sessionStorage.setItem('acc_tab', _tab); }catch(e){}
+        location.reload();
       } else toast('切换失败: '+(d.error||'?'), false); })
       .catch(()=>toast('切换请求失败', false));
   }
