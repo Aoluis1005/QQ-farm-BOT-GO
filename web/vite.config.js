@@ -3,10 +3,11 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 // 构建产物输出到 web/dist，由 Go 后端 //go:embed 嵌入二进制。
-// base 用相对路径，保证嵌入后以根路径或子路径都能正确加载资源。
+// base 用绝对路径 '/'：本服务始终部署在根路径(:3009/)，
+// 绝对 base 才能让 Vue Router 的 createWebHistory() 正确匹配路由（相对 base './' 会导致 <router-view> 全空→黑屏）。
 export default defineConfig({
   plugins: [vue()],
-  base: './',
+  base: '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
