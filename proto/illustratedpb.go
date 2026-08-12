@@ -76,6 +76,10 @@ func EncodeClaimAllRewardsV2Request(onlyClaimable bool) []byte {
 }
 
 // ClaimAllRewardsV2Reply: items=1, bonus_items=4（仅统计奖品数量用）
+//
+// 警告：不要用返回值判断"是否真的领到奖励"。即使没有可领奖励，服务端仍会返回带
+// items/bonus_items 的响应，据此判定会导致任务循环每轮都误判成功并写日志（日志刷屏）。
+// 判断是否真实到账请用背包点券余额差，见 task_auto.go claimIllustratedRewardsGo（对齐 Node）。
 func DecodeClaimAllRewardsV2Reply(buf []byte) (itemCount int) {
 	r := NewReader(buf)
 	r.EachField(func(field, wire int, r *Reader) bool {

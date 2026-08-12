@@ -9,11 +9,16 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
+// illustratedTicketItemID 图鉴奖励结算的点券物品ID（对齐 Node getTicketBalanceFromBag 的 500）
+const illustratedTicketItemID = 500
+
 // runTaskAuto 自动做任务：扫描可领取任务并逐个领取（对齐 Node core/src/services/task.js checkAndClaimTasks）
 // 受 cfg.Automation.Task 控制，由 automationLoop 串行调度（绝不与其他游戏操作并发）。
 // 可领取判定对齐 Node analyzeTaskList：IsUnlocked && !IsClaimed && total>0 && progress>=total。
 func runTaskAuto(accountID string, c *gw.Client) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	// 父 ctx 需覆盖整条序列：TaskInfo + 逐个领取(每个 300ms 间隔) + 活跃奖励 + 图鉴奖励(2×背包查询)。
+	// 原先 20s 会在任务较多时把后续 RPC 全部截断（Node 每个 RPC 独立超时、无整体上限）。
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, taskSvc, "TaskInfo", []byte{}, 20*time.Second)
 	if err != nil {
@@ -50,9 +55,9 @@ func runTaskAuto(accountID string, c *gw.Client) {
 	if activeClaimed := claimActivesGo(ctx, accountID, c, fs); activeClaimed > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取 %d 个活跃奖励", activeClaimed))
 	}
-	// 图鉴奖励（点券）对齐 Node checkAndClaimIllustratedRewards
-	if illCnt := claimIllustratedRewardsGo(ctx, accountID, c); illCnt > 0 {
-		appendOpLog(accountID, "task", fmt.Sprintf("自动领取图鉴奖励 %d 个奖品", illCnt))
+	// 图鉴奖励（点券）对齐 Node checkAndClaimIllustratedRewards：仅在点券真实到账时记日志
+	if ticketGain := claimIllustratedRewardsGo(ctx, accountID, c); ticketGain > 0 {
+		appendOpLog(accountID, "task", fmt.Sprintf("自动领取图鉴奖励：点券+%d", ticketGain))
 	}
 }
 
@@ -105,15 +110,46 @@ func claimDailyRewardGo(ctx context.Context, accountID string, c *gw.Client, typ
 }
 
 // claimIllustratedRewardsGo 领取全部已达标图鉴奖励（对齐 Node checkAndClaimIllustratedRewards）
+// 返回本次实际到账的点券数量（0 表示没真正领到东西）。
+//
+// 为何用「点券余额差」而不是数 reply 里的 item 个数：
+// ClaimAllRewardsV2 即使没有可领奖励，服务端仍会返回带 items/bonus_items 的响应，
+// 按 item 个数判定会导致每轮任务循环（30s）都误判成"领到 1 个奖品"并写操作日志 → 日志刷屏。
+// Node 的做法是领取前后各查一次背包点券余额，只有 ticketGain>0 才算成功，这里保持一致。
 func claimIllustratedRewardsGo(ctx context.Context, accountID string, c *gw.Client) int {
+	before := ticketBalanceFromBag(ctx, accountID)
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	rep, err := rpcRequest(cctx, accountID, "gamepb.illustratedpb.IllustratedService",
-		"ClaimAllRewardsV2", proto.EncodeClaimAllRewardsV2Request(true), 20*time.Second)
+	if _, err := rpcRequest(cctx, accountID, "gamepb.illustratedpb.IllustratedService",
+		"ClaimAllRewardsV2", proto.EncodeClaimAllRewardsV2Request(true), 20*time.Second); err != nil {
+		return 0
+	}
+	gain := ticketBalanceFromBag(ctx, accountID) - before
+	if gain <= 0 {
+		return 0
+	}
+	return int(gain)
+}
+
+// ticketBalanceFromBag 查询背包点券余额（对齐 Node task.js getTicketBalanceFromBag：物品 ID=500）
+// 注意：此处的 500 与首页资产读取用的 proto.ItemIDCoupon(1002) 不是同一个物品，勿混用。
+func ticketBalanceFromBag(ctx context.Context, accountID string) int64 {
+	cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	rep, err := rpcRequest(cctx, accountID, "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
 		return 0
 	}
-	return proto.DecodeClaimAllRewardsV2Reply(rep)
+	for _, it := range proto.DecodeBagReply(rep).Items {
+		if it.ID == illustratedTicketItemID {
+			if it.Count < 0 {
+				return 0
+			}
+			return it.Count
+		}
+	}
+	return 0
 }
 
 // claimTaskRewardGo 领取单个任务奖励，返回是否成功（对齐 Node claimTaskReward(taskId, doShare=false)）

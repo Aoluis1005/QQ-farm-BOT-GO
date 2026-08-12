@@ -25,6 +25,7 @@ type taskItem struct {
 	Total      int64  `json:"total"`
 	IsClaimed  bool   `json:"is_claimed"`
 	IsUnlocked bool   `json:"is_unlocked"`
+	TaskType   int64  `json:"task_type"` // Task.task_type=10（1=成长, 2=每日）；用于 daily_tasks/growth_tasks 为空时回退筛选
 }
 
 // parseTaskList 从任务信息字段块中解析指定 repeated 字段(任务列表)的每个任务
@@ -42,6 +43,7 @@ func parseTaskList(taskInfoFields []actField, fieldNo int) []taskItem {
 			IsUnlocked: actNum(tf, 4) != 0,
 			Total:      actNum(tf, 6),
 			Desc:       string(actBytes(tf, 9)),
+			TaskType:   actNum(tf, 10),
 		})
 	}
 	return out
@@ -71,8 +73,35 @@ func handleTaskDaily(w http.ResponseWriter, r *http.Request) {
 	}
 	taskInfo := subFieldBytes(body, 1)
 	fs := readActFields(taskInfo)
-	growth := parseTaskList(fs, 1)
-	daily := parseTaskList(fs, 2)
+	growthRaw := parseTaskList(fs, 1) // growth_tasks
+	dailyRaw := parseTaskList(fs, 2)  // daily_tasks
+	mainRaw := parseTaskList(fs, 3)   // tasks
+
+	// 对齐 Node buildDailyTasksForDebug / buildGrowthTasks：
+	// 部分服务器不单独下发 daily_tasks/growth_tasks，而是把每日/成长任务混在 tasks(field3)
+	// 里用 task_type 标识（每日=2, 成长=1）。此时 daily_tasks/growth_tasks 为空，需按 task_type 回退筛选，
+	// 否则每日任务页永远拿到空列表（用户反馈"每日任务无数据"的后端根因）。
+	daily := dailyRaw
+	if len(daily) == 0 {
+		for _, t := range mainRaw {
+			if t.TaskType == 2 {
+				daily = append(daily, t)
+			}
+		}
+		for _, t := range growthRaw {
+			if t.TaskType == 2 {
+				daily = append(daily, t)
+			}
+		}
+	}
+	growth := growthRaw
+	if len(growth) == 0 {
+		for _, t := range mainRaw {
+			if t.TaskType == 1 {
+				growth = append(growth, t)
+			}
+		}
+	}
 	// 完成数（每日任务：进度>=总进度 计为完成；成长同理）
 	dailyDone, dailyTotal := countTaskDone(daily)
 	growthDone, growthTotal := countTaskDone(growth)
@@ -86,6 +115,10 @@ func handleTaskDaily(w http.ResponseWriter, r *http.Request) {
 		"growth_total":     growthTotal,
 		"daily_claimable":  countClaimable(daily),
 		"growth_claimable": countClaimable(growth),
+		// 诊断：服务端原始下发结构（便于判断任务是走 daily_tasks 还是混在 tasks 里用 task_type 标识）
+		"src": map[string]int{
+			"daily_tasks": len(dailyRaw), "growth_tasks": len(growthRaw), "tasks": len(mainRaw),
+		},
 	})
 }
 
