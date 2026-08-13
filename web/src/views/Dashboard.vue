@@ -1,244 +1,222 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import api from '@/api'
+import { getAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
 
 const app = useAppStore()
-const profile = ref(null)
-const lands = ref([])
+const acc = () => getAccountId()
+
+const profile = ref({})
+const income = ref({})
+const incomeOpen = ref(false)
+const patrol = ref({ steal: {}, help: {}, farm: {} })
 const logs = ref([])
-const income = ref(null)
 const loading = ref(false)
-const incomeExpanded = ref(false)
-const patrol = ref({ steal: { min: 0, max: 0, enabled: true }, help: { min: 0, max: 0, enabled: true }, farm: { min: 0, max: 0, enabled: true } })
-const patrolLoading = ref(false)
+
+const INC_MAP = {
+  收获: 'harvest', 偷菜: 'steal', 种植: 'plant', 施肥: 'fertilize', 浇水: 'water',
+  除草: 'weed', 除虫: 'insecticide', 一键务农: 'oneKeyFarm', 帮浇水: 'helpWater',
+  帮除草: 'helpWeed', 帮除虫: 'helpInsect', 清黄金虫: 'clearGolden', 放黄金虫: 'putGolden', 任务: 'task',
+}
+const INC_ITEMS = ['收获','偷菜','种植','施肥','浇水','除草','除虫','一键务农','帮浇水','帮除草','帮除虫','清黄金虫','放黄金虫','任务']
+
+const PATROL_KEY = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // POST key
+const PATROL_GET = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // GET key 同为 farm（对齐 legacy switchMap）
+const PATROL_TRIO = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' }
+// legacy 各巡查项默认间隔：偷菜 3~10 / 帮忙 3~5 / 收菜 5~10（仅在接口无返回值时兜底）
+const PATROL_DEFAULT = { steal: { min: 3, max: 10 }, help: { min: 3, max: 5 }, farm: { min: 5, max: 10 } }
+
+// 生涯统计
+const careerOpen = ref(false)
+const career = ref(null)
+const careerLoading = ref(false)
 
 async function load() {
+  if (!acc()) { loading.value = false; return }   // 未选账号：不发起注定失败的游戏数据请求
   loading.value = true
   try {
-    const [p, l, lg, inc] = await Promise.all([
-      api.get('/api/home/profile'),
-      api.get('/api/farm/lands').catch(() => null),
-      api.get('/api/home/logs').catch(() => null),
+    const [p, inc, pat, lg] = await Promise.all([
+      api.get('/api/home/profile').catch(() => null),
       api.get('/api/home/income/today').catch(() => null),
+      api.get('/api/home/patrol').catch(() => null),
+      api.get('/api/home/logs').catch(() => null),
     ])
-    profile.value = p.data.data
-    lands.value = l?.data?.data || []
-    logs.value = lg?.data?.data || []
-    income.value = inc?.data?.data || null
-  } catch (e) {
-    app.error('加载首页失败：' + (e.response?.data?.error || e.message))
-  } finally { loading.value = false }
+    profile.value = p?.data?.data || {}
+    income.value = inc?.data?.data || {}
+    patrol.value = pat?.data?.data || { steal: {}, help: {}, farm: {} }
+    logs.value = lg?.data?.data || lg?.data?.logs || []
+  } finally {
+    loading.value = false
+  }
 }
 
-async function loadPatrol() {
-  try {
-    const { data } = await api.get('/api/home/patrol')
-    if (data.data) patrol.value = { ...patrol.value, ...data.data }
-  } catch { /* silent */ }
-}
-async function togglePatrol(key) {
-  patrolLoading.value = true
-  try {
-    const enabled = !(patrol.value[key]?.enabled ?? true)
-    await api.post('/api/home/patrol', { key, enabled })
-    patrol.value = { ...patrol.value, [key]: { ...(patrol.value[key] || {}), enabled } }
-    app.success('巡查状态已更新')
-  } catch (e) {
-    app.error('更新巡查失败：' + (e.response?.data?.error || e.message))
-  } finally { patrolLoading.value = false }
-}
-function patrolLabel(key) {
-  return { steal: '偷菜', help: '帮忙', farm: '收菜' }[key] || key
+function fmtNum(n) { return n == null ? '--' : Number(n).toLocaleString() }
+
+function togglePatrol(who) {
+  if (!acc()) return
+  const key = PATROL_KEY[who]
+  const getKey = PATROL_GET[who]
+  const enabled = !(patrol.value[getKey]?.enabled ?? true)
+  api.post('/api/home/patrol', { key, enabled }).catch((e) => app.error(e.response?.data?.error || '更新失败'))
+  patrol.value = { ...patrol.value, [getKey]: { ...(patrol.value[getKey] || {}), enabled } }
 }
 
-const incomeCategories = computed(() => {
-  if (!income.value) return []
-  const map = [
-    { key: 'harvest', label: '🌾 收获', icon: '🌾' },
-    { key: 'steal', label: '🕵️ 偷菜', icon: '🕵️' },
-    { key: 'plant', label: '🌱 种植', icon: '🌱' },
-    { key: 'fertilize', label: '🧪 施肥', icon: '🧪' },
-    { key: 'water', label: '💧 浇水', icon: '💧' },
-    { key: 'weed', label: '🌿 除草', icon: '🌿' },
-    { key: 'insect', label: '🐛 除虫', icon: '🐛' },
-    { key: 'turbo', label: '⚡ 一键务农', icon: '⚡' },
-    { key: 'helpWater', label: '💧 帮浇水', icon: '💧' },
-    { key: 'helpWeed', label: '🌿 帮除草', icon: '🌿' },
-    { key: 'helpInsect', label: '🐛 帮除虫', icon: '🐛' },
-    { key: 'goldenBugClear', label: '✨ 清黄金虫', icon: '✨' },
-    { key: 'goldenBugPut', label: '🐛 放黄金虫', icon: '🐛' },
-    { key: 'task', label: '📋 任务', icon: '📋' },
-  ]
-  return map.map(m => ({ ...m, value: income.value[m.key] || 0 }))
+function allOn() {
+  if (!acc()) return
+  ;['steal', 'help', 'farm'].forEach((k) => {
+    patrol.value = { ...patrol.value, [k]: { ...(patrol.value[k] || {}), enabled: true } }
+  })
+  // 逐项持久化（对齐 legacy allOn：三个真实 key 全 POST enabled:true）
+  api.post('/api/home/patrol', { key: 'steal', enabled: true }).catch(() => {})
+  api.post('/api/home/patrol', { key: 'help', enabled: true }).catch(() => {})
+  api.post('/api/home/patrol', { key: 'farm', enabled: true }).catch(() => {})
+}
+
+async function clearLogs() {
+  if (!acc()) { app.error('请先选择账号'); return }
+  try {
+    await api.delete('/api/logs')
+    logs.value = []
+    app.success('日志已清空')
+  } catch (e) { app.error(e.response?.data?.error || '清空失败') }
+}
+
+async function openCareer() {
+  careerOpen.value = true
+  careerLoading.value = true
+  career.value = null
+  try {
+    const { data } = await api.get('/api/career')
+    career.value = data.data || null
+  } catch (e) { app.error(e.response?.data?.error || '加载生涯失败') } finally { careerLoading.value = false }
+}
+
+function incVal(label) {
+  const k = INC_MAP[label]
+  const v = income.value[k]
+  return v === undefined || v === null ? '--' : Number(v).toLocaleString()
+}
+
+function avatarHtml() {
+  const a = profile.value.avatar
+  if (a && /^(https?:)?\/\//i.test(a)) return `<img src="${String(a).replace(/"/g, '&quot;')}" alt="" />`
+  return profile.value.avatar || '🐰'
+}
+
+// 生涯统计（对齐 legacy render：items 按 count 降序前30；level_stats 前30）
+const careerPlayer = computed(() => (career.value && career.value.player) || {})
+const careerItems = computed(() => {
+  const arr = (career.value && career.value.items) || []
+  return arr.slice().sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 30)
 })
+const careerLv = computed(() => ((career.value && career.value.level_stats) || []).slice(0, 30))
 
-function statusText(s) {
-  return { locked: '🔒 未解锁', empty: '🟫 空地', growing: '🌿 生长中', ripe: '🍎 可收获' }[s] || s
-}
-function statusClass(s) {
-  return { locked: 'st-locked', empty: 'st-empty', growing: 'st-grow', ripe: 'st-ripe' }[s] || ''
-}
+function cvImg(it, dft) { return it && it.image ? it.image : dft }
+function lvPct() { return Math.max(0, Math.min(100, careerPlayer.value.expPercent != null ? careerPlayer.value.expPercent : 0)) }
 
-onMounted(() => { load(); loadPatrol() })
+onMounted(load)
 </script>
 
 <template>
-  <div class="dash">
-    <section class="profile-card glass" v-if="profile">
-      <div class="avatar">{{ profile.avatar ? '' : '🌾' }}</div>
+  <div class="page-home">
+    <!-- 用户资产卡 -->
+    <div class="profile">
+      <div class="avatar" @click="openCareer">
+        <div class="ring"><div class="face" v-html="avatarHtml()"></div></div>
+        <span class="lvl">Lv.{{ profile.level || '—' }}</span>
+      </div>
       <div class="pinfo">
-        <div class="pname">
-          {{ profile.name || '未命名' }}
-          <span class="pconn" :class="profile.connected ? 'on' : 'off'">
-            {{ profile.connected ? '已连接' : '未连接' }}
-          </span>
+        <h2>{{ profile.name || '未登录' }}</h2>
+        <span class="uid">UID · {{ profile.uid || '—' }}</span>
+        <div class="stats">
+          <div class="stat"><strong>🪙 {{ profile.gold ?? 0 }}</strong><span>金币</span></div>
+          <div class="stat"><strong>🎟️ {{ profile.coupons ?? 0 }}</strong><span>点券</span></div>
+          <div class="stat"><strong>🫘 {{ profile.goldenBeans ?? 0 }}</strong><span>金豆</span></div>
         </div>
-        <div class="puid">UID: {{ profile.uid || '-' }} · Lv.{{ profile.level || 0 }}</div>
-        <div class="pstats">
-          <span>💰 {{ profile.gold }}</span>
-          <span>🎟️ {{ profile.coupons }}</span>
-          <span>🫘 {{ profile.goldenBeans }}</span>
-        </div>
-        <div class="expbar" v-if="profile.expMax">
-          <div class="expfill" :style="{ width: (profile.expPercent || 0) + '%' }"></div>
+        <div class="exp">
+          <div class="bar"><div class="fill" :style="{ width: (profile.expPercent || 0) + '%' }"></div></div>
+          <small>经验 {{ profile.exp ?? '--' }} / {{ profile.expMax ?? '--' }}</small>
         </div>
       </div>
-    </section>
+    </div>
 
     <!-- 今日收益 -->
-    <section class="income glass" v-if="income">
-      <div class="sec-head">
-        <h2>💰 今日收益</h2>
-        <span class="link" @click="incomeExpanded = !incomeExpanded">
-          {{ incomeExpanded ? '收起' : '详情 ›' }}
-        </span>
-      </div>
+    <div class="sec-title"><span>今日收益</span><span class="link" @click="incomeOpen = !incomeOpen">{{ incomeOpen ? '收起 ▾' : '详情 ›' }}</span></div>
+    <div class="income" :class="{ open: incomeOpen }">
       <div class="inc-top">
-        <div class="inc-cell">
-          <span class="inc-l">💰 收益</span>
-          <strong>{{ income.totalGold || '--' }}</strong><em>金币</em>
-        </div>
+        <div class="inc-cell"><span class="inc-l">💰 收益</span><strong>{{ fmtNum(income.totalGold) }}</strong><em>金币</em></div>
         <div class="inc-div"></div>
-        <div class="inc-cell">
-          <span class="inc-l">🎁 同气礼包</span>
-          <strong>{{ income.giftCount || 0 }}</strong><em>个</em>
-        </div>
+        <div class="inc-cell"><span class="inc-l">🎁 同气礼包</span><strong>{{ income.dogGifts ?? 0 }}</strong><em>个</em></div>
       </div>
-      <div class="income-stats" v-if="incomeExpanded">
-        <div v-for="c in incomeCategories" :key="c.key" class="st">
-          <i>{{ c.icon }}</i><span>{{ c.label }}</span><b>{{ c.value || '--' }}</b>
-        </div>
+      <div class="income-stats">
+        <div v-for="l in INC_ITEMS" :key="l" class="st"><i>{{ { 收获:'🌾',偷菜:'🕵️',种植:'🌱',施肥:'🧴',浇水:'🚿',除草:'🌿',除虫:'🐛',一键务农:'⚙️',帮浇水:'🤝',帮除草:'🧹',帮除虫:'🪲',清黄金虫:'🟡',放黄金虫:'🐞',任务:'📋' }[l] }}</i><span>{{ l }}</span><b>{{ incVal(l) }}</b></div>
       </div>
-    </section>
+    </div>
 
-    <!-- 巡查间隔面板 -->
-    <section class="patrol glass">
-      <div class="sec-head">
-        <h2>🔄 巡查间隔</h2>
-        <span class="link" @click="patrol.steal.enabled = patrol.help.enabled = patrol.farm.enabled = true">全部开启</span>
+    <!-- 巡查间隔 -->
+    <div class="sec-title"><span>巡查间隔</span><span class="link" @click="allOn">全部开启</span></div>
+    <div class="patrol">
+      <div v-for="(o, who) in PATROL_TRIO" :key="who" class="cell" @click="togglePatrol(who)">
+        <div class="ic" :class="'ic-' + { 偷菜: 'steal', 帮忙: 'help', 收菜: 'harvest' }[who]">{{ { 偷菜: '🕵️', 帮忙: '🤝', 收菜: '🧺' }[who] }}</div>
+        <h4>{{ who }}</h4>
+        <div class="timer">随机 {{ patrol[o]?.min ?? PATROL_DEFAULT[o].min }}~{{ patrol[o]?.max ?? PATROL_DEFAULT[o].max }} 秒</div>
+        <div class="switch" :class="{ on: patrol[o]?.enabled }"></div>
       </div>
-      <div class="patrol-grid">
-        <div class="patrol-cell" @click="togglePatrol('steal')">
-          <div class="ic ic-steal">🕵️</div>
-          <h4>偷菜</h4>
-          <small class="patrol-t">随机 {{ patrol.steal.min }}~{{ patrol.steal.max }} 秒</small>
-          <div class="switch" :class="{ on: patrol.steal.enabled }" :disabled="patrolLoading"></div>
-        </div>
-        <div class="patrol-cell" @click="togglePatrol('help')">
-          <div class="ic ic-help">🤝</div>
-          <h4>帮忙</h4>
-          <small class="patrol-t">随机 {{ patrol.help.min }}~{{ patrol.help.max }} 秒</small>
-          <div class="switch" :class="{ on: patrol.help.enabled }" :disabled="patrolLoading"></div>
-        </div>
-        <div class="patrol-cell" @click="togglePatrol('farm')">
-          <div class="ic ic-harvest">🧺</div>
-          <h4>收菜</h4>
-          <small class="patrol-t">随机 {{ patrol.farm.min }}~{{ patrol.farm.max }} 秒</small>
-          <div class="switch" :class="{ on: patrol.farm.enabled }" :disabled="patrolLoading"></div>
-        </div>
-      </div>
-    </section>
+    </div>
 
-    <section class="lands glass">
-      <div class="sec-head">
-        <h2>🌱 我的农场</h2>
-        <button class="btn ghost sm" @click="load" :disabled="loading">刷新</button>
+    <!-- 操作日志 -->
+    <div class="sec-title"><span>操作日志</span><span class="link" @click="clearLogs">清空</span></div>
+    <div class="logs">
+      <div v-if="!logs.length" class="empty-tip">暂无日志</div>
+      <div v-for="(lg, i) in logs" :key="i" class="log-row">
+        <span v-if="lg.tag" class="lg-type">{{ lg.tag }}</span>
+        <span class="lg-msg">{{ lg.msg || '' }}</span>
+        <span class="lg-time">{{ lg.time || '' }}</span>
       </div>
-      <div class="land-grid">
-        <div v-for="ld in lands" :key="ld.id" class="land" :class="statusClass(ld.status)">
-          <div class="land-top">
-            <span class="land-name">{{ ld.landTypeName || '地块' }}</span>
-            <span class="land-lv">Lv.{{ ld.level }}</span>
+    </div>
+  </div>
+
+  <!-- 生涯统计 sheet -->
+  <div class="sheet-mask" :class="{ show: careerOpen }" @click="careerOpen = false"></div>
+  <div class="sheet" :class="{ show: careerOpen }">
+    <div class="handle"></div>
+    <h3>🧑🌾 生涯统计</h3>
+    <p class="sub" style="margin-bottom:10px">{{ careerLoading ? '加载中…' : (career ? '' : '暂无数据') }}</p>
+    <div style="max-height:62vh;overflow:auto">
+      <template v-if="career">
+        <div class="career-head">
+          <div class="c-av"><img v-if="/^(https?:)?\/\//i.test(careerPlayer.avatar || '')" :src="careerPlayer.avatar" alt=""><span v-else>{{ careerPlayer.avatar || '🐰' }}</span></div>
+          <div class="c-info">
+            <div class="c-name"><b>{{ careerPlayer.name || '未知玩家' }}</b><span class="c-lv">Lv.{{ careerPlayer.level || 0 }}</span></div>
+            <div class="c-open">UID {{ careerPlayer.gid || '-' }}</div>
           </div>
-          <div class="land-mid">{{ statusText(ld.status) }}</div>
-          <div class="land-plant" v-if="ld.plantName">{{ ld.plantName }} · {{ ld.phaseName }}</div>
         </div>
-        <div v-if="!lands.length" class="land empty-tip">暂无地块数据</div>
-      </div>
-    </section>
-
-    <section class="logs glass">
-      <div class="sec-head"><h2>📜 操作日志</h2></div>
-      <div class="log-list">
-        <div v-for="(g, i) in logs" :key="i" class="log-item">
-          <span class="log-tag">{{ g.tag }}</span>
-          <span class="log-msg">{{ g.msg }}</span>
-          <span class="log-time">{{ (g.time || '').split(' ')[1] }}</span>
+        <div class="career-exp">
+          <div class="bar"><div class="fill" :style="{ width: lvPct() + '%' }"></div></div>
+          <small>经验 <b>{{ Number(careerPlayer.exp || 0).toLocaleString() }}</b> / {{ Number(careerPlayer.expMax || 0).toLocaleString() }}</small>
         </div>
-        <div v-if="!logs.length" class="empty-tip">暂无日志</div>
-      </div>
-    </section>
+        <div class="career-sec"><h4>🌾 收获排行<span class="sub">共 {{ careerItems.length }} 种</span></h4><div class="career-list">
+          <div v-for="(it, i) in careerItems" :key="i" class="career-row"><span class="im">🌾</span><span class="nm">{{ it.name }}</span><span class="cnt">× <b>{{ Number(it.count || 0).toLocaleString() }}</b></span></div>
+          <div v-if="!careerItems.length" class="career-empty">暂无收获记录</div>
+        </div></div>
+        <div class="career-sec"><h4>📈 作物等级<span class="sub">共 {{ careerLv.length }} 种</span></h4><div class="career-list">
+          <div v-for="(it, i) in careerLv" :key="i" class="career-row"><span class="im">🌟</span><span class="nm">{{ it.name }}</span><span class="cnt">Lv.{{ it.level || 0 }} × {{ Number(it.count || 0).toLocaleString() }}</span></div>
+          <div v-if="!careerLv.length" class="career-empty">暂无作物等级数据</div>
+        </div></div>
+      </template>
+    </div>
+    <button class="close" style="margin-top:16px" @click="careerOpen = false">关闭</button>
   </div>
 </template>
 
 <style scoped>
-.dash { display: grid; gap: 16px; }
-.profile-card { display: flex; gap: 16px; padding: 18px; border-radius: var(--radius-lg); }
-.avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--primary-soft); display: grid; place-items: center; font-size: 32px; flex: none; }
-.pinfo { flex: 1; min-width: 0; }
-.pname { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.pconn { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
-.pconn.on { background: color-mix(in oklch, var(--good) 25%, transparent); color: var(--good); }
-.pconn.off { background: color-mix(in oklch, var(--muted) 25%, transparent); color: var(--muted); }
-.puid { color: var(--muted); font-size: 13px; margin: 2px 0 8px; }
-.pstats { display: flex; gap: 14px; font-size: 14px; flex-wrap: wrap; }
-.expbar { margin-top: 10px; height: 8px; border-radius: 999px; background: var(--card-strong); overflow: hidden; }
-.expfill { height: 100%; background: var(--gradient, var(--primary)); }
-.sec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.sec-head h2 { font-size: 16px; margin: 0; }
-.link { color: var(--primary); cursor: pointer; font-size: 13px; }
-.income, .patrol, .lands, .logs { padding: 18px; border-radius: var(--radius-lg); }
-.inc-top { display: flex; gap: 12px; margin-bottom: 10px; }
-.inc-cell { flex: 1; text-align: center; }
-.inc-l { font-size: 12px; color: var(--muted); display: block; }
-.inc-cell strong { font-size: 20px; display: block; margin: 4px 0; }
-.inc-cell em { font-size: 12px; color: var(--muted); }
-.inc-div { width: 1px; background: var(--border); }
-.income-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
-.st { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 13px; }
-.st i { font-size: 14px; }
-.st span { flex: 1; color: var(--muted); }
-.st b { color: var(--foreground); }
-.patrol-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.patrol-cell { padding: 12px; border-radius: var(--radius-md); background: var(--card-strong); border: 1px solid var(--border); text-align: center; cursor: pointer; }
-.patrol-cell h4 { font-size: 14px; margin: 8px 0; }
-.patrol-t { font-size: 11px; color: var(--muted); display:block; margin-bottom:6px; }
-.ic { font-size: 28px; }
-.switch { width: 44px; height: 24px; border-radius: 999px; background: var(--muted); margin: 0 auto; position: relative; transition: background 0.2s; }
-.switch.on { background: var(--primary); }
-.switch:disabled { opacity: 0.5; }
-.land-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-.land { padding: 12px; border-radius: var(--radius-md); background: var(--card-strong); border: 1px solid var(--border); }
-.land.st-ripe { border-color: color-mix(in oklch, var(--good) 50%, transparent); }
-.land.st-locked { opacity: 0.6; }
-.land-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
-.land-mid { margin: 8px 0 4px; font-weight: 600; }
-.land-plant { font-size: 12px; color: var(--muted); }
-.log-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; }
-.log-item { display: flex; gap: 10px; font-size: 13px; align-items: baseline; }
-.log-tag { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; }
-.log-msg { flex: 1; min-width: 0; }
-.log-time { flex: none; color: var(--muted); font-size: 12px; }
-.empty-tip { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.empty-tip { text-align: center; color: var(--muted); font-size: 12.5px; padding: 18px 0; }
+.log-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.lg-type { flex: none; font-size: 11px; color: var(--muted); min-width: 48px; }
+.lg-msg { flex: 1; min-width: 0; color: var(--foreground); }
+.lg-time { flex: none; color: var(--muted); font-size: 11px; }
+.sheet-mask, .sheet.show { display: block; }
+.sheet-mask { display: none; }
+.sheet { display: none; }
 </style>

@@ -1,6 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-// 路由严格对齐原 HTML 的 6 个页面（page-home/profile/account/event/shop/more），不再自行发明 tab。
+// 严格对齐 legacy-index.html 的真实页面结构：
+//   dock 6 主 tab：首页/个人/账号/活动/商城/更多
+//   more → 子页面：设置(page-settings)、后台(page-backend)
+// bot 框架凭空发明的 tab（后端无接口）一律不建路由。
 const routes = [
   { path: '/login', name: 'login', component: () => import('@/views/Login.vue') },
   { path: '/', name: 'home', component: () => import('@/views/Dashboard.vue') },
@@ -8,10 +11,9 @@ const routes = [
   { path: '/account', name: 'account', component: () => import('@/views/Account.vue') },
   { path: '/event', name: 'event', component: () => import('@/views/Activity.vue') },
   { path: '/shop', name: 'shop', component: () => import('@/views/Shop.vue') },
-  { path: '/friends', name: 'friends', component: () => import('@/views/Friends.vue') },
-  { path: '/bag', name: 'bag', component: () => import('@/views/Bag.vue') },
-  { path: '/backend', name: 'backend', component: () => import('@/views/Backend.vue') },
   { path: '/more', name: 'more', component: () => import('@/views/More.vue') },
+  { path: '/settings', name: 'settings', component: () => import('@/views/Settings.vue') },
+  { path: '/backend', name: 'backend', component: () => import('@/views/Backend.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

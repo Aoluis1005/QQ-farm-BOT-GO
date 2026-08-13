@@ -1,311 +1,314 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import api from '@/api'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import api, { setAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
 import { useAccountStore } from '@/stores/account'
+import { useRouter } from 'vue-router'
 
 const app = useAppStore()
 const account = useAccountStore()
+const router = useRouter()
+
 const accounts = ref([])
-const activeId = ref('')
-const code = ref('')
-const name = ref('')
-const platform = ref('qq')
-const adding = ref(false)
+const activeId = ref('')          // 当前 active 账号（来自 GET /api/accounts/active）
+const sheet = ref('')             // '' | manage | add | qr
+const editing = ref(null)
 
-// 扫码登录状态
-const qrDialog = ref(false)
-const qrImg = ref('')
-const qrStatus = ref('')
-const qrPolling = ref(false)
+/* ---------- 加载账号列表 + 当前 active ---------- */
+async function loadAccounts() {
+  try {
+    const { data } = await api.get('/api/accounts')
+    accounts.value = (data && data.data) || []
+  } catch (e) { accounts.value = [] }
+  try {
+    const { data } = await api.get('/api/accounts/active')
+    const cur = data && data.data && data.data.accountId
+    activeId.value = cur ? String(cur) : (accounts.value[0] && String(accounts.value[0].id)) || ''
+    if (activeId.value) setAccountId(activeId.value)
+  } catch (e) {
+    activeId.value = (accounts.value[0] && String(accounts.value[0].id)) || ''
+  }
+}
+
+/* ---------- 切换当前账号（对齐 legacy switchTo：POST active + 整页刷新） ---------- */
+async function switchAcc(id) {
+  if (String(id) === String(activeId.value)) return
+  try {
+    const { data } = await api.post('/api/accounts/active', { id })
+    if (data?.ok) {
+      setAccountId(String(id))
+      location.reload()
+    } else app.error(data?.error || '切换失败')
+  } catch (e) { app.error(e.response?.data?.error || '切换请求失败') }
+}
+
+/* ---------- 手动添加 code ---------- */
+const addCode = ref(''); const addName = ref(''); const addPlatform = ref('qq'); const addBusy = ref(false)
+const ADD_CHS = [{ v: 'qq', l: 'QQ' }, { v: 'wx', l: '微信' }] // 对齐 legacy：仅 QQ / 微信
+async function addByCode() {
+  if (!addCode.value.trim()) { app.error('请输入 code'); return }
+  addBusy.value = true
+  try {
+    const { data } = await api.post('/api/accounts', { name: addName.value || '新账号', code: addCode.value.trim(), platform: addPlatform.value })
+    if (data?.ok) { app.success(`添加成功（${addPlatform.value}）`); sheet.value = ''; addCode.value = ''; addName.value = ''; location.reload() }
+    else app.error('添加失败: ' + (data?.error || '未知'))
+  } catch (e) { app.error('请求失败: ' + (e.response?.data?.error || e.message)) } finally { addBusy.value = false }
+}
+
+/* ---------- 扫码登录 YYB（对齐 legacy 精确协议） ---------- */
+const qrUrl = ref(''); const qrMsg = ref(''); const qrBusy = ref(false)
 let qrTimer = null
-
-async function load() {
-  try {
-    const [{ data: list }, { data: act }] = await Promise.all([
-      api.get('/api/accounts'),
-      api.get('/api/accounts/active'),
-    ])
-    accounts.value = list.data || []
-    activeId.value = act.data?.accountId || ''
-  } catch (e) {
-    app.error('加载账号列表失败：' + (e.response?.data?.error || e.message))
-  }
+function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null } }
+function _qrStatus(text) { qrMsg.value = text }
+function _renderQrImg(src) {
+  if (!src) return ''
+  const s = /^data:/i.test(src) ? src : (/^https?:/i.test(src) ? src : 'data:image/png;base64,' + src)
+  return s
 }
-
-async function switchTo(id) {
-  try {
-    await api.post('/api/accounts/active', { id })
-    account.switchAccount(id)
-    activeId.value = id
-    app.success('已切换到 ' + (accounts.value.find((a) => a.id === id)?.name || id))
-  } catch (e) {
-    app.error('切换失败：' + (e.response?.data?.error || e.message))
-  }
-}
-
-async function addAccount() {
-  if (!code.value.trim()) {
-    app.warn('请输入账号 code')
-    return
-  }
-  adding.value = true
-  try {
-    const { data } = await api.post('/api/accounts', {
-      name: name.value.trim() || '新账号',
-      code: code.value.trim(),
-      platform: platform.value,
-    })
-    app.success('账号已添加')
-    code.value = ''
-    name.value = ''
-    await load()
-    if (data.activeAccountId) {
-      account.switchAccount(data.activeAccountId)
-      activeId.value = data.activeAccountId
-    }
-  } catch (e) {
-    app.error('添加失败：' + (e.response?.data?.error || e.message))
-  } finally {
-    adding.value = false
-  }
-}
-
-async function del(id) {
-  try {
-    await api.delete('/api/accounts/' + encodeURIComponent(id))
-    app.success('已删除账号')
-    await load()
-  } catch (e) {
-    app.error('删除失败：' + (e.response?.data?.error || e.message))
-  }
-}
-
-const editId = ref('')
-const editName = ref('')
-const editCode = ref('')
-const editPlatform = ref('qq')
-async function openEdit(a) {
-  editId.value = a.id
-  editName.value = a.name || a.remark || ''
-  editCode.value = a.code || ''
-  editPlatform.value = a.platform || 'qq'
-}
-async function saveEdit() {
-  try {
-    const { data } = await api.put('/api/accounts/' + encodeURIComponent(editId.value), {
-      name: editName.value, code: editCode.value, platform: editPlatform.value,
-    })
-    app.success(data.message || '已更新')
-    await load()
-  } catch (e) { app.error('更新失败：' + (e.response?.data?.error || e.message)) }
-}
-
-function logout() {
-  account.logout()
-  location.reload()
-}
-
-// ---------- 扫码登录 ----------
-function _sleep(ms) { return new Promise((r) => setTimeout(r, ms)) }
-function stopQrPoll() {
-  qrPolling.value = false
-  if (qrTimer) { clearTimeout(qrTimer); qrTimer = null }
-}
-function renderQrImg(src) {
-  if (!src) return
-  qrImg.value = /^data:/i.test(src) ? src : (/^https?:/i.test(src) ? src : 'data:image/png;base64,' + src)
-}
-async function pollQrOnce(sessionId) {
+async function _pollQrOnce(sessionId) {
   try {
     const { data } = await api.post('/api/yyb/qr/poll', { sessionId })
-    if (!(data.ok && data.data)) return { terminal: false, ready: false }
+    if (!(data?.ok && data.data)) return { terminal: false, ready: false }
     const st = data.data.status
     if (st === 'authorized' || st === 'confirmed') return { terminal: false, ready: true }
-    if (st === 'pending') { qrStatus.value = '等待手机扫码…'; return { terminal: false, ready: false } }
-    if (st === 'scanned') { qrStatus.value = '已扫描，请在手机上确认…'; return { terminal: false, ready: false } }
+    if (st === 'pending') { _qrStatus('等待手机扫码…'); return { terminal: false, ready: false } }
+    if (st === 'scanned') { _qrStatus('已扫描，请在手机上确认…'); return { terminal: false, ready: false } }
     if (st === 'cancelled') return { terminal: true, msg: '已取消扫码' }
     if (st === 'expired') return { terminal: true, msg: '二维码已失效' }
     return { terminal: false, ready: false }
-  } catch { return { terminal: false, ready: false } }
+  } catch (e) { return { terminal: false, ready: false } }
 }
 async function startQrLogin() {
-  stopQrPoll()
-  qrDialog.value = true
-  qrImg.value = ''
-  qrStatus.value = '正在获取二维码…'
+  stopQr(); qrUrl.value = ''; qrMsg.value = '正在获取二维码…'; qrBusy.value = true
+  let sessionId = null
   try {
     // 1. 拉二维码
     const { data } = await api.post('/api/yyb/qr/create', {})
-    if (!(data.ok && data.data)) { qrStatus.value = data.error || '获取二维码失败'; return }
+    if (!(data?.ok && data?.data)) { _qrStatus('获取二维码失败'); qrBusy.value = false; return }
     const d = data.data
-    const sessionId = d.session_id
-    if (!sessionId) { qrStatus.value = '后端未返回 session_id'; return }
-    if (d.image_base64) renderQrImg(d.image_base64)
-    else if (d.image_url) renderQrImg(d.image_url)
-    else qrStatus.value = '二维码已生成，请刷新页面'
-    qrStatus.value = '请使用手机 QQ / 应用宝扫描'
+    sessionId = d.session_id
+    if (!sessionId) { _qrStatus('后端未返回 session_id'); qrBusy.value = false; return }
+    qrUrl.value = _renderQrImg(d.image_base64 || d.image_url || '')
+    _qrStatus('请使用手机 QQ / 应用宝扫描')
 
-    // 2. 轮询（上限 3 分钟，间隔 2.5s，顺序避免并发）
-    qrPolling.value = true
+    // 2. 轮询（顺序请求，上限 3 分钟）
     const deadline = Date.now() + 180000
     let ready = false, terminalMsg = null
-    while (qrPolling.value && Date.now() < deadline) {
-      const pr = await pollQrOnce(sessionId)
+    while (Date.now() < deadline) {
+      const pr = await _pollQrOnce(sessionId)
       if (pr.terminal) { terminalMsg = pr.msg; break }
       if (pr.ready) { ready = true; break }
-      await _sleep(2500)
+      await new Promise(r => setTimeout(r, 2500))
     }
-    if (!qrPolling.value) return // 用户关闭
-    if (terminalMsg) { qrStatus.value = terminalMsg; return }
-    if (!ready) { qrStatus.value = '登录超时，请重新获取二维码'; return }
+    if (terminalMsg) { _qrStatus(terminalMsg); qrBusy.value = false; return }
+    if (!ready) { _qrStatus('登录超时，请重新获取二维码'); qrBusy.value = false; return }
 
-    // 3. 确认 → openid
-    qrStatus.value = '手机已确认，正在登录…'
-    const cfRes = await api.post('/api/yyb/qr/confirm', { sessionId })
-    const cfin = cfRes.data
-    if (!(cfin.ok && cfin.data)) { qrStatus.value = cfin.error || '登录确认未完成，请重试'; return }
-    const cfa = cfin.data
+    // 3. confirm → openid
+    _qrStatus('手机已确认，正在登录…')
+    const cf = (await api.post('/api/yyb/qr/confirm', { sessionId })).data
+    const cfa = cf && cf.data
     const openid = cfa && (cfa.openid || cfa.ref)
-    if (!openid) { qrStatus.value = '未获取到 openid'; return }
+    if (!openid) { _qrStatus('未获取到 openid'); qrBusy.value = false; return }
 
-    // 4. openid 换 code
-    const gcRes = await api.post('/api/yyb/getcode', { openid })
-    const gc = gcRes.data
-    if (!(gc.ok && gc.data && gc.data.code)) { qrStatus.value = gc.error || '获取 code 失败，请重试'; return }
-    const codeVal = gc.data.code
+    // 4. getcode
+    const gc = (await api.post('/api/yyb/getcode', { openid })).data
+    const code = gc && gc.data && gc.data.code
+    if (!code) { _qrStatus('获取 code 失败'); qrBusy.value = false; return }
 
     // 5. 添加账号
-    const platformV = (cfa && cfa.platform) || 'wx'
-    const addName = (cfa && (cfa.nickname || cfa.alias || cfa.name)) || '新账号'
-    const addRes = await api.post('/api/accounts', { name: addName, code: codeVal, platform: platformV, openId: openid })
-    const add = addRes.data
-    if (add.ok) {
-      stopQrPoll()
-      qrDialog.value = false
-      app.success('扫码登录成功')
-      await load()
-      if (add.activeAccountId) {
-        account.switchAccount(add.activeAccountId)
-        activeId.value = add.activeAccountId
-      }
-    } else {
-      qrStatus.value = add.error || '添加账号失败'
-      code.value = codeVal // 失败时保留 code 供手动添加
-    }
-  } catch (e) {
-    qrStatus.value = e.message || '扫码登录失败'
-  }
+    const platform = (cfa && cfa.platform) || 'wx'
+    const name = (cfa && (cfa.nickname || cfa.alias || cfa.name)) || '新账号'
+    const add = (await api.post('/api/accounts', { name, code, platform, openId: openid })).data
+    qrBusy.value = false
+    if (add.ok) { stopQr(); sheet.value = ''; app.success('扫码登录成功'); location.reload() }
+    else { _qrStatus('添加账号失败: ' + (add.error || '未知')) }
+  } catch (e) { qrBusy.value = false; _qrStatus('扫码登录失败'); console.error(e) }
 }
 
-onMounted(load)
+/* ---------- 掉线自动重连（扫码弹窗内 rc-panel，对齐 legacy） ---------- */
+const rcfg = reactive({ enabled: true, delay: 3, max: 3 })
+const rcState = ref('连接：-')
+function _fmtRc(st) {
+  const s = (st && st.state) || '-'
+  let t = '连接：' + s
+  if (st && st.stopped) t += '（已停止）'
+  if (st && st.attempts) t += ' · 已重连' + st.attempts + '次'
+  return t
+}
+async function loadRc() {
+  try {
+    const { data } = await api.get('/api/reconnect/config')
+    const d = data && data.data
+    if (!d) return
+    rcfg.enabled = !!d.enabled
+    if (d.reconnectDelayMin !== undefined) rcfg.delay = d.reconnectDelayMin
+    if (d.reconnectMaxAttempts !== undefined) rcfg.max = d.reconnectMaxAttempts
+    if (d.state) rcState.value = _fmtRc(d.state)
+  } catch (e) {}
+}
+async function saveRc() {
+  try {
+    const { data } = await api.post('/api/reconnect/config', { enabled: rcfg.enabled, reconnectDelayMin: Number(rcfg.delay) || 3, reconnectMaxAttempts: Number(rcfg.max) || 3 })
+    if (data?.ok) { app.success('设置已保存'); await loadRc() }
+    else app.error('保存失败：' + (data?.error || '未知'))
+  } catch (e) { app.error('保存失败') }
+}
+const rcRetryBusy = ref(false)
+async function retryRc() {
+  rcRetryBusy.value = true
+  try {
+    const { data } = await api.post('/api/reconnect/retry', {})
+    if (data?.ok) { app.success('已触发重连，将在后台执行'); setTimeout(loadRc, 2000) }
+    else app.error('触发失败' + (data?.error ? '：' + data.error : ''))
+  } catch (e) { app.error('触发失败') } finally { rcRetryBusy.value = false }
+}
+
+/* ---------- 编辑 / 删除（对齐 legacy：PUT/DELETE /api/accounts/{id}） ---------- */
+async function saveEdit() {
+  if (!editing.value) return
+  try {
+    const { data } = await api.put(`/api/accounts/${encodeURIComponent(editing.value.id)}`, { name: editing.value.name || '', code: editing.value.code || '', platform: '' })
+    if (data?.ok) { app.success(data.relinked ? '已保存并刷新登录凭证' : '已保存'); sheet.value = ''; editing.value = null; await loadAccounts() }
+    else app.error('保存失败: ' + (data?.error || '?'))
+  } catch (e) { app.error(e.response?.data?.error || '保存失败') }
+}
+async function delAcc(id) {
+  if (!confirm('确定删除该账号？此操作不可恢复，删除后需重新添加 code 才能登录。')) return
+  try {
+    const { data } = await api.delete(`/api/accounts/${encodeURIComponent(id)}`)
+    if (data?.ok) { app.success('已删除'); await loadAccounts() }
+    else app.error('删除失败: ' + (data?.error || '?'))
+  } catch (e) { app.error(e.response?.data?.error || '删除失败') }
+}
+
+/* ---------- 退出登录 ---------- */
+function logout() {
+  // 统一清 admin_token + 内存登录态（account.logout 内部 setToken('') 会 removeItem，并对齐 legacy）
+  account.logout()
+  router.push('/login')
+}
+
+onMounted(() => loadAccounts())
+onUnmounted(() => stopQr())
 </script>
 
 <template>
-  <div class="dash">
-    <h3 class="pg-title">账号</h3>
+  <div>
+    <h3 style="font-size:20px;font-weight:700;margin:2px 2px 0">账号</h3>
 
-    <div class="sec-title"><span>已登录账号</span></div>
+    <div class="sec-title"><span>已登录账号</span><span class="link" @click="sheet='manage'">管理</span></div>
     <div class="acc-list">
-      <div v-for="a in accounts" :key="a.id" class="acc-item glass">
-        <div class="acc-meta">
-          <div class="acc-name">
-            {{ a.remark || a.name || a.id }}
-            <span v-if="a.id === activeId" class="tag-on">当前</span>
-            <span class="tag-st" :class="a.status === 'online' ? 'on' : 'off'">{{ a.status === 'online' ? '在线' : '离线' }}</span>
-          </div>
-          <div class="acc-sub">ID: {{ a.id }} · {{ a.platform || 'qq' }}</div>
-        </div>
-        <div class="acc-ops">
-          <button class="btn sm" :disabled="a.id === activeId" @click="switchTo(a.id)">切换</button>
-          <button class="btn sm ghost" @click="openEdit(a)">编辑</button>
-          <button class="btn sm ghost" @click="del(a.id)">删除</button>
-        </div>
-      </div>
-      <div v-if="!accounts.length" class="empty-tip">暂无账号</div>
-    </div>
-
-    <div class="edit-box glass" v-if="editId">
-      <h4>编辑账号 {{ editId }}</h4>
-      <input class="field" v-model="editName" placeholder="名称" />
-      <input class="field" v-model="editCode" placeholder="code" />
-      <select class="field" v-model="editPlatform">
-        <option value="qq">QQ</option>
-        <option value="wx">微信/应用宝</option>
-      </select>
-      <div class="row">
-        <button class="btn primary" @click="saveEdit">保存</button>
-        <button class="btn ghost" @click="editId = ''">取消</button>
-      </div>
+      <button v-for="a in accounts" :key="a.id" class="acc-row" :class="{ active: String(a.id) === String(activeId) }" @click="switchAcc(a.id)">
+        <div class="a-av">🐰</div>
+        <div class="a-info"><b>{{ a.name || '未命名' }}</b><span>{{ a.platform || 'qq' }} · {{ ({ online: '在线', offline: '离线' })[a.status] || a.status || '离线' }}</span></div>
+        <span class="check">{{ String(a.id) === String(activeId) ? '✓' : '' }}</span>
+      </button>
+      <p v-if="!accounts.length" style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0">暂无账号</p>
     </div>
 
     <div class="sec-title"><span>添加账号</span></div>
-    <div class="add-box glass">
-      <button class="btn primary" style="width:100%" @click="startQrLogin">📱 扫码登录</button>
-      <div class="divider"><span>或手动输入 code</span></div>
-      <input class="field" v-model="name" placeholder="备注名（可选）" />
-      <input class="field" v-model="code" placeholder="账号 code（必填）" />
-      <div class="row">
-        <select class="field" v-model="platform">
-          <option value="qq">QQ</option>
-          <option value="wx">微信/应用宝</option>
-        </select>
-        <button class="btn primary" :disabled="adding" @click="addAccount">添加</button>
-      </div>
+    <div class="menu">
+      <button class="sub-item" @click="sheet='add'"><span class="mi">🔑</span>手动添加 code<span class="arr">›</span></button>
+      <button class="sub-item" @click="sheet='qr'; loadRc(); startQrLogin()"><span class="mi">📱</span>扫码登录<span class="arr">›</span></button>
+      <button class="sub-item" @click="app.error('「第三方登录」请在源码中配置 YYB 服务后接入')"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
+      <button class="sub-item" @click="app.error('「第三方登录」请在源码中配置 YYB 服务后接入')"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
     </div>
 
     <button class="logout" @click="logout">退出登录</button>
+  </div>
 
-    <!-- 扫码登录弹窗 -->
-    <div v-if="qrDialog" class="qr-mask" @click.self="stopQrPoll(); qrDialog = false">
-      <div class="qr-sheet glass">
-        <div class="qr-head">
-          <h3>扫码登录</h3>
-          <button class="qr-close" @click="stopQrPoll(); qrDialog = false">✕</button>
+  <!-- 账号管理 sheet -->
+  <div v-if="sheet==='manage'" class="sheet-mask show" @click="sheet=''"></div>
+  <div v-if="sheet==='manage'" class="sheet show">
+    <div class="handle"></div>
+    <h3>⚙️ 账号管理</h3>
+    <div style="max-height:60vh;overflow:auto">
+      <div v-for="a in accounts" :key="a.id" class="acc-row" :class="{ active: String(a.id) === String(activeId) }" style="flex-wrap:wrap">
+        <div class="a-info"><b>{{ a.name }}</b><span>{{ a.platform }} · {{ a.status }}</span></div>
+        <div style="display:flex;gap:6px;margin-left:auto">
+          <button class="bi-use" @click="switchAcc(a.id)">切换</button>
+          <button class="bi-use" @click="editing = { id: a.id, name: a.name, code: a.code || '' }">编辑</button>
+          <button class="bi-sell" @click="delAcc(a.id)">删除</button>
         </div>
-        <p class="qr-status">{{ qrStatus }}</p>
-        <div class="qr-box">
-          <img v-if="qrImg" :src="qrImg" alt="二维码" />
-          <div v-else class="qr-loading">{{ qrStatus === '正在获取二维码…' ? '加载中…' : '暂无二维码' }}</div>
+        <div v-if="editing && editing.id === a.id" style="width:100%;margin-top:8px;display:flex;gap:6px">
+          <input v-model="editing.name" class="field" placeholder="备注名" style="flex:1">
+          <input v-model="editing.code" class="field" placeholder="code（留空不变）" style="flex:2">
+          <button class="bi-use" @click="saveEdit">保存</button>
         </div>
-        <button v-if="qrStatus.includes('失效') || qrStatus.includes('取消') || qrStatus.includes('超时') || qrStatus.includes('失败')"
-          class="btn primary sm" style="width:100%;margin-top:12px" @click="startQrLogin">重新获取</button>
+      </div>
+      <p v-if="!accounts.length" style="text-align:center;color:var(--muted);padding:20px 0">暂无账号</p>
+    </div>
+    <button class="close" style="margin-top:16px" @click="sheet=''">关闭</button>
+  </div>
+
+  <!-- 手动添加 code sheet -->
+  <div v-if="sheet==='add'" class="sheet-mask show" @click="sheet=''"></div>
+  <div v-if="sheet==='add'" class="sheet show">
+    <div class="handle"></div>
+    <h3>🔑 手动添加 code</h3>
+    <input v-model="addName" class="field" placeholder="备注名（可选）" style="margin-top:12px">
+    <input v-model="addCode" class="field" placeholder="粘贴 code（可从登录页抓取）" style="margin-top:8px">
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button v-for="ch in ADD_CHS" :key="ch.v" class="chip" :class="{ on: addPlatform === ch.v }" @click="addPlatform = ch.v">{{ ch.l }}</button>
+    </div>
+    <button class="close" :disabled="addBusy" style="margin-top:16px" @click="addByCode">{{ addBusy ? '提交中…' : '添加账号' }}</button>
+  </div>
+
+  <!-- 扫码登录 sheet -->
+  <div v-if="sheet==='qr'" class="sheet-mask show" @click="sheet=''; stopQr()"></div>
+  <div v-if="sheet==='qr'" class="sheet show">
+    <div class="handle"></div>
+    <h3>📱 扫码登录</h3>
+    <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0">
+      <img v-if="qrUrl" :src="qrUrl" style="width:200px;height:200px;border-radius:12px;background:#fff;object-fit:contain">
+      <p v-else-if="qrBusy" style="color:var(--muted)">获取二维码中…</p>
+      <p v-else style="color:var(--muted)">点击下方按钮获取二维码</p>
+      <p v-if="qrMsg" style="font-size:12px;color:var(--muted);margin-top:8px;text-align:center">{{ qrMsg }}</p>
+    </div>
+
+    <!-- 掉线自动重连（对齐 legacy #qrSheet .rc-panel） -->
+    <div class="rc-panel" style="margin-top:14px">
+      <div class="rc-head">📡 掉线自动重连 <small>断线后延迟换 code 自动重连</small></div>
+      <div class="rc-row">
+        <span>开启自动重连</span>
+        <div class="switch" :class="{ on: rcfg.enabled }" @click="rcfg.enabled = !rcfg.enabled"></div>
+      </div>
+      <div class="rc-grid">
+        <div class="rc-col">
+          <label class="rc-label">离线多久重连</label>
+          <div class="sec-field">
+            <input type="number" v-model.number="rcfg.delay" class="field" min="1">
+            <span class="unit">分钟</span>
+          </div>
+        </div>
+        <div class="rc-col">
+          <label class="rc-label">失败几次停止</label>
+          <div class="sec-field">
+            <input type="number" v-model.number="rcfg.max" class="field" min="1">
+            <span class="unit">次</span>
+          </div>
+        </div>
+      </div>
+      <div class="rc-foot">
+        <span class="rc-state">{{ rcState }}</span>
+        <div class="rc-btns">
+          <button class="chip" :disabled="rcRetryBusy" @click="retryRc">{{ rcRetryBusy ? '重连中…' : '🔁 立即重连' }}</button>
+          <button class="chip" @click="saveRc">💾 保存</button>
+        </div>
       </div>
     </div>
+
+    <button class="close" v-if="!qrBusy" style="margin-top:4px" @click="startQrLogin">重新获取二维码</button>
+    <button class="close" style="margin-top:8px" @click="sheet=''; stopQr()">关闭</button>
   </div>
 </template>
 
 <style scoped>
-.dash { display: grid; gap: 14px; }
-.pg-title { font-size: 20px; font-weight: 700; margin: 2px 2px 0; }
-.sec-title { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--muted); font-weight: 600; margin-top: 4px; }
-.acc-list { display: grid; gap: 10px; }
-.acc-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); }
-.acc-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.acc-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.acc-ops { display: flex; gap: 8px; flex: none; }
-.tag-on { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
-.tag-st { font-size: 11px; padding: 1px 8px; border-radius: 999px; }
-.tag-st.on { background: color-mix(in oklch, var(--good) 25%, transparent); color: var(--good); }
-.tag-st.off { background: color-mix(in oklch, var(--muted) 25%, transparent); color: var(--muted); }
-.add-box { padding: 14px; border-radius: var(--radius-md); display: grid; gap: 10px; }
-.edit-box { padding: 14px; border-radius: var(--radius-md); display: grid; gap: 10px; }
-.edit-box h4 { margin: 0; font-size: 15px; }
-.field { padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--card-strong); color: var(--foreground); font-size: 14px; font-family: inherit; }
-.row { display: flex; gap: 10px; }
-.row .field { flex: 1; }
-.hint { font-size: 12px; color: var(--muted); }
-.divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
-.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.logout { margin-top: 4px; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--danger); font-size: 14px; cursor: pointer; }
-.empty-tip { color: var(--muted); font-size: 13px; padding: 8px 0; }
-.qr-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 100; backdrop-filter: blur(2px); }
-.qr-sheet { width: 320px; max-width: 90vw; padding: 20px; border-radius: var(--radius-lg); text-align: center; }
-.qr-head { display: flex; justify-content: space-between; align-items: center; }
-.qr-head h3 { margin: 0; font-size: 16px; }
-.qr-close { background: none; border: none; font-size: 18px; color: var(--muted); cursor: pointer; }
-.qr-status { font-size: 13px; color: var(--muted); margin: 10px 0; }
-.qr-box { width: 240px; height: 240px; margin: 0 auto; border-radius: 16px; overflow: hidden; background: var(--card-strong); display: grid; place-items: center; border: 1px solid var(--border); }
-.qr-box img { width: 100%; height: 100%; object-fit: contain; }
-.qr-loading { color: var(--muted); font-size: 13px; }
+.bi-use,
+.bi-sell {
+  border: 1px solid var(--border); background: var(--card-strong); color: var(--foreground);
+  border-radius: 6px; font-size: 11px; line-height: 1; font-weight: 700; cursor: pointer; padding: 6px 9px;
+}
+.bi-use:active, .bi-sell:active { transform: scale(.95); }
+.bi-sell { color: var(--danger, #e5484d); border-color: color-mix(in oklch, var(--danger, #e5484d) 40%, transparent); }
 </style>

@@ -38,7 +38,7 @@ export const useAccountStore = defineStore('account', {
     },
     async loadAccounts() {
       const { data } = await api.get('/api/accounts')
-      this.accounts = data.accounts || data.list || []
+      this.accounts = (data && data.data) || data.accounts || data.list || []
       // 若当前无选中账号，默认选中首个
       if (!this.currentId && this.accounts.length) {
         this.switchAccount(this.accounts[0].id)

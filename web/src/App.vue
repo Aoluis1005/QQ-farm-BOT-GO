@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAccountStore } from '@/stores/account'
@@ -9,7 +9,9 @@ const account = useAccountStore()
 const router = useRouter()
 const route = useRoute()
 
-// 底部 dock / 侧栏 6 个 tab 图标：同一种细线风格、但各不相同的 SVG（「更多」保留用户喜欢的 ☰）
+
+
+// 底部 dock / 侧栏 6 个 tab：鸿蒙沉浸光感细线 SVG（用户指定，不用 emoji）
 const ICON_SHELL =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
 const tabs = [
@@ -30,6 +32,8 @@ function isActive(t) {
 }
 
 onMounted(async () => {
+  // 应用持久化的主题（否则刷新后图标与页面主题不一致；对齐 legacy body data-theme）
+  document.documentElement.setAttribute('data-theme', app.theme)
   await account.loadAdminStatus()
   if (account.adminLoggedIn) {
     try {
@@ -38,13 +42,30 @@ onMounted(async () => {
       /* 未登录则停留在登录页 */
     }
   }
+  // 优化1：首屏空闲时预加载各 tab 页面 chunk，切换 tab 即开不卡
+  const preload = () => {
+    import('@/views/Profile.vue')
+    import('@/views/Account.vue')
+    import('@/views/Activity.vue')
+    import('@/views/Shop.vue')
+    import('@/views/More.vue')
+  }
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(preload)
+  else setTimeout(preload, 2500)
 })
 
 function go(to) {
   router.push(to)
 }
+// 右上角切换账号：弹出 bottom sheet，点击账号直接切换当前账号并整页刷新（对齐 legacy）
+const showAcc = ref(false)
 function onSwitchAccount() {
-  router.push('/account')
+  showAcc.value = true
+}
+function pickAccount(id) {
+  if (String(id) === String(account.currentId)) { showAcc.value = false; return }
+  account.switchAccount(id)
+  location.reload()
 }
 </script>
 
@@ -96,6 +117,23 @@ function onSwitchAccount() {
       </button>
     </nav>
 
+    <!-- 切换账号 bottom sheet（对齐 legacy #sheet，点击账号直接切换并刷新） -->
+    <div class="sheet-mask" :class="{ show: showAcc }" @click="showAcc = false"></div>
+    <div class="sheet" :class="{ show: showAcc }">
+      <div class="handle"></div>
+      <h3>切换账号</h3>
+      <p class="sub">选择要登录的农场账号</p>
+      <div style="max-height:52vh;overflow:auto">
+        <button class="acc" :class="{ active: String(a.id) === String(account.currentId) }" v-for="a in account.accounts" :key="a.id" @click="pickAccount(a.id)">
+          <div class="a-av">🐰</div>
+          <div class="a-info"><b>{{ a.name || '未命名' }}</b><span>{{ a.platform || 'qq' }} · {{ ({ online: '在线', offline: '离线' })[a.status] || a.status || '离线' }}</span></div>
+          <span class="check">{{ String(a.id) === String(account.currentId) ? '✓' : '' }}</span>
+        </button>
+        <p v-if="!account.accounts.length" style="font-size:12.5px;color:var(--muted);text-align:center;padding:14px 0">暂无账号</p>
+      </div>
+      <button class="close" style="margin-top:16px" @click="showAcc = false">关闭</button>
+    </div>
+
     <!-- 全局 toast -->
     <div class="toast-wrap">
       <div v-for="t in app.toasts" :key="t.id" class="toast" :class="'toast-' + t.type">
@@ -106,3 +144,9 @@ function onSwitchAccount() {
 
   <router-view v-else />
 </template>
+
+<style>
+/* 所有 bottom sheet 恒在底部 dock( z-index:20 )之上，避免扫码/切换等弹层被 dock 遮住 */
+.sheet-mask { z-index: 120 !important; }
+.sheet { z-index: 121 !important; }
+</style>
