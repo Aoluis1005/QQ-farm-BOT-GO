@@ -18,9 +18,11 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
-// Node 默认微信 UA
-// iOS Safari UA（wx+iOS 唯一可握手的 UA）
-const defaultUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+// 网关握手 UA：必须对齐 Node network.js 的 DEFAULT_USER_AGENT。
+// 注意：QQ 渠道的 code 由微信小程序登录(q.qq.com/ide/login)签发，网关按 UA 校验，
+// 只接受微信小程序环境 UA；用 iOS Safari UA 会被网关握手 400 拒绝。故此处照抄 Node，
+// 不可自创（之前自创 iOS UA 导致 QQ 渠道账号永久 400 离线）。
+const defaultUserAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13)`
 
 // Config 网关配置
 type Config struct {
