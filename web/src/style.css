@@ -83,7 +83,8 @@ body{
 
 /* 手机视窗容器 */
 .app{
-  position:relative; z-index:1;
+  /* 不设 z-index，避免创建 stacking context。否则内部弹窗会被困在此层级、无法盖过外部 dock(z-20) */
+  position:relative;
   max-width:430px; margin:0 auto;
   min-height:100%;
   display:flex; flex-direction:column;
@@ -355,17 +356,21 @@ body{
 /* 账号切换 bottom sheet */
 .sheet-mask{
   position:fixed; inset:0; background:oklch(0 0 0 / .42); backdrop-filter:blur(4px);
-  opacity:0; pointer-events:none; transition:opacity .3s var(--ease); z-index:30;
+  opacity:0; pointer-events:none; transition:opacity .3s var(--ease); z-index:120;
 }
 .sheet-mask.show{ opacity:1; pointer-events:auto; }
 .sheet{
-  position:fixed; left:50%; bottom:0; transform:translate(-50%,110%);
-  width:min(430px,100%); padding:18px 18px calc(env(safe-area-inset-bottom) + 16px);
+  /* 屏幕居中弹窗（鸿蒙光感）：不再贴底，dock 不会遮挡；限高+内容滚动，关闭始终可见 */
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.95);
+  width:min(430px, calc(100vw - 32px)); max-height:85dvh;
+  display:flex; flex-direction:column;
+  padding:18px 18px calc(env(safe-area-inset-bottom) + 16px);
   background:var(--card-strong); backdrop-filter:blur(30px) saturate(1.5);
-  border-top:1px solid var(--border); border-radius:30px 30px 0 0;
-  box-shadow:var(--shadow); z-index:31; transition:transform .38s var(--ease);
+  border:1px solid var(--border); border-radius:24px; box-shadow:var(--shadow);
+  z-index:121; transition:transform .38s var(--ease), opacity .3s;
+  opacity:0; pointer-events:none;
 }
-.sheet.show{ transform:translate(-50%,0); }
+.sheet.show{ transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto; }
 .sheet .handle{ width:42px; height:5px; border-radius:999px; background:var(--border); margin:0 auto 18px; }
 .sheet h3{ font-size:17px; font-weight:700; }
 .sheet .sub{ font-size:12.5px; color:var(--muted); margin:4px 0 14px; }
@@ -439,15 +444,15 @@ body{
 .qr-card p{ margin-top:12px; font-size:12px; color:var(--muted); }
 /* 掉线自动重连设置（扫码弹窗内） */
 .rc-panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); padding:12px 13px; }
-.rc-head{ display:flex; flex-direction:column; gap:3px; font-size:13px; font-weight:700; margin-bottom:11px; }
+.rc-head{ display:flex; flex-direction:column; gap:2px; font-size:13px; font-weight:700; margin-bottom:7px; }
 .rc-head small{ color:var(--muted); font-weight:500; font-size:11px; }
-.rc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0 11px; border-bottom:1px solid var(--border); }
+.rc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 0 7px; border-bottom:1px solid var(--border); }
 .rc-row span{ font-size:12.5px; font-weight:600; }
-.rc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:11px; }
-.rc-col{ display:flex; flex-direction:column; gap:7px; background:var(--card-strong); border:1px solid var(--border); border-radius:var(--radius); padding:9px 11px; }
+.rc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:7px; }
+.rc-col{ display:flex; flex-direction:column; gap:5px; background:var(--card-strong); border:1px solid var(--border); border-radius:var(--radius); padding:7px 9px; }
 .rc-label{ font-size:11.5px; color:var(--muted); font-weight:600; }
 .rc-col .sec-field .field{ padding:8px 10px; font-size:13px; width:100%; }
-.rc-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+.rc-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
 .rc-state{ font-size:11px; color:var(--muted); font-weight:600; flex:1; min-width:0; }
 .rc-btns{ display:flex; gap:8px; flex:none; }
 .logout{

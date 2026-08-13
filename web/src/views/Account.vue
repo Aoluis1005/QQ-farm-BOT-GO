@@ -211,7 +211,6 @@ onUnmounted(() => stopQr())
       <button class="sub-item" @click="sheet='add'"><span class="mi">🔑</span>手动添加 code<span class="arr">›</span></button>
       <button class="sub-item" @click="sheet='qr'; loadRc(); startQrLogin()"><span class="mi">📱</span>扫码登录<span class="arr">›</span></button>
       <button class="sub-item" @click="app.error('「第三方登录」请在源码中配置 YYB 服务后接入')"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
-      <button class="sub-item" @click="app.error('「第三方登录」请在源码中配置 YYB 服务后接入')"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
     </div>
 
     <button class="logout" @click="logout">退出登录</button>
@@ -259,8 +258,8 @@ onUnmounted(() => stopQr())
   <div v-if="sheet==='qr'" class="sheet show">
     <div class="handle"></div>
     <h3>📱 扫码登录</h3>
-    <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0">
-      <img v-if="qrUrl" :src="qrUrl" style="width:200px;height:200px;border-radius:12px;background:#fff;object-fit:contain">
+    <div style="display:flex;flex-direction:column;align-items:center;padding:16px 0;width:100%;max-height:calc(85dvh - 170px);overflow-y:auto;overflow-x:hidden">
+      <img v-if="qrUrl" :src="qrUrl" style="width:150px;height:150px;border-radius:12px;background:#fff;object-fit:contain">
       <p v-else-if="qrBusy" style="color:var(--muted)">获取二维码中…</p>
       <p v-else style="color:var(--muted)">点击下方按钮获取二维码</p>
       <p v-if="qrMsg" style="font-size:12px;color:var(--muted);margin-top:8px;text-align:center">{{ qrMsg }}</p>
