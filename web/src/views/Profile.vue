@@ -5,18 +5,21 @@ import { useAppStore } from '@/stores/app'
 
 const app = useAppStore()
 const profile = ref(null)
+const career = ref(null)
 const loading = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.get('/api/home/profile')
-    profile.value = data.data
+    const [p, c] = await Promise.all([
+      api.get('/api/home/profile'),
+      api.get('/api/career').catch(() => null),
+    ])
+    profile.value = p.data.data
+    career.value = c?.data?.data || null
   } catch (e) {
-    app.error('加载个人资料失败：' + (e.response?.data?.error || e.message))
-  } finally {
-    loading.value = false
-  }
+    app.error('加载失败：' + (e.response?.data?.error || e.message))
+  } finally { loading.value = false }
 }
 
 onMounted(load)
@@ -45,8 +48,18 @@ onMounted(load)
       </div>
     </section>
 
+    <!-- 生涯统计 -->
+    <section class="glass" v-if="career" style="padding:18px;border-radius:var(--radius-lg)">
+      <div class="sec-head"><h2>📊 生涯统计</h2></div>
+      <div class="kv">
+        <div v-for="(v, k) in career" :key="k">
+          <span>{{ k }}</span><b>{{ typeof v === 'object' ? JSON.stringify(v) : v }}</b>
+        </div>
+      </div>
+    </section>
+
     <section class="lands glass" v-if="profile">
-      <div class="sec-head"><h2>📊 账户概览</h2></div>
+      <div class="sec-head"><h2>🏠 账户概览</h2></div>
       <div class="kv">
         <div><span>经验</span><b>{{ profile.exp }} / {{ profile.expMax || '-' }}</b></div>
         <div><span>金币</span><b>{{ profile.gold }}</b></div>
@@ -71,6 +84,8 @@ onMounted(load)
 .expbar { margin-top: 10px; height: 8px; border-radius: 999px; background: var(--card-strong); overflow: hidden; }
 .expfill { height: 100%; background: var(--gradient, var(--primary)); }
 .lands { padding: 18px; border-radius: var(--radius-lg); }
+.sec-head { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.sec-head h2 { font-size: 16px; margin: 0; }
 .kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .kv > div { display: flex; justify-content: space-between; padding: 10px 12px; background: var(--card-strong); border-radius: var(--radius-md); border: 1px solid var(--border); }
 .kv span { color: var(--muted); font-size: 13px; }

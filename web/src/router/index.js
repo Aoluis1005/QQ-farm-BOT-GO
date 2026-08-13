@@ -8,6 +8,9 @@ const routes = [
   { path: '/account', name: 'account', component: () => import('@/views/Account.vue') },
   { path: '/event', name: 'event', component: () => import('@/views/Activity.vue') },
   { path: '/shop', name: 'shop', component: () => import('@/views/Shop.vue') },
+  { path: '/friends', name: 'friends', component: () => import('@/views/Friends.vue') },
+  { path: '/bag', name: 'bag', component: () => import('@/views/Bag.vue') },
+  { path: '/backend', name: 'backend', component: () => import('@/views/Backend.vue') },
   { path: '/more', name: 'more', component: () => import('@/views/More.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]

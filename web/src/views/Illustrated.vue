@@ -6,10 +6,11 @@ import { useAppStore } from '@/stores/app'
 const app = useAppStore()
 const items = ref([])
 const busy = ref(false)
+const type = ref(1)
 
 async function load() {
   try {
-    const { data } = await api.get('/api/illustrated')
+    const { data } = await api.get('/api/illustrated', { params: { illustrated_type: type } })
     items.value = data.data?.list || data.data?.items || data.data || []
   } catch (e) {
     app.error('加载图鉴失败：' + (e.response?.data?.error || e.message))
@@ -19,8 +20,20 @@ async function load() {
 async function buyAll() {
   busy.value = true
   try {
-    const { data } = await api.post('/api/illustrated/buy-all', {})
+    const { data } = await api.post('/api/illustrated/buy-all', { illustrated_type: type })
     app.success(data.message || '一键购买完成')
+    await load()
+  } catch (e) {
+    app.error('购买失败：' + (e.response?.data?.error || e.message))
+  } finally {
+    busy.value = false
+  }
+}
+async function buyOne(it) {
+  busy.value = true
+  try {
+    const { data } = await api.post('/api/illustrated/buy', { goodsId: it.id || it.goodsId, price: it.price || 0 })
+    app.success(data.message || '购买成功')
     await load()
   } catch (e) {
     app.error('购买失败：' + (e.response?.data?.error || e.message))
@@ -43,7 +56,8 @@ onMounted(load)
     <div class="ill-grid">
       <div v-for="(it, i) in items" :key="i" class="ill-item">
         <div class="ill-name">{{ it.name || it.itemName || ('条目' + i) }}</div>
-        <div class="ill-meta">{{ it.owned ? '✅ 已集' : '⬜ 未集' }}</div>
+        <div class="ill-meta">{{ it.owned ? '✅ 已集' : '⬜ 未集' }} <span v-if="it.price">· 💰{{ it.price }}</span></div>
+        <button v-if="!it.owned" class="btn ghost xs" :disabled="busy" @click="buyOne(it)" style="margin-top:8px">购买</button>
       </div>
       <div v-if="!items.length" class="empty-tip">暂无图鉴数据</div>
     </div>
