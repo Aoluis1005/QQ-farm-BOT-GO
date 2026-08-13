@@ -73,7 +73,7 @@ function pickAccount(id) {
   <div v-if="account.adminLoggedIn">
     <!-- 左侧栏（桌面 ≥920px 显示，移动端由 style.css 隐藏） -->
     <aside class="sidebar">
-      <div class="sb-brand"><span class="logo">🌾</span> QQ农场 Bot</div>
+      <div class="sb-brand"><span class="logo"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M12 9C12 4.5 7.5 3 7 3c.5 4.5 3 6 5 6z"/><path d="M12 9c0-4.5 4.5-6 5-6-.5 4.5-3 6-5 6z"/></svg></span> QQ农场 Bot</div>
       <nav class="sb-nav">
         <button
           v-for="t in tabs"
@@ -91,8 +91,8 @@ function pickAccount(id) {
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <span class="logo">🌾</span>
-          <span>QQ农场 Bot<small>鸿蒙光感 · 原型</small></span>
+          <span class="logo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M12 9C12 4.5 7.5 3 7 3c.5 4.5 3 6 5 6z"/><path d="M12 9c0-4.5 4.5-6 5-6-.5 4.5-3 6-5 6z"/><path d="M19 12c0 3.5-2.5 6-6 6s-6-2.5-6-6"/></svg></span>
+          <span>QQ农场 Bot<small style="display:block;font-weight:600;font-size:12px;color:var(--muted);letter-spacing:.3px">科技兴农</small></span>
         </div>
         <div class="icon-group">
           <button class="icon-btn" @click="app.toggleTheme()" :title="app.theme === 'dark' ? '切浅色' : '切暗色'">

@@ -131,6 +131,8 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	go func() {
 		<-c.Done()
 		aceSvc.stop()
+		// 连接关闭/掉线 → 停止该账号自动化（对齐 Node：worker 随 socket 断开而停止）
+		stopAutomationForAccount(acc.ID)
 	}()
 	appendOpLog(acc.ID, "登录", "账号上线")
 	appendOpLog(acc.ID, "系统", "网关已连接，开始心跳与数据预拉取")
@@ -176,6 +178,8 @@ func (p *ClientPool) connectLocked(acc *models.Account) (*gw.Client, error) {
 	if err == nil {
 		loadAssetsAsync(acc.ID, c)
 		p.store(acc.ID, c)
+		// 连接成功后才启动自动化（对齐 Node：worker 随连接存在）
+		startAutomationForAccount(acc.ID)
 	}
 
 	p.mu.Lock()

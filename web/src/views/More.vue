@@ -30,9 +30,14 @@ const AUTO_LABELS = {
 }
 
 function freshAut() {
-  const o = {}
-  CORE_AUTO.concat(FRIEND_AUTO).concat(['fertilizer_multi_season']).forEach(k => { o[k] = false })
-  return o
+  // 默认开关对齐 legacy + 后端 DefaultAccountConfig（多数自动化默认开启）
+  return {
+    farm: true, task: true, sell: true, friend: true, farm_push: true, land_upgrade: true,
+    fertilizer_gift: false, fertilizer_buy_normal: false, fertilizer_buy_organic: false,
+    skip_own_weed_bug: true, golden_bug_clear: true,
+    friend_steal: true, friend_help: true, friend_bad: false, friend_golden_bug: false,
+    friend_help_exp_limit: true, friend_turbo_mode: false, fertilizer_multi_season: true,
+  }
 }
 const autCfg = reactive(freshAut())    // m-auto
 const dAutCfg = reactive(freshAut())   // d-auto
@@ -1073,6 +1078,6 @@ onMounted(() => {
       <button class="sub-item" @click="router.push('/settings')"><span class="mi">⚙️</span>设置<span class="arr">›</span></button>
       <button class="sub-item" @click="router.push('/backend')"><span class="mi">🖥️</span>后台<span class="arr">›</span></button>
     </div>
-    <p style="margin-top:20px;text-align:center;font-size:11.5px;color:var(--muted-2)">QQ农场 Bot · 前端原型 v0.3</p>
+    <p style="margin-top:20px;text-align:center;font-size:11.5px;color:var(--muted-2)">qq farm bot go v1.0</p>
   </div>
 </template>

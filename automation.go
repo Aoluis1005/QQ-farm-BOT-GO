@@ -49,6 +49,11 @@ type automationRunner struct {
 // startAutomationForAccount 为账号启动自动化调度器（已存在则先停后起）
 // 对齐 Node worker.js：每账号只有【一个】串行调度器，绝不为同账号起多个并行 goroutine。
 func startAutomationForAccount(accountID string) {
+	// 账号未连接（离线/初始化失败）不启动自动化，避免“没在线还跑自动化/日志刷屏”。
+	// 对齐 Node：worker 随 socket 连接存在，断开即停止。连接成功后由 connectLocked 触发启动。
+	if clientPool.cached(accountID) == nil {
+		return
+	}
 	automationMu.Lock()
 	if r, ok := automationRunners[accountID]; ok {
 		close(r.stop)
