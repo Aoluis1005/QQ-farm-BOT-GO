@@ -26,6 +26,7 @@ const giftState = reactive({ nodes: [], summary: {}, day: 0, total: 0, err: '' }
 const qmState = reactive({ activity: {}, reward: {}, material: {}, err: '' })
 
 /* ---------- 鹊桥寄情（QiXi，未上线先展示玩法框架） ---------- */
+const QIXI_ROOT_ID = 2026081800
 const QIXI_INFO_ID = 2026081801
 const qixi = reactive({ tips: null, err: '' })
 // 去标签
@@ -93,6 +94,10 @@ async function loadActivity() {
     const { data } = await api.get('/api/activity/list', { params: { scope: 'ongoing' } })
     if (!(data && data.ok)) { err.value = (data && data.error) || '加载失败'; groups.value = []; panels.value = []; loading.value = false; return }
     const gs = (data.items || []).filter(i => i.group)
+    // 鹊桥寄情作为「活动子tab」常驻（未上线也可查看玩法框架；上线后正常由接口返回，避免重复）
+    if (!gs.some(g => String(g.id).indexOf('20260818') === 0)) {
+      gs.unshift({ id: QIXI_ROOT_ID, title: '🌉 鹊桥寄情', group: true })
+    }
     groups.value = gs
     if (!gs.length) { err.value = '当前没有进行中的活动'; panels.value = []; loading.value = false; return }
     if (groupIdx.value < 0 || groupIdx.value >= gs.length) groupIdx.value = 0
@@ -113,6 +118,20 @@ async function selectGroup(i) {
 
 async function loadGroup(group) {
   loading.value = true
+  // 鹊桥寄情：只加载玩法 tips（group?id=1801），不参与 season/shop/gift/solar 常规解析
+  if (String(group.id || '').indexOf('20260818') === 0 || (group.title || '').indexOf('鹊') >= 0) {
+    try {
+      const { data } = await api.get('/api/activity/group', { params: { id: QIXI_INFO_ID } })
+      if (!(data && data.ok)) { err.value = (data && data.error) || '加载失败'; panels.value = []; loading.value = false; return }
+      let pl = null
+      ;(function walk(x) { if (!x || pl) return; const inf = x.info || {}; if (inf.payload) pl = inf.payload; (x.children || []).forEach(walk) })(data.tree)
+      if (!parseQiXiTips(pl)) qixi.err = '玩法数据未就绪（活动 8/18 上线）'
+      panels.value = [{ key: 'qixi', title: '鹊桥寄情', icon: '🌉' }]
+      panelIdx.value = 0
+    } catch (e) { err.value = '加载失败'; panels.value = [] }
+    loading.value = false
+    return
+  }
   try {
     const [g, s, o] = await Promise.all([
       api.get('/api/activity/group', { params: { id: group.id } }),
@@ -310,34 +329,6 @@ onMounted(() => { loadActivity(); loadQiXi() })
       >{{ g.title }}</button>
     </div>
 
-    <!-- ===== 鹊桥寄情（未上线，先展示玩法框架；上线后由活动组正常面板接管，避免重复） ===== -->
-    <div v-if="!groups.some(g => String(g.id).indexOf('20260818') === 0)" class="act-card" style="margin-top:8px;border:1px solid var(--border)">
-      <div class="act-card-hd"><h4>🌉 鹊桥寄情 <small style="color:var(--muted);font-weight:500;font-size:11px">七夕 · 8/18 — 8/22</small></h4><span class="act-badge off">即将上线</span></div>
-
-      <template v-if="qixi.tips && qixi.tips.sections.length">
-        <div v-for="(sec, i) in qixi.tips.sections" :key="i" style="font-size:12.5px;line-height:1.65;margin:7px 0">
-          <b>{{ sec.title }}</b>
-          <ul style="margin:4px 0 0 18px;padding:0;color:var(--muted);list-style:disc">
-            <li v-for="(it, j) in sec.items" :key="j" style="margin:3px 0">{{ it }}</li>
-          </ul>
-        </div>
-      </template>
-      <div v-else class="act-hint" style="margin-top:4px;color:var(--muted)">{{ qixi.tips ? '玩法细则待 8/18 更新' : (qixi.err || '正在加载玩法...') }}</div>
-
-      <!-- 操作区框架：8/18 活动上线、后端接入 QiXi 接口后即可操作 -->
-      <div class="act-card" style="margin-top:12px;border:1px dashed var(--border)">
-        <div class="act-card-hd"><h4>🦅 玩法操作</h4><span class="act-badge off">8/18 开放</span></div>
-        <div class="act-stats">
-          <span>鹊羽 <b>—</b></span><span>鹊羽灵露 <b>—</b></span><span>鹊羽香囊 <b>—</b></span>
-        </div>
-        <div class="act-actions">
-          <button class="act-btn" disabled>使用鹊羽灵露</button>
-          <button class="act-btn" disabled>筑建鹊桥</button>
-        </div>
-        <div class="act-hint">活动 8/18 上线、后端接入鹊桥接口后，这里即可查看鹊羽数量并筑桥</div>
-      </div>
-    </div>
-
     <!-- 面板 tab -->
     <div v-if="panels.length > 1" class="seg" style="margin-top:12px">
       <button
@@ -518,6 +509,34 @@ onMounted(() => { loadActivity(); loadQiXi() })
       </template>
       <div v-else-if="qmState.err" class="act-empty">{{ qmState.err }}</div>
       <div v-else class="act-empty">正在加载青梅活动...</div>
+    </div>
+
+    <!-- ===== 鹊桥寄情 ===== -->
+    <div v-else-if="curPanel && curPanel.key === 'qixi'">
+      <div class="act-card">
+        <div class="act-card-hd"><h4>🌉 鹊桥寄情</h4><span class="act-badge">{{ (qixi.tips && qixi.tips.title) || '七夕' }} · 8/18—8/22</span></div>
+      </div>
+      <template v-if="qixi.tips && qixi.tips.sections.length">
+        <div v-for="(sec, i) in qixi.tips.sections" :key="i" class="act-card" style="border:1px solid var(--border)">
+          <div class="act-card-hd"><h4>{{ sec.title }}</h4></div>
+          <ul style="margin:2px 0 2px 18px;padding:0;color:var(--muted);line-height:1.7;list-style:disc;font-size:12.5px">
+            <li v-for="(it, j) in sec.items" :key="j" style="margin:3px 0">{{ it }}</li>
+          </ul>
+        </div>
+      </template>
+      <div v-else class="act-empty">{{ qixi.tips ? '玩法细则待 8/18 更新' : (qixi.err || '正在加载玩法...') }}</div>
+
+      <div class="act-card" style="border:1px dashed var(--border)">
+        <div class="act-card-hd"><h4>🦅 玩法操作</h4><span class="act-badge off">8/18 开放</span></div>
+        <div class="act-stats">
+          <span>鹊羽 <b>—</b></span><span>鹊羽灵露 <b>—</b></span><span>鹊羽香囊 <b>—</b></span>
+        </div>
+        <div class="act-actions">
+          <button class="act-btn" disabled>使用鹊羽灵露</button>
+          <button class="act-btn" disabled>筑建鹊桥</button>
+        </div>
+        <div class="act-hint">活动 8/18 上线、后端接入鹊桥接口后，这里即可查看鹊羽数量并筑桥</div>
+      </div>
     </div>
 
     <div v-else-if="curPanel" class="act-empty">该活动暂无可展示的面板</div>
