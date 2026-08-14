@@ -335,6 +335,8 @@ body{
 }
 .dock button:active{ transform:scale(.9); }
 .dock button .di{ font-size:20px; line-height:1; transition:transform .25s var(--ease); }
+.di svg{ display:block; width:20px; height:20px; }
+.nav-btn .di svg{ width:19px; height:19px; }
 .dock button.active{ color:var(--primary); font-weight:600; }
 .dock button.active .di{ transform:translateY(-1px); }
 .dock button.active::before{
