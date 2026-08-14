@@ -613,7 +613,7 @@ body{
 .f-toggle{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--foreground); cursor:pointer; }
 .f-field{ display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-right:10px; }
 .del-form{ background:var(--card,#1e1e22); border:1px solid var(--border,#333); border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; align-items:center; }
-.del-form .field{ background:var(--input,#15151a); color:var(--foreground); border:1px solid var(--border,#333); border-radius:8px; padding:6px 8px; font-size:13px; }
+.del-form .field{ background:var(--card-strong); color:var(--foreground); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font-size:13px; }
 .f-batch{ background:var(--accent,#4f7cff); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
 .friend-card{ border-radius:16px; background:var(--card); border:1px solid var(--border); padding:14px; margin-bottom:10px; box-shadow:var(--shadow-sm); cursor:pointer; }
 .fc-head{ display:flex; align-items:center; gap:10px; }
