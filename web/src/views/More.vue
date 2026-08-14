@@ -91,6 +91,10 @@ const dSavedText = computed(() => {
 
 /* ================= 保存按钮 loading ================= */
 const saving = ref('')
+// 加载标志：自动控制开关在真实配置加载完成前不渲染，避免默认值先渲染成"关"、
+// 加载完再跳"开"的过渡动画（切页回来时开关从关跳开的闪烁问题）
+const autLoaded = ref(false)
+const dAutLoaded = ref(false)
 
 /* ================= 数据加载：账号级设置 ================= */
 function applyAut(cfg, obj) {
@@ -129,7 +133,8 @@ async function loadAccountMore() {
     mPriority.value = Array.isArray(d.bagSeedPriority) ? d.bagSeedPriority.slice() : []
     await fetchUserLevel()
     computePreview('m')
-  } catch (e) { /* silent */ }
+    autLoaded.value = true
+  } catch (e) { autLoaded.value = true }
 }
 
 async function loadDefaultPlan() {
@@ -159,6 +164,7 @@ async function loadDefaultPlan() {
       dS.stealDelay = cfg.stealDelaySeconds ?? 1
       const aut = cfg.automation || {}
       applyAut(dAutCfg, aut)
+      dAutLoaded.value = true
       dA.friendMinLevel = cfg.autoAcceptFriendMinLevel ?? 0
       dA.fertLandTypes = Array.isArray(aut.fertilizer_land_types) ? aut.fertilizer_land_types.slice() : []
       dA.fertStrategy = aut.fertilizer || 'smart_normal'
@@ -535,7 +541,8 @@ onMounted(() => {
     <!-- ============ 自动控制 ============ -->
     <div v-show="active === 'm-auto'">
       <div class="sub-head">🎛️ 自动控制 <small>核心自动化开关</small></div>
-      <div class="auto-grid" style="margin-top:0">
+      <div v-if="!autLoaded" style="padding:14px;color:#888">加载中…</div>
+      <div class="auto-grid" style="margin-top:0" v-if="autLoaded">
         <div v-for="k in CORE_AUTO" :key="k" class="auto-item">
           <span>{{ AUTO_LABELS[k] }}</span>
           <div class="switch" :class="{ on: autCfg[k] }" @click="toggleSwitch(autCfg, k)"></div>
@@ -543,7 +550,7 @@ onMounted(() => {
       </div>
 
       <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
-      <div class="auto-grid">
+      <div class="auto-grid" v-if="autLoaded">
         <div v-for="k in FRIEND_AUTO" :key="k" class="auto-item">
           <span>{{ AUTO_LABELS[k] }}</span>
           <div class="switch" :class="{ on: autCfg[k] }" @click="toggleSwitch(autCfg, k)"></div>
@@ -891,14 +898,15 @@ onMounted(() => {
       <!-- 默认自动 -->
       <div v-show="defaultPane === 'd-auto'">
         <div class="sub-head" style="margin-top:16px">🎛️ 自动控制 <small>核心自动化开关</small></div>
-        <div class="auto-grid">
+        <div v-if="!dAutLoaded" style="padding:14px;color:#888">加载中…</div>
+        <div class="auto-grid" v-if="dAutLoaded">
           <div v-for="k in CORE_AUTO" :key="k" class="auto-item">
             <span>{{ AUTO_LABELS[k] }}</span>
             <div class="switch" :class="{ on: dAutCfg[k] }" @click="toggleSwitch(dAutCfg, k)"></div>
           </div>
         </div>
         <div class="sub-head">👥 好友互动 <small>好友相关自动化</small></div>
-        <div class="auto-grid">
+        <div class="auto-grid" v-if="dAutLoaded">
           <div v-for="k in FRIEND_AUTO" :key="k" class="auto-item">
             <span>{{ AUTO_LABELS[k] }}</span>
             <div class="switch" :class="{ on: dAutCfg[k] }" @click="toggleSwitch(dAutCfg, k)"></div>
