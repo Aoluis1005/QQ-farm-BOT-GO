@@ -46,6 +46,77 @@ type automationRunner struct {
 	stop chan struct{}
 }
 
+// 游戏网络心跳间隔/连续丢失阈值（对齐 Node network.startHeartbeat setInterval 25s）
+const (
+	gwHeartbeatInterval = 25 * time.Second
+	hbMissLimit         = 5
+)
+
+// ===== 账号串行执行线：前端 HTTP 账号操作也投递到这里执行（对齐 Node worker.handleApiCall） =====
+// 保证同一账号任何时刻只有一条执行线访问 TSDK，杜绝并发（out of bounds 根因）。
+type accountWork struct {
+	fn   func()
+	done chan struct{}
+}
+
+var (
+	workMu       sync.Mutex
+	accountWorks = map[string]chan *accountWork{}
+	// 账号串行线内嵌套执行的标记：同一账号 line 正在执行外部任务（work.fn）时置 true，
+	// 使该 goroutine 内的嵌套 submitAccountWork 直接内联执行，避免向自身队列提交而死锁。
+	lineExecMu sync.Mutex
+	lineExec   = map[string]bool{}
+)
+
+func ensureAccountWork(accountID string) chan *accountWork {
+	workMu.Lock()
+	defer workMu.Unlock()
+	if q, ok := accountWorks[accountID]; ok {
+		return q
+	}
+	q := make(chan *accountWork, 64)
+	accountWorks[accountID] = q
+	return q
+}
+
+func workQueue(accountID string) chan *accountWork {
+	workMu.Lock()
+	defer workMu.Unlock()
+	return accountWorks[accountID]
+}
+
+func dropAccountWork(accountID string) {
+	workMu.Lock()
+	delete(accountWorks, accountID)
+	workMu.Unlock()
+}
+
+// submitAccountWork 将账号操作投递到该账号唯一串行执行线执行并等待完成。
+// 对齐 Node worker.handleApiCall：前端 HTTP 操作投递到账号 worker 单线程执行。
+func submitAccountWork(accountID string, fn func()) error {
+	// 已在账号串行执行线内（同 goroutine 正在执行一段外部任务，其内部又发起 RPC）→ 直接内联执行。
+	lineExecMu.Lock()
+	inline := lineExec[accountID]
+	lineExecMu.Unlock()
+	if inline {
+		fn()
+		return nil
+	}
+	q := ensureAccountWork(accountID)
+	w := &accountWork{fn: fn, done: make(chan struct{})}
+	select {
+	case q <- w:
+	case <-time.After(5 * time.Second):
+		return errors.New("账号串行执行线繁忙")
+	}
+	select {
+	case <-w.done:
+		return nil
+	case <-time.After(30 * time.Second):
+		return errors.New("账号操作执行超时")
+	}
+}
+
 // startAutomationForAccount 为账号启动自动化调度器（已存在则先停后起）
 // 对齐 Node worker.js：每账号只有【一个】串行调度器，绝不为同账号起多个并行 goroutine。
 func startAutomationForAccount(accountID string) {
@@ -61,6 +132,7 @@ func startAutomationForAccount(accountID string) {
 	}
 	stop := make(chan struct{})
 	automationRunners[accountID] = &automationRunner{stop: stop}
+	ensureAccountWork(accountID)
 	automationMu.Unlock()
 
 	go automationLoop(accountID, stop)
@@ -131,10 +203,18 @@ func automationLoop(accountID string, stop chan struct{}) {
 	nextBuy := time.Now().Add(30 * time.Second)
 	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
 	nextTask := time.Now().Add(15 * time.Second)
+	// 游戏网络心跳（对齐 Node network.startHeartbeat setInterval 25s）；并入统一串行线，不再独立 goroutine
+	nextHb := time.Now().Add(gwHeartbeatInterval)
+	hbMiss := 0
 
 	appendOpLog(accountID, "系统", "自动化循环已启动")
 
 	for {
+		// 与自动化共用同一条串行执行线：驱动 ACE 周期任务
+		// （对齐 Node：ACE 的 scheduler 与自动化 scheduler 同账号单线程，绝不并发访问 TSDK）
+		if ace := getAceService(accountID); ace != nil {
+			ace.tick(time.Now())
+		}
 		cfg := getCfg()
 		now := time.Now()
 
@@ -147,9 +227,10 @@ func automationLoop(accountID string, stop chan struct{}) {
 			now.After(nextHelp)
 		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && now.After(nextBuy)
 		shouldTask := cfg.Automation.Task && now.After(nextTask)
+		shouldHb := now.After(nextHb)
 
 		// 无到期任务：睡到最近到期时刻再驱动一次 tick（对齐 scheduleUnifiedNextTick 取 nearest）
-		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask {
+		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask && !shouldHb {
 			nearest := nextFarm
 			if nextSteal.Before(nearest) {
 				nearest = nextSteal
@@ -163,16 +244,40 @@ func automationLoop(accountID string, stop chan struct{}) {
 			if nextTask.Before(nearest) {
 				nearest = nextTask
 			}
-			wait := nearest.Sub(now)
-			if wait < 100*time.Millisecond {
-				wait = 100 * time.Millisecond
+			if nextHb.Before(nearest) {
+				nearest = nextHb
 			}
+			// ACE 周期任务也纳入最近到期计算，保证准点驱动（对齐 Node scheduleUnifiedNextTick 取 nearest）
+			if ace := getAceService(accountID); ace != nil {
+				if an := ace.nearestTick(); !an.IsZero() && an.Before(nearest) {
+					nearest = an
+				}
+			}
+			wait := nearest.Sub(now)
+			if wait < 50*time.Millisecond {
+				wait = 50 * time.Millisecond
+			}
+			// 空闲期同时监听前端投递的账号操作（对齐 Node worker.handleApiCall），在唯一串行线上执行
+			q := workQueue(accountID)
+			t := time.NewTimer(wait)
 			select {
 			case <-stop:
+				t.Stop()
 				return
-			case <-time.After(wait):
+			case w := <-q:
+				t.Stop()
+				lineExecMu.Lock()
+				lineExec[accountID] = true
+				lineExecMu.Unlock()
+				w.fn()
+				lineExecMu.Lock()
+				lineExec[accountID] = false
+				lineExecMu.Unlock()
+				close(w.done)
+				continue
+			case <-t.C:
+				continue
 			}
-			continue
 		}
 
 		// 统一 tick：按序【串行】执行，同账号绝不并发（对齐 Node runUnifiedTick 的 farm→help→steal await）
@@ -183,6 +288,18 @@ func automationLoop(accountID string, stop chan struct{}) {
 			nextSteal = now.Add(randomIntervalMs(25*1000, 30*1000))
 			nextHelp = now.Add(randomIntervalMs(30*1000, 35*1000))
 			continue
+		}
+
+		if shouldHb {
+			if c.HeartbeatOnce() {
+				hbMiss = 0
+			} else {
+				hbMiss++
+				if hbMiss >= hbMissLimit {
+					c.Close()
+				}
+			}
+			nextHb = time.Now().Add(gwHeartbeatInterval)
 		}
 
 		if shouldFarm {

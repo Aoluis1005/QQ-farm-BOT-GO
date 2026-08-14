@@ -124,13 +124,15 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	c.SetGiftHook(acc.ID, recordGift)
 	c.SetFarmPushHook(newFarmPushHandler(acc.ID))
 	c.Prime() // 登录后立即预拉首页数据缓存
-	c.StartHeartbeat(context.Background())
+	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine（对齐 Node 单线程）
 	// 对齐 Node network.js:583-584：登录成功后 startHeartbeat() + startAceService()
 	// ACE 上报服务随连接关闭自动停止（监听 Done()）
-	aceSvc := startAceService(c, acc.ID)
+	aceSvc := startAceService(c, acc.ID) // 注册进账号 ACE 表，由 automationLoop 统一串行线驱动
 	go func() {
 		<-c.Done()
 		aceSvc.stop()
+		removeAceService(acc.ID)
+		dropAccountWork(acc.ID)
 		// 连接关闭/掉线 → 停止该账号自动化（对齐 Node：worker 随 socket 断开而停止）
 		stopAutomationForAccount(acc.ID)
 	}()

@@ -442,6 +442,19 @@ func (c *Client) StartHeartbeat(ctx context.Context) {
 	}()
 }
 
+// HeartbeatOnce 发送一次游戏网络心跳，交由账号串行执行线（automationLoop）驱动。
+// 对齐 Node network.startHeartbeat：不再存在独立心跳 goroutine，消除对 TSDK 的并发访问。
+func (c *Client) HeartbeatOnce() bool {
+	if c.IsClosed() {
+		return false
+	}
+	body := proto.EncodeHeartbeatRequest(c.GID, c.cfg.ClientVersion)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, err := c.Request(ctx, "gamepb.userpb.UserService", "Heartbeat", body, 15*time.Second)
+	return err == nil
+}
+
 // SetClientVersion 更新客户端版本号（热更新：保存系统配置后秒级生效，无需重连；对齐 Node config_sync）
 func (c *Client) SetClientVersion(v string) {
 	c.mu.Lock()
