@@ -4,7 +4,6 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 import './layout.css'
-import './legacy.css'
 
 // 主题：沿用现有 HTML 的 data-theme 机制，CSS 已按 [data-theme] 定义全套 oklch 变量。
 // 默认暗色（用户指定的视觉），用户若切换过则从 localStorage 恢复。
