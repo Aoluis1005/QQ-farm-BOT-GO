@@ -187,6 +187,36 @@ func farmInterval(iv config.IntervalsConfig) time.Duration {
 	return randomIntervalMs(minS*1000, maxS*1000)
 }
 
+// stealInterval 偷菜巡查间隔（秒→毫秒），读前端设置的 StealMin/Max（对齐 Node stealCheckInterval，默认 10–15s）
+func stealInterval(iv config.IntervalsConfig) time.Duration {
+	minS, maxS := iv.StealMin, iv.StealMax
+	if minS <= 0 {
+		minS = 10
+	}
+	if maxS <= 0 {
+		maxS = 15
+	}
+	if maxS < minS {
+		maxS = minS
+	}
+	return randomIntervalMs(minS*1000, maxS*1000)
+}
+
+// helpInterval 帮忙巡查间隔（秒→毫秒），读前端设置的 HelpMin/Max（对齐 Node helpCheckInterval，默认 15–20s）
+func helpInterval(iv config.IntervalsConfig) time.Duration {
+	minS, maxS := iv.HelpMin, iv.HelpMax
+	if minS <= 0 {
+		minS = 15
+	}
+	if maxS <= 0 {
+		maxS = 20
+	}
+	if maxS < minS {
+		maxS = minS
+	}
+	return randomIntervalMs(minS*1000, maxS*1000)
+}
+
 // ── 单账号统一串行调度器（对齐 Node unifiedScheduler.runUnifiedTick + scheduleUnifiedNextTick） ──
 
 // automationLoop 每个账号仅一个 goroutine：把农场巡田、帮忙、偷菜、买化肥统一到【一条串行时间线】。
@@ -197,8 +227,8 @@ func automationLoop(accountID string, stop chan struct{}) {
 
 	// 各任务下次运行时刻（对齐 Node runUnifiedTick 的 nextFarmRunAt/nextStealRunAt/nextHelpRunAt）
 	nextFarm := time.Now().Add(farmInterval(getCfg().Intervals))
-	nextSteal := time.Now().Add(randomIntervalMs(25*1000, 30*1000))
-	nextHelp := time.Now().Add(randomIntervalMs(30*1000, 35*1000))
+	nextSteal := time.Now().Add(stealInterval(getCfg().Intervals))
+	nextHelp := time.Now().Add(helpInterval(getCfg().Intervals))
 	// 买化肥首跑延迟 30s（对齐原 fertilizeBuyLoop），此后按配置间隔
 	nextBuy := time.Now().Add(30 * time.Second)
 	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
@@ -285,8 +315,8 @@ func automationLoop(accountID string, stop chan struct{}) {
 		if err != nil || c == nil {
 			// 连接不可用：各任务整体顺延一轮，避免忙等
 			nextFarm = now.Add(farmInterval(getCfg().Intervals))
-			nextSteal = now.Add(randomIntervalMs(25*1000, 30*1000))
-			nextHelp = now.Add(randomIntervalMs(30*1000, 35*1000))
+			nextSteal = now.Add(stealInterval(getCfg().Intervals))
+			nextHelp = now.Add(helpInterval(getCfg().Intervals))
 			continue
 		}
 
@@ -316,11 +346,11 @@ func automationLoop(accountID string, stop chan struct{}) {
 		}
 		if shouldSteal {
 			checkFriends(c, accountID, cfg, true, false)
-			nextSteal = time.Now().Add(randomIntervalMs(25*1000, 30*1000))
+			nextSteal = time.Now().Add(stealInterval(getCfg().Intervals))
 		}
 		if shouldHelp {
 			checkFriends(c, accountID, cfg, false, true)
-			nextHelp = time.Now().Add(randomIntervalMs(30*1000, 35*1000))
+			nextHelp = time.Now().Add(helpInterval(getCfg().Intervals))
 		}
 		if shouldBuy {
 			doCheckAndBuyFertilizer(accountID, c, cfg)
