@@ -366,7 +366,7 @@ onUnmounted(() => { clearInterval(landTimer) })
       <div class="seg seg-5" style="margin-bottom:10px">
         <button class="seg-btn" :class="{ active: fsub === 'list' }" @click="onFsub('list')">好友列表</button>
         <button class="seg-btn" :class="{ active: fsub === 'add' }" @click="fsub='add'">加好友</button>
-        <button class="seg-btn" :class="{ active: fsub === 'blacklist' }" @click="onFsub('blacklist')">黑名单<span class="nb">{{ blk }}</span></button>
+        <button class="seg-btn" :class="{ active: fsub === 'blacklist' }" @click="onFsub('blacklist')">黑名单<span v-if="blk > 0" class="nb">{{ blk }}</span></button>
         <button class="seg-btn" :class="{ active: fsub === 'visitors' }" @click="onFsub('visitors')">访客</button>
         <button class="seg-btn" :class="{ active: fsub === 'del' }" @click="onFsub('del')">删除</button>
       </div>
