@@ -313,9 +313,12 @@ func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends
 		return
 	}
 	m, _ := readDogCache(accountID)
-	cacheEmpty := len(m) == 0
-	stale := now-lastFullDogInfoRefreshAt > 3600 // 60min（用户要求，Node 默认 30min）
-	if !cacheEmpty && !stale {
+	_ = m
+	// 【修复 2026-08-14】只按 60min 周期全量刷新护主犬缓存（对齐 Node 周期刷新意图：
+	// 发现新护主犬 / 清除换狗、删好友后的伪护主犬）。
+	// 原判断里 `!cacheEmpty` 在“该账号没有护主犬好友”时恒不满足 → 每轮 checkFriends 都全量
+	// 遍历所有好友进农场拉狗信息并疯狂写日志/发 RPC（本账号即因此疯狂刷『护主犬缓存全量刷新』）。
+	if now-lastFullDogInfoRefreshAt <= 3600 { // 60min（用户要求，Node 默认 30min）
 		return
 	}
 	lastFullDogInfoRefreshAt = now
