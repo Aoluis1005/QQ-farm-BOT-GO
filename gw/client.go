@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"nhooyr.io/websocket"
@@ -21,6 +22,9 @@ import (
 // Node 默认微信 UA
 // iOS Safari UA（wx+iOS 唯一可握手的 UA）
 const defaultUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+// maxQueued 单个连接等待槽位的在途请求上限（对齐参考实现）
+const maxQueued = int64(500)
 
 // Config 网关配置
 type Config struct {
@@ -41,6 +45,12 @@ type Client struct {
 	mu           sync.Mutex
 	writeMu      sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
 	pending      map[int64]chan *proto.Message
+	// 请求槽位机制（对齐参考实现）：限制单连接并发在途请求数，避免 ACE 轮询占满网关
+	// 单槽位后游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。
+	normalSlots chan struct{} // 普通请求(非心跳)并发上限 = 8
+	totalSlots  chan struct{} // 全部请求(含心跳/ACE)并发上限 = 10
+	queued      atomic.Int64
+	active      atomic.Int64
 	kickHook     func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
 	accountID    string
 	giftHook     func(accountID string, delta int64)
@@ -72,9 +82,11 @@ func New(cfg Config) *Client {
 		cfg.HeartbeatMillis = 25000
 	}
 	return &Client{
-		cfg:     cfg,
-		pending: map[int64]chan *proto.Message{},
-		closed:  make(chan struct{}),
+		cfg:         cfg,
+		pending:     map[int64]chan *proto.Message{},
+		closed:      make(chan struct{}),
+		normalSlots: make(chan struct{}, 8),
+		totalSlots:  make(chan struct{}, 10),
 	}
 }
 
@@ -171,12 +183,25 @@ func (c *Client) login(ctx context.Context, code string) error {
 
 // Request 发送请求并等待响应（按 client_seq 匹配）
 func (c *Client) Request(ctx context.Context, service, method string, body []byte, timeout time.Duration) (*proto.Message, error) {
+	// 槽位机制：限制单连接并发在途请求数，避免 ACE 轮询占满网关单槽位后
+	// 游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。对齐参考实现。
+	release, err := c.acquire(ctx, method == "Heartbeat")
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	c.mu.Lock()
 	c.seq++
 	seq := c.seq
 	ch := make(chan *proto.Message, 1)
 	c.pending[seq] = ch
 	c.mu.Unlock()
+
+	if c.conn == nil {
+		c.removePending(seq)
+		return nil, fmt.Errorf("gateway connection is not open")
+	}
 
 	meta := &proto.Meta{
 		ServiceName: service,
@@ -194,12 +219,15 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 		}
 		encBody = eb
 	}
-	// auth_token: 首次(登录)用 ACE 初始化凭据，之后用随机 token
+	// auth_token: 首次(登录)用 ACE 初始化凭据，之后用随机 token。
+	// firstToken 读写加 mu 锁，修复并发首批请求重复消费首令牌的竞态（对齐参考实现 takeToken 用 connMu 保护）。
+	c.mu.Lock()
 	token := c.authToken
 	if c.firstToken != "" {
 		token = c.firstToken
 		c.firstToken = ""
 	}
+	c.mu.Unlock()
 	payload := proto.EncodeMessage(meta, encBody, token)
 
 	ctx2, cancel := context.WithTimeout(ctx, timeout)
@@ -217,7 +245,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	}
 
 	select {
-		case msg := <-ch:
+	case msg := <-ch:
 		if msg.Meta != nil && msg.Meta.ErrorCode != 0 {
 			// 账号在别处登录等致命码：触发连接池重连（对齐 Node kickout 事件），并关闭当前连接。
 			if isKickCode(msg.Meta.ErrorCode) && c.kickHook != nil {
@@ -230,6 +258,12 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 		return msg, nil
 	case <-ctx2.Done():
 		c.removePending(seq)
+		// 非 ACE/非心跳的请求超时 → 关闭连接触发重连（对齐参考实现）：
+		// 死连接不应长期留在缓存里伪装“在线”骗前端，应被真正断开并重建。
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) && shouldCloseConnectionAfterTimeout(service, method) {
+			log.Printf("[gw] 账号 %s 请求 %s.%s 超时，关闭连接触发重连", c.accountID, service, method)
+			c.closeActiveConnection()
+		}
 		return nil, fmt.Errorf("request timeout: %s.%s", service, method)
 	}
 }
@@ -544,8 +578,76 @@ func (c *Client) Close() {
 		if c.conn != nil {
 			c.conn.Close(websocket.StatusNormalClosure, "")
 		}
+		// 连接关闭时让所有在途请求立即失败，避免前端/自动化各自苦等满 15s 超时（对齐参考实现 failPending）
+		c.failPending(errors.New("gateway connection closed"))
 		close(c.closed)
 	})
+}
+
+// failPending 连接断开时立即让所有在途请求失败（发送哨兵错误帧），
+// 避免每条请求各自等待其 15s 超时 → 前端/后台不再整体卡死。
+func (c *Client) failPending(err error) {
+	c.mu.Lock()
+	pending := c.pending
+	c.pending = make(map[int64]chan *proto.Message)
+	c.mu.Unlock()
+	for _, ch := range pending {
+		select {
+		case ch <- &proto.Message{Meta: &proto.Meta{ErrorCode: -1, ErrorMessage: err.Error()}}:
+		default:
+		}
+	}
+}
+
+// acquire 获取请求槽位：普通请求占用 normalSlots(上限8)+totalSlots(上限10)，
+// 心跳仅占用 totalSlots(可绕过 normalSlots，保证存活探测不被游戏请求挤占)。
+// 上下文取消时立即返回错误，避免调用方无限等待槽位。
+func (c *Client) acquire(ctx context.Context, heartbeat bool) (func(), error) {
+	queued := c.queued.Add(1)
+	if queued > maxQueued {
+		c.queued.Add(-1)
+		return nil, errors.New("gateway request queue is full")
+	}
+	defer c.queued.Add(-1)
+	if !heartbeat {
+		select {
+		case c.normalSlots <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	select {
+	case c.totalSlots <- struct{}{}:
+		c.active.Add(1)
+		return func() {
+			<-c.totalSlots
+			if !heartbeat {
+				<-c.normalSlots
+			}
+			c.active.Add(-1)
+		}, nil
+	case <-ctx.Done():
+		if !heartbeat {
+			<-c.normalSlots
+		}
+		return nil, ctx.Err()
+	}
+}
+
+// shouldCloseConnectionAfterTimeout 判断某请求超时后是否应关闭整条连接触发重连。
+// 心跳与 ACE 上报失败不应关连接（心跳失败由心跳循环独立判定；ACE 上报失败不应反噬游戏请求通道），
+// 其余游戏请求超时则关连接重建，避免死连接长期伪装“在线”。对齐参考实现。
+func shouldCloseConnectionAfterTimeout(service, method string) bool {
+	if method == "Heartbeat" {
+		return false
+	}
+	return service != "gamepb.acepb.AceService"
+}
+
+// closeActiveConnection 立即关闭底层 WebSocket 连接，置 IsClosed 并 failPending，
+// 使连接池下次 Get() 走重连流程（对齐参考实现 closeActiveConnection + disconnect）。
+func (c *Client) closeActiveConnection() {
+	c.Close()
 }
 
 // UserName 登录用户名
