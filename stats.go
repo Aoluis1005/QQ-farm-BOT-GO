@@ -11,18 +11,18 @@ import (
 // ============ 今日收益统计（对齐 Node services/stats.js） ============
 
 type AccountStats struct {
-	Date        string           `json:"date"`
-	Operations  map[string]int64 `json:"operations"`
-	TongQiGift  int64            `json:"tongQiGiftCount"`
-	InitGold    int64            `json:"initGold"`
-	InitExp     int64            `json:"initExp"`
-	InitCoupon  int64            `json:"initCoupon"`
-	LastGold    int64            `json:"lastGold"`
-	LastExp     int64            `json:"lastExp"`
-	GoldGained  int64            `json:"goldGained"`
-	ExpGained   int64            `json:"expGained"`
-	CouponGained int64           `json:"couponGained"`
-	SavedAt     int64            `json:"savedAt"`
+	Date         string           `json:"date"`
+	Operations   map[string]int64 `json:"operations"`
+	TongQiGift   int64            `json:"tongQiGiftCount"`
+	InitGold     int64            `json:"initGold"`
+	InitExp      int64            `json:"initExp"`
+	InitCoupon   int64            `json:"initCoupon"`
+	LastGold     int64            `json:"lastGold"`
+	LastExp      int64            `json:"lastExp"`
+	GoldGained   int64            `json:"goldGained"`
+	ExpGained    int64            `json:"expGained"`
+	CouponGained int64            `json:"couponGained"`
+	SavedAt      int64            `json:"savedAt"`
 }
 
 // newOperationMap 预初始化今日收益全部操作 key（对齐 Node operations 结构，缺 key 会导致 recordOperation 记不进）
@@ -148,7 +148,9 @@ func getTodayIncome(accountID string) map[string]interface{} {
 	acc := getAccountStats(accountID)
 	op := acc.Operations
 	m := map[string]interface{}{
-		"totalGold":   acc.GoldGained,
+		// 顶部「收益」= sell（出售获得金币），对齐 Node Dashboard.vue: sell={label:'收益'}
+		// 原实现用 GoldGained(净值diff累加) 与 Node 语义不符，已改为 op["sell"]
+		"totalGold":   op["sell"],
 		"dogGifts":    acc.TongQiGift,
 		"harvest":     op["harvest"],
 		"steal":       op["steal"],

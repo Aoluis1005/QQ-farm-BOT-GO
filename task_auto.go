@@ -128,6 +128,8 @@ func claimIllustratedRewardsGo(ctx context.Context, accountID string, c *gw.Clie
 	if gain <= 0 {
 		return 0
 	}
+	// 对齐 Node task.js (图鉴奖励成功)：recordOperation('taskClaim', 1)
+	recordOperation(accountID, "taskClaim", 1)
 	return int(gain)
 }
 
@@ -159,5 +161,10 @@ func claimTaskRewardGo(ctx context.Context, accountID string, c *gw.Client, task
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	_, err := rpcRequest(cctx, accountID, taskSvc, "ClaimTaskReward", b.Bytes(), 20*time.Second)
-	return err == nil
+	if err == nil {
+		// 对齐 Node task.js doClaim：领取成功 recordOperation('taskClaim', 1)
+		recordOperation(accountID, "taskClaim", 1)
+		return true
+	}
+	return false
 }

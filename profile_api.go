@@ -831,6 +831,10 @@ func handleBagSell(w http.ResponseWriter, r *http.Request) {
 	}
 	// 解析卖果实金币收益（对齐 Node warehouse.js deriveGoldGainFromSellReply + emit('sell')）
 	soldCount, gold := proto.DecodeSellReply(rep.Body)
+	// 对齐 Node worker.js sellItems：手动出售也按金币记录 sell 操作计数
+	if gold > 0 {
+		recordOperation(accountID, "sell", gold)
+	}
 	writeJSON(w, map[string]interface{}{"ok": true, "message": "sell ok", "gold": gold, "count": soldCount})
 }
 

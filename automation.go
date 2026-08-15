@@ -1636,13 +1636,18 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 	if len(sell) == 0 {
 		return
 	}
-	if _, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Sell",
-		proto.EncodeSellRequest(sell), 12*time.Second); err != nil {
+	sellRep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Sell",
+		proto.EncodeSellRequest(sell), 12*time.Second)
+	if err != nil {
 		appendOpLog(accountID, "farm", "自动卖果实失败: "+err.Error())
 		return
 	}
-	recordOperation(accountID, "sell", int64(len(sell)))
-	appendOpLog(accountID, "farm", fmt.Sprintf("自动卖果实 %d 种", len(sell)))
+	// 对齐 Node warehouse.js / worker.js：sell 按「出售获得金币数」记录（recordOperation('sell', gold)）
+	_, gold := proto.DecodeSellReply(sellRep.Body)
+	if gold > 0 {
+		recordOperation(accountID, "sell", gold)
+	}
+	appendOpLog(accountID, "farm", fmt.Sprintf("自动卖果实 %d 种, 获得 %d 金币", len(sell), gold))
 }
 
 // ── 自动买化肥（对齐 Node farm-scheduler.js + mall.js checkAndBuyFertilizerBoth） ──
