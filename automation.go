@@ -1631,7 +1631,19 @@ func fertilizeOrganicLoop(c *gw.Client, ids []int64) int {
 	return n
 }
 
-// ── 自动卖果实（对齐 Node worker.js farmHarvested → sellAllFruits） ──
+// ── 自动卖果实（对齐 Node warehouse.js sellAllFruits） ──
+//
+// Node 最新版要点：
+//  1. 果实判定用 isFruitItemId(id) = Boolean(getPlantByFruitId(id))，纯查 Plant.json；
+//  2. 自动出售跳过名单 AUTO_SELL_SKIP_ITEM_IDS = new Set([41221])，
+//     这些物品即便可售也会被服务端以 code=1000020 拒绝，需从候选剔除，否则整批 Sell 失败；
+//  3. 分批出售（SELL_BATCH_SIZE=15），批量失败改逐个重试并跳过不可售 item。
+
+// autoSellSkipItemIDs 自动出售跳过名单（对齐 Node AUTO_SELL_SKIP_ITEM_IDS）
+// 41221 为青梅活动果实，调 ItemService.Sell 会被服务端以 code=1000020 拒绝。
+var autoSellSkipItemIDs = map[int64]bool{41221: true}
+
+const sellBatchSize = 15
 
 func autoSellAfterHarvest(accountID string, c *gw.Client) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
@@ -1642,25 +1654,71 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 	items := proto.DecodeBagReply(rep.Body).Items
 	sell := make([]proto.SellItem, 0, len(items))
 	for _, it := range items {
-		if it.ID > 0 && it.Count > 0 && isFruitItemID(it.ID) {
+		if it.ID > 0 && it.Count > 0 && isFruitItemID(it.ID) && !autoSellSkipItemIDs[it.ID] {
 			sell = append(sell, proto.SellItem{ID: it.ID, Count: it.Count, UID: it.UID})
 		}
 	}
 	if len(sell) == 0 {
 		return
 	}
-	sellRep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Sell",
-		proto.EncodeSellRequest(sell), 12*time.Second)
+	totalGold := int64(0)
+	soldKinds := 0
+	// 分批出售（对齐 Node warehouse.js sellAllFruits：SELL_BATCH_SIZE=15）
+	for i := 0; i < len(sell); i += sellBatchSize {
+		end := i + sellBatchSize
+		if end > len(sell) {
+			end = len(sell)
+		}
+		batch := sell[i:end]
+		if gold, ok := trySellBatch(accountID, c, batch); ok {
+			totalGold += gold
+			soldKinds += len(batch)
+			continue
+		}
+		// 批量失败，逐个重试（对齐 Node 批量失败改逐个重试，跳过不可售物品）
+		for _, it := range batch {
+			g, ok := trySellOne(accountID, c, it)
+			if ok {
+				totalGold += g
+				soldKinds++
+			}
+		}
+		if end < len(sell) {
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
+	if totalGold > 0 {
+		recordOperation(accountID, "sell", totalGold)
+	}
+	if soldKinds > 0 {
+		appendOpLog(accountID, "farm", fmt.Sprintf("自动卖果实 %d 种, 获得 %d 金币", soldKinds, totalGold))
+	}
+}
+
+// trySellBatch 批量出售，成功返回获得金币数与 true。
+func trySellBatch(accountID string, c *gw.Client, batch []proto.SellItem) (int64, bool) {
+	if len(batch) == 0 {
+		return 0, false
+	}
+	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Sell",
+		proto.EncodeSellRequest(batch), 12*time.Second)
 	if err != nil {
-		appendOpLog(accountID, "farm", "自动卖果实失败: "+err.Error())
-		return
+		return 0, false
 	}
-	// 对齐 Node warehouse.js / worker.js：sell 按「出售获得金币数」记录（recordOperation('sell', gold)）
-	_, gold := proto.DecodeSellReply(sellRep.Body)
-	if gold > 0 {
-		recordOperation(accountID, "sell", gold)
+	_, gold := proto.DecodeSellReply(rep.Body)
+	return gold, true
+}
+
+// trySellOne 单个出售，失败（含不可售）记录日志并返回 false，不中断其余。
+func trySellOne(accountID string, c *gw.Client, it proto.SellItem) (int64, bool) {
+	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Sell",
+		proto.EncodeSellRequest([]proto.SellItem{it}), 12*time.Second)
+	if err != nil {
+		appendOpLog(accountID, "farm", fmt.Sprintf("自动卖果实跳过不可售物品 ID=%d x%d: %s", it.ID, it.Count, err.Error()))
+		return 0, false
 	}
-	appendOpLog(accountID, "farm", fmt.Sprintf("自动卖果实 %d 种, 获得 %d 金币", len(sell), gold))
+	_, gold := proto.DecodeSellReply(rep.Body)
+	return gold, true
 }
 
 // ── 自动买化肥（对齐 Node farm-scheduler.js + mall.js checkAndBuyFertilizerBoth） ──

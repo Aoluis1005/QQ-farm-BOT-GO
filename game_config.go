@@ -163,22 +163,14 @@ func loadItemInfoJSON(path string) {
 
 // ---- 背包物品分类判定（对齐 Node warehouse.js getBagDetail） ----
 
-// isFruitItemID 是否为果实物品（Plant.json fruit.id 或已知果实 ID 范围）
+// isFruitItemID 是否为果实物品（对齐 Node warehouse.js isFruitItemId = Boolean(getPlantByFruitId(id))）
+// 统一以 Plant.json 为准：普通果实(4xxxx) 与变异果实(104xxxx) 均已收录于 fruitToPlantMap。
 func isFruitItemID(id int64) bool {
 	n := int(id)
 	if n <= 0 {
 		return false
 	}
 	if _, ok := fruitToPlantMap[n]; ok {
-		return true
-	}
-	// 回退启发式：普通果实 4xxxx，变异果实 104xxxx
-	if n >= 10000 && n < 50000 {
-		if _, ok := fruitItemMap[int64(n)]; ok {
-			return true
-		}
-	}
-	if n >= 1040000 && n < 1050000 {
 		return true
 	}
 	return false
