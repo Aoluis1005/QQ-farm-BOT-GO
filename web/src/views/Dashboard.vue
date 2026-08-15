@@ -16,10 +16,10 @@ const loading = ref(false)
 
 const INC_MAP = {
   收获: 'harvest', 偷菜: 'steal', 种植: 'plant', 施肥: 'fertilize', 浇水: 'water',
-  除草: 'weed', 除虫: 'insecticide', 一键务农: 'oneKeyFarm', 帮浇水: 'helpWater',
-  帮除草: 'helpWeed', 帮除虫: 'helpInsect', 清黄金虫: 'clearGolden', 放黄金虫: 'putGolden', 任务: 'task',
+  除草: 'weed', 除虫: 'insecticide', 一键务农: 'oneKeyFarm', 帮忙: 'helpFarming',
+  清黄金虫: 'clearGolden', 放黄金虫: 'putGolden', 任务: 'task',
 }
-const INC_ITEMS = ['收获','偷菜','种植','施肥','浇水','除草','除虫','一键务农','帮浇水','帮除草','帮除虫','清黄金虫','放黄金虫','任务']
+const INC_ITEMS = ['收获','偷菜','种植','施肥','浇水','除草','除虫','一键务农','帮忙','清黄金虫','放黄金虫','任务']
 
 const PATROL_KEY = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // POST key
 const PATROL_GET = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // GET key 同为 farm（对齐 legacy switchMap）
@@ -150,7 +150,7 @@ onMounted(load)
         <div class="inc-cell"><span class="inc-l">🎁 同气礼包</span><strong>{{ income.dogGifts ?? 0 }}</strong><em>个</em></div>
       </div>
       <div class="income-stats">
-        <div v-for="l in INC_ITEMS" :key="l" class="st"><i>{{ { 收获:'🌾',偷菜:'🕵️',种植:'🌱',施肥:'🧴',浇水:'🚿',除草:'🌿',除虫:'🐛',一键务农:'⚙️',帮浇水:'🤝',帮除草:'🧹',帮除虫:'🪲',清黄金虫:'🟡',放黄金虫:'🐞',任务:'📋' }[l] }}</i><span>{{ l }}</span><b>{{ incVal(l) }}</b></div>
+        <div v-for="l in INC_ITEMS" :key="l" class="st"><i>{{ { 收获:'🌾',偷菜:'🕵️',种植:'🌱',施肥:'🧴',浇水:'🚿',除草:'🌿',除虫:'🐛',一键务农:'⚙️',帮忙:'🤝',清黄金虫:'🟡',放黄金虫:'🐞',任务:'📋' }[l] }}</i><span>{{ l }}</span><b>{{ incVal(l) }}</b></div>
       </div>
     </div>
 

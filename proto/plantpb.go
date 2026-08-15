@@ -264,7 +264,7 @@ func EncodeHarvestRequest(landIDs []int64, hostGid int64, isAll bool) []byte {
 	return b.Bytes()
 }
 
-// EncodeFarmingRequest 一键务农
+// EncodeFarmingRequest 一键务农（自己农场）
 func EncodeFarmingRequest(landIDs []int64, hostGid int64) []byte {
 	b := NewBuilder()
 	for _, id := range landIDs {
@@ -273,6 +273,22 @@ func EncodeFarmingRequest(landIDs []int64, hostGid int64) []byte {
 	if hostGid != 0 {
 		b.FieldInt64(2, hostGid)
 	}
+	return b.Bytes()
+}
+
+// EncodeFriendFarmingRequest 好友帮忙一键务农（对齐 liyangpengs 参考实现的 FarmingRequest：
+// land_ids=1 / host_gid=2 / field_3=0 / field_4=2，两者均为好友帮忙抓包场景固定值）。
+// 注意 field_3=0 也需原样编码，故用 FieldInt64Always（FieldInt64 会跳过 0）。
+func EncodeFriendFarmingRequest(landIDs []int64, hostGid int64) []byte {
+	b := NewBuilder()
+	for _, id := range landIDs {
+		b.FieldInt64(1, id)
+	}
+	if hostGid != 0 {
+		b.FieldInt64(2, hostGid)
+	}
+	b.FieldInt64Always(3, 0)
+	b.FieldInt64(4, 2)
 	return b.Bytes()
 }
 
@@ -493,4 +509,44 @@ func DecodeOperationLimits(buf []byte) []OperationLimit {
 		return true
 	})
 	return out
+}
+
+// FarmingResult 好友帮忙单地块结果（对齐 plantpb.proto FarmingResult：land_id=1 / reward=2）
+type FarmingResult struct {
+	LandID int64
+}
+
+// DecodeFarmingReply 解析 PlantService.Farming 的 reply：
+//
+//	operation_limits=字段2（repeated OperationLimit）、results=字段3（repeated FarmingResult）。
+//
+// 返回解析出的每日限制与成功帮忙的地块ID列表。
+func DecodeFarmingReply(buf []byte) (limits []OperationLimit, landIDs []int64) {
+	if len(buf) == 0 {
+		return nil, nil
+	}
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		switch {
+		case field == 2 && wire == WireLen:
+			o := OperationLimit{}
+			o.decode(r.ReadBytes())
+			limits = append(limits, o)
+		case field == 3 && wire == WireLen:
+			// FarmingResult 内嵌 message：只取 land_id(字段1)
+			fr := NewReader(r.ReadBytes())
+			fr.EachField(func(f, w int, r *Reader) bool {
+				if f == 1 && w == WireVarint {
+					landIDs = append(landIDs, r.ReadInt64())
+				} else {
+					r.Skip(w)
+				}
+				return true
+			})
+		default:
+			r.Skip(wire)
+		}
+		return true
+	})
+	return limits, landIDs
 }

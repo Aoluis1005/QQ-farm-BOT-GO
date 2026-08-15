@@ -30,7 +30,7 @@ func newOperationMap() map[string]int64 {
 	return map[string]int64{
 		"harvest": 0, "water": 0, "weed": 0, "bug": 0, "farming": 0,
 		"fertilize": 0, "plant": 0, "steal": 0, "helpWater": 0, "helpWeed": 0,
-		"helpBug": 0, "goldenBugClear": 0, "goldenBugPut": 0, "taskClaim": 0,
+		"helpBug": 0, "helpFarming": 0, "goldenBugClear": 0, "goldenBugPut": 0, "taskClaim": 0,
 		"sell": 0, "upgrade": 0, "levelUp": 0,
 	}
 }
@@ -113,9 +113,11 @@ func recordOperation(accountID, opType string, count int64) {
 		return
 	}
 	acc := getAccountStats(accountID)
-	if _, ok := acc.Operations[opType]; ok {
-		acc.Operations[opType] += count
+	// 兜底：新操作 key（如 helpFarming）在已持久化旧 map 中缺失时自动补 0，确保能记录
+	if _, ok := acc.Operations[opType]; !ok {
+		acc.Operations[opType] = 0
 	}
+	acc.Operations[opType] += count
 	saveStatsFile(accountID, acc)
 }
 
@@ -160,9 +162,8 @@ func getTodayIncome(accountID string) map[string]interface{} {
 		"weed":        op["weed"],
 		"insecticide": op["bug"],
 		"oneKeyFarm":  op["farming"],
-		"helpWater":   op["helpWater"],
-		"helpWeed":    op["helpWeed"],
-		"helpInsect":  op["helpBug"],
+		// 好友帮忙改为单个 Farming RPC 后统一记 helpFarming（对齐 liyangpengs），不再细分水/草/虫
+		"helpFarming": op["helpFarming"],
 		"clearGolden": op["goldenBugClear"],
 		"putGolden":   op["goldenBugPut"],
 		"task":        op["taskClaim"],

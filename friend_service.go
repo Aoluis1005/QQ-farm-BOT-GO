@@ -153,6 +153,181 @@ type doFriendOperationResult struct {
 	DogName    string `json:"-"`
 }
 
+// friendService 好友帮忙 recentHelp 防重（对齐 liyangpengs visit-strategy.ts）：
+// 用「地块状态快照」做去重 key，对同一好友同一地块，状态未变且时间窗内已帮则跳过。
+type recentHelpEntry struct {
+	state       string // in_flight / confirmed / noop
+	snapshotKey string
+	expiresAt   int64 // UnixMilli
+}
+
+var (
+	recentHelpMu sync.Mutex
+	recentHelp   = map[string]*recentHelpEntry{}
+)
+
+const (
+	recentHelpInflightTTL = int64(time.Millisecond) * 15000
+	recentHelpResultTTL   = int64(time.Millisecond) * 30000
+	recentHelpCacheMax    = 2048
+)
+
+func recentHelpKey(accountID string, gid, landID int64) string {
+	return fmt.Sprintf("%s:%d:%d", accountID, gid, landID)
+}
+
+func pruneRecentHelp(now int64) {
+	for k, e := range recentHelp {
+		if e.expiresAt <= now {
+			delete(recentHelp, k)
+		}
+	}
+	for len(recentHelp) > recentHelpCacheMax {
+		for k := range recentHelp {
+			delete(recentHelp, k)
+			break
+		}
+	}
+}
+
+func joinInts(in []int64) string {
+	ss := make([]string, len(in))
+	for i, v := range in {
+		ss[i] = fmt.Sprintf("%d", v)
+	}
+	return strings.Join(ss, ",")
+}
+
+// getHelpSnapshotKey 由好友地块列表生成状态快照 key（对齐 liyangpengs getHelpSnapshotKey）：
+// 每块地 = [land.id, plant.id, phase.phase, plant.dry_num, weed_owners, insect_owners]，多块用 | 分隔。
+func getHelpSnapshotKey(lands []*proto.LandInfo) string {
+	now := time.Now().Unix()
+	parts := make([]string, 0, len(lands))
+	for _, land := range lands {
+		if land == nil {
+			continue
+		}
+		plantID, phase, dry, weeds, insects := "", "", "", "", ""
+		if land.Plant != nil {
+			plantID = itoa(land.Plant.ID)
+			if cur := currentPhase(land.Plant.Phases, now); cur != nil {
+				phase = itoa(int64(cur.Phase))
+			}
+			dry = itoa(land.Plant.DryNum)
+			weeds = joinInts(land.Plant.WeedOwners)
+			insects = joinInts(land.Plant.InsectOwners)
+		}
+		parts = append(parts, strings.Join([]string{itoa(land.ID), plantID, phase, dry, weeds, insects}, ":"))
+	}
+	return strings.Join(parts, "|")
+}
+
+// filterRecentHelp 过滤掉「缓存未过期且快照一致」的地块（对齐 filterRecentHelp）。
+func filterRecentHelp(accountID string, gid int64, landIDs []int64, snapshotKey string) []int64 {
+	now := time.Now().UnixMilli()
+	recentHelpMu.Lock()
+	defer recentHelpMu.Unlock()
+	pruneRecentHelp(now)
+	out := make([]int64, 0, len(landIDs))
+	for _, id := range landIDs {
+		if id <= 0 {
+			continue
+		}
+		k := recentHelpKey(accountID, gid, id)
+		if e, ok := recentHelp[k]; ok && e.expiresAt > now {
+			if e.snapshotKey == snapshotKey {
+				continue
+			}
+			delete(recentHelp, k)
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+func markRecentHelp(accountID string, gid int64, landIDs []int64, state string, ttl int64, snapshotKey string) {
+	now := time.Now().UnixMilli()
+	recentHelpMu.Lock()
+	defer recentHelpMu.Unlock()
+	exp := now + ttl
+	for _, id := range landIDs {
+		recentHelp[recentHelpKey(accountID, gid, id)] = &recentHelpEntry{state: state, snapshotKey: snapshotKey, expiresAt: exp}
+	}
+	pruneRecentHelp(now)
+}
+
+func releaseRecentHelp(accountID string, gid int64, landIDs []int64) {
+	recentHelpMu.Lock()
+	defer recentHelpMu.Unlock()
+	for _, id := range landIDs {
+		delete(recentHelp, recentHelpKey(accountID, gid, id))
+	}
+}
+
+// doFriendFarming 对好友执行一次 Farming 帮忙。
+// 返回：>0 = 成功帮忙的地块数；0 = noop（无需帮忙/服务端 1001057）；-1 = 异常失败。
+func doFriendFarming(c *gw.Client, gid int64, ids []int64) int64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	rep, err := c.Request(ctx, plantService, "Farming", proto.EncodeFriendFarmingRequest(ids, gid), 12*time.Second)
+	if err != nil {
+		// 1001057 = 无需帮忙/已处理（对齐对方 expectedErrorCodes: [1001057]），视为 noop
+		if strings.Contains(err.Error(), "1001057") {
+			return 0
+		}
+		return -1
+	}
+	if rep == nil {
+		return -1
+	}
+	limits, landIDs := proto.DecodeFarmingReply(rep.Body)
+	if len(limits) > 0 {
+		updateOperationLimits(limits)
+	}
+	return int64(len(landIDs))
+}
+
+// runFriendFarmingWithFallback 批量帮忙，整批失败则降级逐块重试（对齐 runFarmingWithFallback）。
+func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, target []int64, snapshotKey string) int64 {
+	if len(target) == 0 {
+		return 0
+	}
+	markRecentHelp(accountID, gid, target, "in_flight", recentHelpInflightTTL, snapshotKey)
+	ok := doFriendFarming(c, gid, target)
+	if ok >= 0 {
+		// 批量正常返回：前 ok 块确认，其余未确认释放
+		idx := ok
+		if idx > int64(len(target)) {
+			idx = int64(len(target))
+		}
+		confirmed := target[:idx]
+		unconfirmed := target[idx:]
+		if len(confirmed) > 0 {
+			markRecentHelp(accountID, gid, confirmed, "confirmed", recentHelpResultTTL, snapshotKey)
+		}
+		releaseRecentHelp(accountID, gid, unconfirmed)
+		return ok
+	}
+	// 整批失败：释放全部，逐块降级重试（sleep 100ms 对齐对方）
+	releaseRecentHelp(accountID, gid, target)
+	var total int64
+	for _, id := range target {
+		markRecentHelp(accountID, gid, []int64{id}, "in_flight", recentHelpInflightTTL, snapshotKey)
+		once := doFriendFarming(c, gid, []int64{id})
+		switch {
+		case once > 0:
+			total += once
+			markRecentHelp(accountID, gid, []int64{id}, "confirmed", recentHelpResultTTL, snapshotKey)
+		case once == 0:
+			markRecentHelp(accountID, gid, []int64{id}, "noop", recentHelpResultTTL, snapshotKey)
+		default:
+			releaseRecentHelp(accountID, gid, []int64{id})
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return total
+}
+
 // doFriendOperation 对好友执行单个操作（steal/water/weed/bug/bad），完整走 进入→操作→离开。
 func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string) *doFriendOperationResult {
 	if gid <= 0 {
@@ -263,34 +438,26 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 			Message: fmt.Sprintf("捣乱完成 虫%d/草%d", bugCount, weedCount)}
 
 	case "help":
-		// 单次进入内完成 浇水/除草/除虫（对齐 Node visitFriendForHelp 单访多操作，减少进/出 RPC）
-		var total int64
-		rec := func(n int64, op string) {
-			if n > 0 {
-				total += n
-				recordOperation(accountID, op, n)
-			}
-		}
-		if len(analysis.NeedWater) > 0 {
-			if err := execFriendOp(c, "WaterLand", proto.EncodeWaterLandRequest(analysis.NeedWater, gid)); err == nil {
-				rec(int64(len(analysis.NeedWater)), "helpWater")
-			}
-		}
-		if len(analysis.NeedWeed) > 0 {
-			if err := execFriendOp(c, "WeedOut", proto.EncodeWeedOutRequest(analysis.NeedWeed, gid)); err == nil {
-				rec(int64(len(analysis.NeedWeed)), "helpWeed")
-			}
-		}
-		if len(analysis.NeedBug) > 0 {
-			if err := execFriendOp(c, "Insecticide", proto.EncodeInsecticideRequest(analysis.NeedBug, gid)); err == nil {
-				rec(int64(len(analysis.NeedBug)), "helpBug")
-			}
-		}
-		// 经验上限检测已改为 exp 增量比对（detectExpFull），见 checkFriends 内 doHelp 循环
-		if total == 0 {
+		// 好友帮忙：单次进入内用一个 Farming RPC 完成浇水/除草/除虫（对齐 liyangpengs runFarmingWithFallback）。
+		// 把需帮地块（水/草/虫）合并去重，一次 PlantService.Farming（field_3=0、field_4=2）。
+		ids := dedupeInt64(append(append(append([]int64{}, analysis.NeedWater...), analysis.NeedWeed...), analysis.NeedBug...))
+		if len(ids) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
 		}
-		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: total, Message: fmt.Sprintf("帮忙完成 %d 块", total)}
+		// 地块快照防重：同地块状态未变化且时间窗内已帮过则跳过（对齐 getHelpSnapshotKey/filterRecentHelp）
+		snapshotKey := getHelpSnapshotKey(lands)
+		target := filterRecentHelp(accountID, gid, ids, snapshotKey)
+		if len(target) == 0 {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "地块状态未变化，最近已帮忙，跳过"}
+		}
+		ok := runFriendFarmingWithFallback(c, accountID, gid, target, snapshotKey)
+		if ok > 0 {
+			recordOperation(accountID, "helpFarming", ok)
+		}
+		if ok == 0 {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "帮忙失败或无需帮忙"}
+		}
+		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: ok, Message: fmt.Sprintf("帮忙完成 %d 块", ok)}
 
 	case "goldenbug":
 		if len(analysis.CanPutGoldenBug) == 0 {
