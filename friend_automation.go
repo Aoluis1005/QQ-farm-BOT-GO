@@ -13,6 +13,9 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
+// 极速务农(turbo)开启时：每轮最多处理的护主犬数量（用户指定 15，剩余下一轮继续）
+const turboHelpRoundLimit = 15
+
 // ============================================================
 // 好友自动巡查引擎（对齐 Node core/worker.js unifiedScheduler：
 // runStealTick 25–30s 偷菜 / runHelpTick 30–35s 帮忙+捣乱 / friend-orchestrator.js checkFriends）。
@@ -335,7 +338,7 @@ func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends
 		}
 		cacheFriendDog(f.GID, rep)
 		leaveFriendFarm(c, f.GID)
-		time.Sleep(randomIntervalMs(300, 500))
+		time.Sleep(randomIntervalMs(100, 200))
 	}
 	appendOpLog(accountID, "friend", "护主犬缓存全量刷新完成")
 }
@@ -441,11 +444,15 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		if !onlyHelp && !skSteal && p != nil && p.StealPlantNum > 0 {
 			stealTargets = append(stealTargets, ft{f.GID, f.Level, p.StealPlantNum})
 		}
-		// 帮忙目标：缺水/草/虫，need 降序、护主犬优先（对齐 Node helpTargets need desc + guard dog 优先）
+		// 帮忙目标：缺水/草/虫，need 降序、护主犬优先
 		if !onlySteal && !skHelp && p != nil && (p.DryNum > 0 || p.WeedNum > 0 || p.InsectNum > 0) {
-			// 极速务农模式下忽略滞后快照筛选，进全部护主犬（对齐 Node turboMode 条件）
 			isTurbo := cfg.Automation.FriendTurboMode
-			if helpExpReached && !hasGuardDog(f.GID) && !isTurbo {
+			// 极速务农：暂停一切巡查、只帮护主犬（用护主犬缓存判定，非护主犬不帮）
+			if isTurbo {
+				if !hasGuardDog(f.GID) {
+					continue
+				}
+			} else if helpExpReached && !hasGuardDog(f.GID) {
 				continue // 经验满限制：仅帮护主犬
 			}
 			need := p.DryNum + p.WeedNum + p.InsectNum
@@ -481,7 +488,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败（好友离线/不存在）跳过
 			}
-			time.Sleep(randomIntervalMs(300, 500))
+			time.Sleep(randomIntervalMs(100, 200))
 		}
 		// 偷完自动卖果实（对齐 Node sellAllFruits）
 		if len(stealTargets) > 0 {
@@ -489,8 +496,12 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	// 2. 帮忙（对齐 Node 执行 help → visitFriendForHelp，单次进入内浇水/除草/除虫）
+	// 2. 帮忙
 	if !onlySteal {
+		// 极速务农：每轮最多处理 turboHelpRoundLimit 个护主犬，剩余下一轮继续
+		if cfg.Automation.FriendTurboMode && len(helpTargets) > turboHelpRoundLimit {
+			helpTargets = helpTargets[:turboHelpRoundLimit]
+		}
 		for _, t := range helpTargets {
 			// 经验满判定可能在巡逻中途触发并翻转 canGetHelpExp=false。
 			// 对非护主犬好友实时复核，否则开关触发后本轮剩余普通好友仍会被无差别帮助。
@@ -504,18 +515,18 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
 			}
-			time.Sleep(randomIntervalMs(300, 500))
+			time.Sleep(randomIntervalMs(100, 200))
 		}
 	}
 
-	// 2.5 黄金虫放置（对齐 Node golden-bug-service.js runGoldenBugPlacement：对好友农场放置金虫）
-	if cfg.Automation.FriendGoldenBug {
+	// 2.5 黄金虫放置（极速务农：暂停一切巡查、涡轮不放金虫）
+	if cfg.Automation.FriendGoldenBug && !cfg.Automation.FriendTurboMode {
 		for _, t := range helpTargets {
 			res := doFriendOperation(c, accountID, t.gid, "goldenbug")
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败跳过
 			}
-			time.Sleep(randomIntervalMs(300, 500))
+			time.Sleep(randomIntervalMs(500, 1000))
 		}
 	}
 
@@ -543,7 +554,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 						}
 					}
 				}
-				time.Sleep(randomIntervalMs(300, 500))
+				time.Sleep(randomIntervalMs(100, 200))
 			}
 		}
 	}

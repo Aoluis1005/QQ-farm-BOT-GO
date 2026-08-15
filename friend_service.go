@@ -642,10 +642,11 @@ func handleFriendEnterError(c *gw.Client, accountID string, gid int64, err error
 		appendOpLog(accountID, "friend", fmt.Sprintf("检测到封禁好友 GID=%d，已自动加入黑名单", gid))
 		return "blacklist"
 	}
-	// isInvalidFriendAccessError：code=1002002 硬匹配 或 关键词 → 失效/被删好友，自动移出已知列表
+	// isInvalidFriendAccessError：code=1002002 硬匹配 或 关键词 → 失效/被删好友，自动移出已知列表 + 清理护主犬缓存
 	if isInvalidFriendAccessErr(msg) {
 		removeKnownFriendGid(accountID, gid)
-		appendOpLog(accountID, "friend", fmt.Sprintf("好友 GID=%d 已失效/被删，自动移出已知好友列表", gid))
+		removeFriendDogCache(accountID, gid)
+		appendOpLog(accountID, "friend", fmt.Sprintf("好友 GID=%d 已失效/被删，自动移出已知好友列表并清除护主犬缓存", gid))
 		return "invalid_removed"
 	}
 	return ""
@@ -703,6 +704,24 @@ func writeDogCache(accountID string, m map[int64]dogInfo) {
 		return
 	}
 	_ = os.Rename(tmp, dogCachePath(accountID))
+}
+
+// removeFriendDogCache 从护主犬缓存删除单个 GID 记录（好友被删/失效时清理，避免残留致反复尝试进入）
+func removeFriendDogCache(accountID string, gid int64) {
+	if gid <= 0 {
+		return
+	}
+	dogCacheMu.Lock()
+	defer dogCacheMu.Unlock()
+	m, err := readDogCache(accountID)
+	if err != nil {
+		return
+	}
+	if _, ok := m[gid]; !ok {
+		return
+	}
+	delete(m, gid)
+	writeDogCache(accountID, m)
 }
 
 // getFriendDog 读取某好友的狗信息缓存（未访问过返回空）

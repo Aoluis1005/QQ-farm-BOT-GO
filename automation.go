@@ -170,6 +170,11 @@ func randomIntervalMs(minMs, maxMs int) time.Duration {
 }
 
 // farmInterval 农场巡查间隔（秒→毫秒），默认 2–5s
+// nextHelpTime 帮忙通道下次运行时刻：极速务农开启时同样读前端 HelpMin/Max 配置（turbo 快照也读前端）
+func nextHelpTime(iv config.IntervalsConfig, turbo bool) time.Time {
+	return time.Now().Add(helpInterval(iv))
+}
+
 func farmInterval(iv config.IntervalsConfig) time.Duration {
 	minS, maxS := iv.FarmMin, iv.FarmMax
 	if minS <= 0 {
@@ -228,7 +233,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 	// 各任务下次运行时刻（对齐 Node runUnifiedTick 的 nextFarmRunAt/nextStealRunAt/nextHelpRunAt）
 	nextFarm := time.Now().Add(farmInterval(getCfg().Intervals))
 	nextSteal := time.Now().Add(stealInterval(getCfg().Intervals))
-	nextHelp := time.Now().Add(helpInterval(getCfg().Intervals))
+	nextHelp := nextHelpTime(getCfg().Intervals, getCfg().Automation.FriendTurboMode)
 	// 买化肥首跑延迟 30s（对齐原 fertilizeBuyLoop），此后按配置间隔
 	nextBuy := time.Now().Add(30 * time.Second)
 	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
@@ -350,7 +355,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 		}
 		if shouldHelp {
 			checkFriends(c, accountID, cfg, false, true)
-			nextHelp = time.Now().Add(helpInterval(getCfg().Intervals))
+			nextHelp = nextHelpTime(getCfg().Intervals, cfg.Automation.FriendTurboMode)
 		}
 		if shouldBuy {
 			doCheckAndBuyFertilizer(accountID, c, cfg)
