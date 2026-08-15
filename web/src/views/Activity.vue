@@ -70,6 +70,15 @@ async function loadQiXi() {
 const curPanel = computed(() => panels.value[panelIdx.value] || null)
 
 function n(v) { return v == null ? 0 : (Number(v) || 0) }
+// 大数友好缩写：≥1亿→X.XX亿，≥1万→X.X万，否则千分位（避免上亿余额文字过长）
+function fmtBig(n) {
+  if (n === undefined || n === null || n === '') return 0
+  const v = Number(String(n).replace(/,/g, ''))
+  if (isNaN(v)) return 0
+  if (v >= 1e8) return (v / 1e8).toFixed(2).replace(/\.0+$/, '') + '亿'
+  if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, '') + '万'
+  return v.toLocaleString()
+}
 
 /* ---------- 树遍历：找商店节点（有 exchange_shop）与观星节点（type===13） ---------- */
 function findNodes(node) {
@@ -421,7 +430,7 @@ onMounted(() => { loadActivity(); loadQiXi() })
       <template v-if="shopState.items.length || shopState.err">
         <div class="act-card">
           <div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">{{ shopState.items.length }} 件</span></div>
-          <div class="act-stats"><span>💰 {{ shopState.cur }}余额 <b>{{ shopState.bal }}</b></span></div>
+          <div class="act-stats"><span>💰 {{ shopState.cur }}余额 <b>{{ fmtBig(shopState.bal) }}</b></span></div>
         </div>
         <div v-if="shopState.err" class="act-empty">{{ shopState.err }}</div>
         <div v-else-if="!shopState.items.length" class="act-empty">暂无可兑换商品</div>

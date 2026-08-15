@@ -13,6 +13,15 @@ const lands = ref([])
 const landTick = ref(0)
 let landTimer = null
 function landCanFertilize(l) { return Number(l.matureInSec || 0) > 0 && l.status !== 'locked' && l.status !== 'empty' }
+// 大数友好缩写：≥1亿→X.XX亿，≥1万→X.X万，否则千分位
+function fmtBig(n) {
+  if (n === undefined || n === null || n === '') return 0
+  const v = Number(String(n).replace(/,/g, ''))
+  if (isNaN(v)) return 0
+  if (v >= 1e8) return (v / 1e8).toFixed(2).replace(/\.0+$/, '') + '亿'
+  if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, '') + '万'
+  return v.toLocaleString()
+}
 function landCanRemove(l) {
   return l.status !== 'locked' && l.status !== 'empty' && Boolean(l.plantName || l.seedImage || Number(l.matureInSec || 0) > 0 || ['dead', 'growing', 'harvestable', 'stealable'].includes(String(l.status || '')))
 }
@@ -387,7 +396,7 @@ onUnmounted(() => { clearInterval(landTimer) })
               <div class="f-av"><img v-if="/^(https?:)?\/\//i.test(f.avatar || '')" :src="f.avatar" alt=""><span v-else>{{ f.avatar || '👤' }}</span></div>
               <div class="f-info">
                 <h4>{{ f.name || '' }} <small class="fc-id">({{ f.uid ?? f.gid }})</small><span v-if="isGuard(f)" class="ripeness fc-dog">护主犬</span></h4>
-                <p>Lv.{{ f.level || '-' }}<span v-if="f.coins != null"> · 金币 {{ Number(f.coins || 0).toLocaleString() }}</span><span v-if="f.ripeLands"> · 可收 {{ f.ripeLands }} 块</span></p>
+                <p>Lv.{{ f.level || '-' }}<span v-if="f.coins != null"> · 金币 {{ fmtBig(f.coins) }}</span><span v-if="f.ripeLands"> · 可收 {{ f.ripeLands }} 块</span></p>
               </div>
               <span class="fc-arrow">{{ openGid === String(f.uid ?? f.gid) ? '▴' : '▾' }}</span>
             </div>

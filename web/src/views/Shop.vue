@@ -26,6 +26,15 @@ function imgOf(it) {
   return ''
 }
 function fmtNum(n) { return n === undefined || n === null ? 0 : Number(String(n).replace(/,/g, '')) }
+// 大数友好缩写：≥1亿→X.XX亿，≥1万→X.X万，否则千分位
+function fmtBig(n) {
+  if (n === undefined || n === null || n === '') return 0
+  const v = Number(String(n).replace(/,/g, ''))
+  if (isNaN(v)) return 0
+  if (v >= 1e8) return (v / 1e8).toFixed(2).replace(/\.0+$/, '') + '亿'
+  if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, '') + '万'
+  return v.toLocaleString()
+}
 
 async function loadSeed() {
   if (!acc()) { seed.list = []; return }
@@ -130,9 +139,9 @@ onMounted(() => { loadSeed(); shopProfile() })
     <!-- 商城资产条 -->
     <div v-show="acc()" style="display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;margin:10px 0;border-radius:14px;background:var(--card-strong);font-size:12.5px">
       <span>Lv.<b style="color:var(--primary)">{{ fmtNum(prof.level) }}</b></span>
-      <span>金币 <b style="color:var(--primary)">{{ fmtNum(prof.gold) }}</b></span>
-      <span>点券 <b style="color:var(--primary)">{{ fmtNum(prof.coupons) }}</b></span>
-      <span>金豆豆 <b style="color:var(--primary)">{{ fmtNum(prof.goldenBeans) }}</b></span>
+      <span>金币 <b style="color:var(--primary)">{{ fmtBig(prof.gold) }}</b></span>
+      <span>点券 <b style="color:var(--primary)">{{ fmtBig(prof.coupons) }}</b></span>
+      <span>金豆豆 <b style="color:var(--primary)">{{ fmtBig(prof.goldenBeans) }}</b></span>
     </div>
 
     <!-- 种子 -->

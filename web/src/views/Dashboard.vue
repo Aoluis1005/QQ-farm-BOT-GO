@@ -140,7 +140,7 @@ onMounted(load)
         <span class="uid">UID · {{ profile.uid || '—' }}</span>
         <div class="stats">
           <div class="stat"><strong>🪙 {{ fmtBig(profile.gold) }}</strong><span>金币</span></div>
-          <div class="stat"><strong>🎟️ {{ profile.coupons ?? 0 }}</strong><span>点券</span></div>
+          <div class="stat"><strong>🎟️ {{ fmtBig(profile.coupons) }}</strong><span>点券</span></div>
           <div class="stat"><strong>🫘 {{ fmtBig(profile.goldenBeans) }}</strong><span>金豆</span></div>
         </div>
         <div class="exp">
