@@ -52,6 +52,15 @@ async function load() {
 }
 
 function fmtNum(n) { return n == null ? '--' : Number(n).toLocaleString() }
+// 大数友好缩写：≥1亿→X.XX亿，≥1万→X.X万，否则千分位（避免上亿金币文字过长）
+function fmtBig(n) {
+  if (n === undefined || n === null || n === '') return 0
+  const v = Number(String(n).replace(/,/g, ''))
+  if (isNaN(v)) return 0
+  if (v >= 1e8) return (v / 1e8).toFixed(2).replace(/\.0+$/, '') + '亿'
+  if (v >= 1e4) return (v / 1e4).toFixed(1).replace(/\.0$/, '') + '万'
+  return v.toLocaleString()
+}
 
 function togglePatrol(who) {
   if (!acc()) return
@@ -130,9 +139,9 @@ onMounted(load)
         <h2>{{ profile.name || '未登录' }}</h2>
         <span class="uid">UID · {{ profile.uid || '—' }}</span>
         <div class="stats">
-          <div class="stat"><strong>🪙 {{ profile.gold ?? 0 }}</strong><span>金币</span></div>
+          <div class="stat"><strong>🪙 {{ fmtBig(profile.gold) }}</strong><span>金币</span></div>
           <div class="stat"><strong>🎟️ {{ profile.coupons ?? 0 }}</strong><span>点券</span></div>
-          <div class="stat"><strong>🫘 {{ profile.goldenBeans ?? 0 }}</strong><span>金豆</span></div>
+          <div class="stat"><strong>🫘 {{ fmtBig(profile.goldenBeans) }}</strong><span>金豆</span></div>
         </div>
         <div class="exp">
           <div class="bar"><div class="fill" :style="{ width: (profile.expPercent || 0) + '%' }"></div></div>
@@ -145,7 +154,7 @@ onMounted(load)
     <div class="sec-title"><span>今日收益</span><span class="link" @click="incomeOpen = !incomeOpen">{{ incomeOpen ? '收起 ▾' : '详情 ›' }}</span></div>
     <div class="income" :class="{ open: incomeOpen }">
       <div class="inc-top">
-        <div class="inc-cell"><span class="inc-l">💰 收益</span><strong>{{ fmtNum(income.totalGold) }}</strong><em>金币</em></div>
+        <div class="inc-cell"><span class="inc-l">💰 收益</span><strong>{{ fmtBig(income.totalGold) }}</strong><em>金币</em></div>
         <div class="inc-div"></div>
         <div class="inc-cell"><span class="inc-l">🎁 同气礼包</span><strong>{{ income.dogGifts ?? 0 }}</strong><em>个</em></div>
       </div>

@@ -88,13 +88,13 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		LandID string `json:"landId"`
+		LandID json.Number `json:"landId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, 400, "bad json")
 		return
 	}
-	if req.LandID == "" {
+	if req.LandID.String() == "" {
 		writeError(w, 400, "missing landId")
 		return
 	}
@@ -104,7 +104,7 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	ids := parseIDs(req.LandID)
+	ids := parseIDs(req.LandID.String())
 	if len(ids) == 0 {
 		writeError(w, 400, "invalid landId")
 		return
@@ -115,8 +115,8 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recordOperation(accountID, "fertilize", int64(len(ids)))
-	appendOpLog(accountID, "fertilize", "催熟 "+req.LandID)
-	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID, "message": "催熟完成"})
+	appendOpLog(accountID, "fertilize", "催熟 "+req.LandID.String())
+	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID.String(), "message": "催熟完成"})
 }
 
 // POST /api/land/remove  body: { landId }  —— 铲除单块地作物（对齐 Node admin-farm-operation-routes.js /api/land/remove）
@@ -126,13 +126,13 @@ func handleLandRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		LandID string `json:"landId"`
+		LandID json.Number `json:"landId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, 400, "bad json")
 		return
 	}
-	if req.LandID == "" {
+	if req.LandID.String() == "" {
 		writeError(w, 400, "缺少土地ID")
 		return
 	}
@@ -142,7 +142,7 @@ func handleLandRemove(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	ids := parseIDs(req.LandID)
+	ids := parseIDs(req.LandID.String())
 	if len(ids) == 0 {
 		writeError(w, 400, "invalid landId")
 		return
@@ -152,8 +152,8 @@ func handleLandRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	recordOperation(accountID, "remove", int64(len(ids)))
-	appendOpLog(accountID, "remove", "铲除 "+req.LandID)
-	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID, "message": "铲除完成"})
+	appendOpLog(accountID, "remove", "铲除 "+req.LandID.String())
+	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID.String(), "message": "铲除完成"})
 }
 
 // POST /api/land/remove-all  —— 一键铲除全部已种植作物（对齐 Node worker.js removeAllPlants：
@@ -224,7 +224,7 @@ func handleFriendBlacklistToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		GID      string `json:"gid"`
+		GID       string `json:"gid"`
 		SkipSteal bool   `json:"skipSteal"`
 		SkipHelp  bool   `json:"skipHelp"`
 	}
@@ -277,7 +277,7 @@ func handleFriendBlacklistUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		GID      string `json:"gid"`
+		GID       string `json:"gid"`
 		SkipSteal bool   `json:"skipSteal"`
 		SkipHelp  bool   `json:"skipHelp"`
 	}

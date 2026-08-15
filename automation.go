@@ -1488,12 +1488,12 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 	}
 
 	if len(normalTargets) > 0 {
-		fertilizeLands(c, normalTargets, normalFertilizerID)
-		recordOperation(accountID, "fertilize", int64(len(normalTargets)))
+		fertilizedNormal := fertilizeLands(c, normalTargets, normalFertilizerID)
+		recordOperation(accountID, "fertilize", int64(fertilizedNormal)) // 对齐 Node：记实际成功施肥数，非目标块数
 	}
 	if len(organicTargets) > 0 {
-		fertilizeOrganicLoop(c, organicTargets) // 有机肥：无次数即停止
-		recordOperation(accountID, "fertilize", int64(len(organicTargets)))
+		fertilizedOrganic := fertilizeOrganicLoop(c, organicTargets) // 有机肥：无次数即停止
+		recordOperation(accountID, "fertilize", int64(fertilizedOrganic))
 	}
 	if len(normalTargets) > 0 || len(organicTargets) > 0 {
 		appendOpLog(accountID, "farm", fmt.Sprintf("施肥(%s) 普通%d/有机%d", mode, len(normalTargets), len(organicTargets)))
@@ -1601,21 +1601,29 @@ func getFinalStageLands(lands []*proto.LandInfo, organicOnly bool, now int64) []
 	return out
 }
 
-func fertilizeLands(c *gw.Client, ids []int64, fertID int64) {
+// fertilizeLands 逐块施化肥，返回实际成功施肥的地块数（对齐 Node fertilize() 返回成功数）
+func fertilizeLands(c *gw.Client, ids []int64, fertID int64) int {
+	n := 0
 	for _, id := range ids {
-		_ = execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest([]int64{id}, fertID))
-		time.Sleep(200 * time.Millisecond)
-	}
-}
-
-// fertilizeOrganicLoop 对齐 Node fertilizeOrganicLoop：逐块施有机肥，无次数即停止
-func fertilizeOrganicLoop(c *gw.Client, ids []int64) {
-	for _, id := range ids {
-		if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest([]int64{id}, organicFertilizerID)); err != nil {
-			return // 首次失败（无有机化肥次数）即停止
+		if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest([]int64{id}, fertID)); err == nil {
+			n++
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+	return n
+}
+
+// fertilizeOrganicLoop 对齐 Node fertilizeOrganicLoop：逐块施有机肥，无次数即停止；返回实际成功施的块数
+func fertilizeOrganicLoop(c *gw.Client, ids []int64) int {
+	n := 0
+	for _, id := range ids {
+		if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest([]int64{id}, organicFertilizerID)); err != nil {
+			return n // 首次失败（无有机化肥次数）即停止，返回已成功数
+		}
+		n++
+		time.Sleep(200 * time.Millisecond)
+	}
+	return n
 }
 
 // ── 自动卖果实（对齐 Node worker.js farmHarvested → sellAllFruits） ──

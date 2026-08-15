@@ -25,7 +25,7 @@ function imgOf(it) {
   if (it.image || it.itemImage) return it.image || it.itemImage
   return ''
 }
-function fmtNum(n) { return n === undefined || n === null ? 0 : Number(n) }
+function fmtNum(n) { return n === undefined || n === null ? 0 : Number(String(n).replace(/,/g, '')) }
 
 async function loadSeed() {
   if (!acc()) { seed.list = []; return }
