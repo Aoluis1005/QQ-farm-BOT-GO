@@ -27,6 +27,7 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/bag/use", handleBagUse)
 	mux.HandleFunc("/api/bag/sell", handleBagSell)
 	mux.HandleFunc("/api/friends/list", handleFriendList)
+	mux.HandleFunc("/api/friends/clear-cache", handleFriendListCacheClear)
 	mux.HandleFunc("/api/friends/lands", handleFriendLandsRoute)
 	mux.HandleFunc("/api/friends/blacklist", handleFriendBlacklist)
 	mux.HandleFunc("/api/friends/requests", handleFriendRequests)
@@ -888,13 +889,14 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 对齐 Node getAllFriends：微信直接 GetAll；QQ 用 GetGameFriends(已知GID) 回退 GetAll
+	// 展示用好友列表走 TTL 缓存（对齐 liyangpengs friendsListCache）；?forceSync=true 强制刷新绕过缓存
+	forceSync := r.URL.Query().Get("forceSync") == "true"
 	platform := ""
 	if acc := models.GetAccountByID(accountID); acc != nil {
 		platform = acc.Platform
 	}
 	knownGids := models.GetAccountConfig(accountID).KnownFriendGIDs
-	allFriends, err := fetchAllFriends(c, platform, knownGids)
+	allFriends, err := getAllFriendsCached(c, accountID, platform, knownGids, forceSync)
 	if err != nil {
 		writeError(w, 500, "拉取好友失败: "+err.Error())
 		return
@@ -1008,6 +1010,17 @@ func countRipeLands(lands []*proto.LandInfo) int {
 }
 
 // handleFriendLandsRoute GET /api/friends/lands?gid=xxx  好友地块明细（真实作物图）
+// handleFriendListCacheClear 清空指定账号的好友列表展示缓存（对齐对方 POST /api/friends/clear-cache）。
+func handleFriendListCacheClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "method not allowed")
+		return
+	}
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	clearFriendsListCache(accountID)
+	writeJSON(w, map[string]interface{}{"ok": true, "message": "好友列表缓存已清"})
+}
+
 func handleFriendLandsRoute(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	gidStr := r.URL.Query().Get("gid")

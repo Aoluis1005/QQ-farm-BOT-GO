@@ -16,10 +16,11 @@ const active = ref('list')
 // 好友列表
 const friends = ref([])
 const friendLoading = ref(false)
-async function loadFriends() {
+async function loadFriends(forceSync = false) {
   friendLoading.value = true
   try {
-    const { data } = await api.get('/api/friends/list')
+    // 默认走展示缓存（秒回）；仅传 forceSync=true 时强制绕过缓存拉最新（刷新按钮/删除后）
+    const { data } = await api.get('/api/friends/list', forceSync ? { params: { forceSync: true } } : {})
     friends.value = data.data?.friends || data.data || []
   } catch (e) {
     app.error('加载好友失败：' + (e.response?.data?.error || e.message))
@@ -133,7 +134,7 @@ async function batchDelete() {
     delSelections.value = {}
     delPassword.value = ''
     delPwdPrompt.value = false
-    await loadFriends()
+    await loadFriends(true) // 删好友后强制刷新，避免旧缓存仍显示被删好友
   } catch (e) {
     app.error('删除失败：' + (e.response?.data?.error || e.message))
   }
@@ -203,7 +204,7 @@ onMounted(() => loadFriends())
         <div class="sec-actions">
           <button class="btn ghost sm" @click="applyOpen = !applyOpen">➕ 添加好友</button>
           <button class="btn ghost sm" @click="autoAcceptFriend">自动同意申请</button>
-          <button class="btn ghost sm" @click="loadFriends">刷新</button>
+          <button class="btn ghost sm" @click="loadFriends(true)">刷新</button>
         </div>
       </div>
       <div class="apply-form" v-if="applyOpen">

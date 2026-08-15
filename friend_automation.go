@@ -335,7 +335,7 @@ func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends
 		}
 		cacheFriendDog(f.GID, rep)
 		leaveFriendFarm(c, f.GID)
-		time.Sleep(randomIntervalMs(800, 1500))
+		time.Sleep(randomIntervalMs(300, 500))
 	}
 	appendOpLog(accountID, "friend", "护主犬缓存全量刷新完成")
 }
@@ -481,7 +481,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败（好友离线/不存在）跳过
 			}
-			time.Sleep(randomIntervalMs(800, 1500))
+			time.Sleep(randomIntervalMs(300, 500))
 		}
 		// 偷完自动卖果实（对齐 Node sellAllFruits）
 		if len(stealTargets) > 0 {
@@ -504,7 +504,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
 			}
-			time.Sleep(randomIntervalMs(800, 1500))
+			time.Sleep(randomIntervalMs(300, 500))
 		}
 	}
 
@@ -515,7 +515,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败跳过
 			}
-			time.Sleep(randomIntervalMs(800, 1500))
+			time.Sleep(randomIntervalMs(300, 500))
 		}
 	}
 
@@ -543,7 +543,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 						}
 					}
 				}
-				time.Sleep(randomIntervalMs(800, 1500))
+				time.Sleep(randomIntervalMs(300, 500))
 			}
 		}
 	}
