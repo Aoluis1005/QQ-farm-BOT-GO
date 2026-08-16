@@ -29,6 +29,11 @@ const turboHelpRoundLimit = 15
 // guardDogID 护主犬物品 ID（0x15FA5），对齐 Node friend-visit.js dogId=90021
 const guardDogID = 90021
 
+// 每轮帮忙农场数上限（对齐参考 GO maxHelpTargetsPerCycle）
+const maxHelpTargetsPerCycle = 24
+// 偷到后下一轮快扫间隔（对齐参考 GO rapidStealInterval）
+const rapidStealInterval = time.Second
+
 // badDailyLimit 每日放虫/草次数上限（对齐 Node friend-operation-limits.js BAD_DAILY_LIMIT=100，
 // 作为服务端未回传 day_times_lt 时的兜底）
 const badDailyLimit = 100
@@ -343,12 +348,12 @@ func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends
 	appendOpLog(accountID, "friend", "护主犬缓存全量刷新完成")
 }
 
-func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) {
+func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) int64 {
 	// 防并发（对齐 Node isCheckingFriends 互斥）
 	checkingFriendsMu.Lock()
 	if isCheckingFriends {
 		checkingFriendsMu.Unlock()
-		return
+		return 0
 	}
 	isCheckingFriends = true
 	checkingFriendsMu.Unlock()
@@ -366,7 +371,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 静默时段检查（对齐 Node inFriendQuietHours）
 	if inQuietHours(cfg) {
-		return
+		return 0
 	}
 
 	// 从持久化配置恢复经验上限状态（对齐 Node checkFriends 开头恢复 friendHelpExpExhausted）
@@ -411,7 +416,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	friends, err := fetchAllFriends(c, platform, cfg.KnownFriendGIDs)
 	if err != nil || len(friends) == 0 {
-		return
+		return 0
 	}
 
 	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求 60min）
@@ -497,7 +502,6 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if res != nil && res.Count > 0 {
 				stolenTotal += res.Count
 			}
-			time.Sleep(randomIntervalMs(100, 200))
 		}
 		// 偷完自动卖果实（对齐 Node sellAllFruits）
 		if len(stealTargets) > 0 {
@@ -507,9 +511,13 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 2. 帮忙
 	if !onlySteal {
-		// 极速务农：每轮最多处理 turboHelpRoundLimit 个护主犬，剩余下一轮继续
-		if cfg.Automation.FriendTurboMode && len(helpTargets) > turboHelpRoundLimit {
-			helpTargets = helpTargets[:turboHelpRoundLimit]
+		// 每轮帮忙农场数上限：极速务农 15，普通 24（对齐参考 GO maxHelpTargetsPerCycle），剩余下一轮继续
+		limit := turboHelpRoundLimit
+		if !cfg.Automation.FriendTurboMode {
+			limit = maxHelpTargetsPerCycle
+		}
+		if len(helpTargets) > limit {
+			helpTargets = helpTargets[:limit]
 		}
 		for _, t := range helpTargets {
 			if scanTimedOut() {
@@ -530,7 +538,6 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
 			}
-			time.Sleep(randomIntervalMs(100, 200))
 		}
 	}
 
@@ -598,6 +605,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 本轮巡查汇总（对齐参考 GO stealSummary/helpSummary）
 	appendOpLog(accountID, "friend", fmt.Sprintf("巡查汇总: 候选%d人 偷%d块 帮%d块", len(stealTargets)+len(helpTargets), stolenTotal, helpTotal))
+	return stolenTotal
 }
 
 // autoAcceptFriendApply 自动同意好友申请（对齐 Node autoAcceptFriendApply + checkAndAcceptApplications）

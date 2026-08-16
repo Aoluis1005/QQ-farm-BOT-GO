@@ -350,8 +350,12 @@ func automationLoop(accountID string, stop chan struct{}) {
 			nextFarm = time.Now().Add(farmInterval(getCfg().Intervals))
 		}
 		if shouldSteal {
-			checkFriends(c, accountID, cfg, true, false)
-			nextSteal = time.Now().Add(stealInterval(getCfg().Intervals))
+			stolen := checkFriends(c, accountID, cfg, true, false)
+			if stolen > 0 {
+				nextSteal = time.Now().Add(rapidStealInterval) // 本轮偷到 → 1s 快扫（对齐参考 GO rapidStealInterval）
+			} else {
+				nextSteal = time.Now().Add(stealInterval(getCfg().Intervals))
+			}
 		}
 		if shouldHelp {
 			checkFriends(c, accountID, cfg, false, true)
