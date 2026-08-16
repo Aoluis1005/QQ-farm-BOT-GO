@@ -572,6 +572,10 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 const (
 	qingmeiSeedItemID    = 21221 // 青梅种子
 	qingmeiFruitItemID   = 41221 // 青梅（酿制材料）
+	// 青梅活动固定 ID（对齐 Node: QINGMEI_ACTIVITY_ID/SEED_CLAIM/WINE）
+	qingmeiRootActivityID  = 2026081200
+	qingmeiClaimActivityID = 2026081201
+	qingmeiWineActivityID  = 2026081202
 	qingmeiSeedReward    = 24    // 每次领取种子数
 	qingmeiClaimCmd      = 4
 	qingmeiPreviewCmd    = 14
@@ -638,69 +642,46 @@ func qingmeiBagCount(ctx context.Context, accountID string) int64 {
 	return total
 }
 
-// qingmeiActIDs 动态定位当前在期的青梅活动组根、领种子结点(claim,type4)、酿制结点(wine,type12 或 payload 含 QingMei)
+// qingmeiActIDs 定位青梅活动结点。
+// 对齐 Node：claim/wine 直接用写死的活动 ID（Node normalizeQingmeiActivity 用固定 ID，
+// 找不到才回退常量，从不靠类型推断）。青梅回包 GetGroupReply 只有 group 树、无顶层 activities，
+// 且 claim 结点(2026081201)不在 group 子树里，因此动态按类型发现必然失败——必须用固定 ID。
 func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, root *ActivityNode, err error) {
-	if rootID == 0 {
-		body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
-		if e != nil {
-			return 0, 0, 0, nil, e
-		}
-		now := time.Now().Unix()
-		for _, it := range ParseActivityList(body) {
-			if it.ID%100 != 0 || it.Title != "青酿换万金" {
-				continue
-			}
-			// 有任一在期子活动即视为在期
-			on := it.StartTime > 0 && it.EndTime > 0 && it.StartTime <= now && now <= it.EndTime
-			if on {
-				rootID = it.ID
-				break
-			}
-		}
-		if rootID == 0 {
-			return 0, 0, 0, nil, fmt.Errorf("青梅活动（青酿换万金）当前未在进行中")
+	rootID = qingmeiRootActivityID
+	claimID = qingmeiClaimActivityID
+	wineID = qingmeiWineActivityID
+
+	// 确认根活动存在（按标题匹配，不过滤日期——对齐 Node 不门控）
+	body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
+	if e != nil {
+		return rootID, claimID, wineID, nil, e
+	}
+	found := false
+	for _, it := range ParseActivityList(body) {
+		if it.Title == "青酿换万金" {
+			rootID = it.ID
+			found = true
+			break
 		}
 	}
+	if !found {
+		return rootID, claimID, wineID, nil, fmt.Errorf("青梅活动（青酿换万金）未找到")
+	}
+
+	// 拉分组树（用于解析领种子状态、酿制结点标题等）
 	gb := proto.NewBuilder()
 	gb.FieldInt64(1, rootID)
 	gb.FieldString(2, "")
 	ck := actGroupCacheKey(accountID, rootID)
 	gbody, ok := actCacheGet(ck, 30*time.Second)
 	if !ok {
-		var e error
 		gbody, e = rpcRequest(ctx, accountID, actSvc, "GetGroup", gb.Bytes(), 20*time.Second)
 		if e != nil {
-			return 0, 0, 0, nil, e
+			return rootID, claimID, wineID, nil, e
 		}
 		actCacheSet(ck, gbody, 30*time.Second)
 	}
 	root = ParseActivityGroup(gbody)
-	if root == nil {
-		return rootID, 0, 0, root, fmt.Errorf("青梅活动分组解析失败")
-	}
-	var walk func(n *ActivityNode)
-	walk = func(n *ActivityNode) {
-		if n == nil {
-			return
-		}
-		if n.Info != nil {
-			if n.Info.Type == 4 && claimID == 0 {
-				claimID = n.Info.ID
-			}
-			if n.Info.Type == 12 || strings.Contains(n.Info.Payload, "QingMei") {
-				if wineID == 0 {
-					wineID = n.Info.ID
-				}
-			}
-		}
-		for _, ch := range n.Children {
-			walk(ch)
-		}
-	}
-	walk(root)
-	if claimID == 0 || wineID == 0 {
-		return rootID, claimID, wineID, root, fmt.Errorf("未找到青梅领种子/酿制结点")
-	}
 	return rootID, claimID, wineID, root, nil
 }
 
