@@ -115,9 +115,10 @@ function incVal(label) {
 // 巡查钟 SVG：12 刻度 + 始终旋转的指针（CSS .pc-hand 动画，扫动表示巡查进行中）
 function patrolClockSvg(who) {
   const s = 56, c = s / 2, r = s / 2 - 9
-  const on = !!patrol.value[who]?.enabled
+  const ok = PATROL_TRIO[who]
+  const on = !!patrol.value[ok]?.enabled
   const dur = PATROL_DUR[who] || 8
-  const col = on ? 'var(--tc)' : 'var(--muted)'
+  const col = on ? PATROL_COLOR[who] : 'var(--muted)'
   let t = ''
   for (let i = 0; i < 12; i++) {
     const major = i % 3 === 0
