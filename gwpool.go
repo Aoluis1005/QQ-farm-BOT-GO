@@ -25,6 +25,7 @@ type ClientPool struct {
 	reconnectAttempts map[string]int       // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
 	stopped           map[string]bool      // 达上限后停止自动重连，直到手动触发/重新连上
 	kickBackoffUntil  map[string]time.Time // 被踢后重连防抖：下次允许重连的最早时间（避免与别处登录互踢自旋）
+	transientClose    map[string]bool      // 最近一次断连为“超时型”（服务端抖动/瞬时限流）：此类重连不计入 reconnectMaxAttempts 上限
 }
 
 // connectResult 单飞连接的返回（连接或错误）
@@ -40,6 +41,7 @@ var clientPool = &ClientPool{
 	reconnectAttempts: map[string]int{},
 	stopped:           map[string]bool{},
 	kickBackoffUntil:  map[string]time.Time{},
+	transientClose:    map[string]bool{},
 }
 
 func gwConfig(platform string) gw.Config {
@@ -123,6 +125,12 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	}
 	c.SetGiftHook(acc.ID, recordGift)
 	c.SetFarmPushHook(newFarmPushHandler(acc.ID))
+	// 超时断连回调：标记本次断连为“超时型”，使自动重连不受 reconnectMaxAttempts 上限约束
+	c.SetTimeoutCloseHook(func() {
+		clientPool.mu.Lock()
+		clientPool.transientClose[acc.ID] = true
+		clientPool.mu.Unlock()
+	})
 	c.Prime() // 登录后立即预拉首页数据缓存
 	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine（对齐 Node 单线程）
 	// 对齐 Node network.js:583-584：登录成功后 startHeartbeat() + startAceService()

@@ -51,7 +51,8 @@ type Client struct {
 	totalSlots  chan struct{} // 全部请求(含心跳/ACE)并发上限 = 10
 	queued      atomic.Int64
 	active      atomic.Int64
-	kickHook     func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
+	kickHook          func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
+	timeoutCloseHook  func() // 超时断连（服务端抖动/瞬时限流）时由连接池注入：标记该断连为“超时型”，重连不计上限
 	accountID    string
 	giftHook     func(accountID string, delta int64)
 	farmPushHook func(accountID string)
@@ -271,6 +272,9 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 		// 死连接不应长期留在缓存里伪装“在线”骗前端，应被真正断开并重建。
 		if errors.Is(ctx2.Err(), context.DeadlineExceeded) && shouldCloseConnectionAfterTimeout(service, method) {
 			log.Printf("[gw] 账号 %s 请求 %s.%s 超时，关闭连接触发重连", c.accountID, service, method)
+			if c.timeoutCloseHook != nil {
+				c.timeoutCloseHook()
+			}
 			c.closeActiveConnection()
 		}
 		return nil, fmt.Errorf("request timeout: %s.%s", service, method)
@@ -389,6 +393,11 @@ func (c *Client) SetFarmPushHook(hook func(accountID string)) {
 // SetKickHook 设置被踢回调（连接池在创建连接时注册，用于触发自动重连）
 func (c *Client) SetKickHook(f func()) {
 	c.kickHook = f
+}
+
+// SetTimeoutCloseHook 设置超时断连回调（连接池在创建连接时注册，用于标记此类断连为“超时型”）
+func (c *Client) SetTimeoutCloseHook(f func()) {
+	c.timeoutCloseHook = f
 }
 
 // isKickCode 是否为需要重连的致命网关错误码（如 1000014=账号已在其他地方登录）。

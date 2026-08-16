@@ -18,6 +18,8 @@ import (
 //   → 成功 → online（重连成功**不清零**计数）
 //   → 失败 → 计数保持，延迟后重试；调度前 current >= maxAttempts → stopped（停止）
 // 计数仅在「手动停止 / 踢下线 / 删除账号」时清零。
+// 特例：超时型断连（服务端抖动/瞬时限流）不计入 reconnectMaxAttempts 上限——此类断连非账号故障，
+// 首次检测到时即重置计数/停止态，使其被持续重连直至恢复（对齐 Node 对瞬断容忍的意图）。
 // ============================================================
 
 // StartAutoReconnect 启动后台自动重连扫描（在 main 初始化后调用一次）
@@ -65,19 +67,28 @@ func (p *ClientPool) scanAutoReconnect() {
 				// 刚检测到断线：记录时间，等过延迟周期再重连（容忍瞬时抖动）
 				appendOpLog(id, "掉线", "连接已断开")
 				p.offlineSince[id] = now
+				if p.transientClose[id] {
+					// 超时型断连（服务端抖动/瞬时限流）：重置计数/停止态，使其不计入 reconnectMaxAttempts 上限
+					delete(p.reconnectAttempts, id)
+					delete(p.stopped, id)
+					log.Printf("[reconnect] 账号 %s 超时型断线，重置重连计数（不受上限约束）", id)
+				}
 				continue
 			}
 			if now.Sub(since) >= time.Duration(cfg.ReconnectDelayMin)*time.Minute {
-				// 调度前检查计数（对齐 Node：先读 current，达到上限即停止并删计数）
-				attempts := p.reconnectAttempts[id]
-				if attempts >= cfg.ReconnectMaxAttempts {
-					p.stopped[id] = true
-					delete(p.reconnectAttempts, id)
-					log.Printf("[reconnect] 账号 %s 已达最大重连次数(%d)，停止自动重连（可手动重试）", id, cfg.ReconnectMaxAttempts)
-					continue
+				// 超时型断连（非账号故障）不受 reconnectMaxAttempts 上限约束：持续重连直至恢复。
+				if !p.transientClose[id] {
+					// 调度前检查计数（对齐 Node：先读 current，达到上限即停止并删计数）
+					attempts := p.reconnectAttempts[id]
+					if attempts >= cfg.ReconnectMaxAttempts {
+						p.stopped[id] = true
+						delete(p.reconnectAttempts, id)
+						log.Printf("[reconnect] 账号 %s 已达最大重连次数(%d)，停止自动重连（可手动重试）", id, cfg.ReconnectMaxAttempts)
+						continue
+					}
+					// current+1 存入，再执行重连
+					p.reconnectAttempts[id] = attempts + 1
 				}
-				// current+1 存入，再执行重连
-				p.reconnectAttempts[id] = attempts + 1
 				toReconnect = append(toReconnect, reconnectTarget{id: id})
 			}
 		} else {
@@ -88,6 +99,7 @@ func (p *ClientPool) scanAutoReconnect() {
 	for _, id := range toReset {
 		delete(p.offlineSince, id)
 		delete(p.stopped, id)
+		delete(p.transientClose, id)
 	}
 	p.mu.Unlock()
 
@@ -146,6 +158,7 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 	p.mu.Lock()
 	delete(p.offlineSince, accountID)
 	delete(p.stopped, accountID)
+	delete(p.transientClose, accountID)
 	p.mu.Unlock()
 	appendOpLog(accountID, "重连", "自动重连成功")
 	log.Printf("[reconnect] 账号 %s 自动重连成功", accountID)
