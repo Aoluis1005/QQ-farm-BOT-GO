@@ -112,32 +112,32 @@ function incVal(label) {
   return v === undefined || v === null ? '--' : Number(v).toLocaleString()
 }
 
-// 巡查钟 SVG：12 刻度 + 开启时扫动指针（装饰，表示巡查进行中）
+// 巡查钟 SVG：12 刻度 + 始终旋转的指针（CSS .pc-hand 动画，扫动表示巡查进行中）
 function patrolClockSvg(who) {
   const s = 56, c = s / 2, r = s / 2 - 9
   const on = !!patrol.value[who]?.enabled
   const dur = PATROL_DUR[who] || 8
+  const col = on ? 'var(--tc)' : 'var(--muted)'
   let t = ''
   for (let i = 0; i < 12; i++) {
     const major = i % 3 === 0
-    const a = (i * 30) * Math.PI / 180
-    const x1 = c + Math.sin(a) * r, y1 = c - Math.cos(a) * r
-    const x2 = c + Math.sin(a) * (r - (major ? 7 : 4)), y2 = c - Math.cos(a) * (r - (major ? 7 : 4))
-    t += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" style="stroke:var(--muted-2);stroke-width:${major ? 2 : 1};stroke-linecap:round;opacity:.55"/>`
+    const th = (i * 30) * Math.PI / 180
+    const x1 = c + Math.sin(th) * r, y1 = c - Math.cos(th) * r
+    const x2 = c + Math.sin(th) * (r - (major ? 7 : 4)), y2 = c - Math.cos(th) * (r - (major ? 7 : 4))
+    t += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" style="stroke:var(--muted);stroke-width:${major ? 2 : 1};stroke-linecap:round;opacity:.5"/>`
   }
-  let sweep = ''
-  if (on) {
-    const a0 = (-90 - 60) * Math.PI / 180, a1 = (-90) * Math.PI / 180
-    const ax0 = c + Math.sin(a0) * (r - 10), ay0 = c - Math.cos(a0) * (r - 10)
-    const ax1 = c + Math.sin(a1) * (r - 10), ay1 = c - Math.cos(a1) * (r - 10)
-    sweep = `<g><animateTransform attributeName="transform" type="rotate" from="0 ${c} ${c}" to="360 ${c} ${c}" dur="${dur}s" repeatCount="indefinite"/>`
-      + `<path d="M ${ax0.toFixed(1)} ${ay0.toFixed(1)} A ${r - 10} ${r - 10} 0 0 1 ${ax1.toFixed(1)} ${ay1.toFixed(1)}" style="stroke:var(--tc);stroke-width:5;fill:none;opacity:.2;stroke-linecap:butt"/>`
-      + `<line x1="${c}" y1="${c}" x2="${c}" y2="${c - r + 10}" style="stroke:var(--tc);stroke-width:2.5;stroke-linecap:round"/></g>`
-  }
+  // 旋转组：手 + 渐隐拖尾（绕圆心 28,28 旋转，时长按巡检节奏）
+  const R = r - 6
+  const th0 = (-60) * Math.PI / 180
+  const ax0 = (c + Math.sin(th0) * R).toFixed(1), ay0 = (c - Math.cos(th0) * R).toFixed(1)
+  const ax1 = c.toFixed(1), ay1 = (c - R).toFixed(1)
+  const sweep = `<g class="pc-hand" style="animation-duration:${dur}s">`
+    + `<path d="M ${ax0} ${ay0} A ${R} ${R} 0 0 1 ${ax1} ${ay1}" style="stroke:${col};stroke-width:5;fill:none;opacity:.18;stroke-linecap:butt"/>`
+    + `<line x1="${c}" y1="${c}" x2="${c}" y2="${c - (r - 5)}" style="stroke:${col};stroke-width:2.6;stroke-linecap:round"/></g>`
   return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">`
     + `<circle cx="${c}" cy="${c}" r="${r}" style="fill:none;stroke:var(--border);stroke-width:5"/>`
     + t + sweep
-    + `<circle cx="${c}" cy="${c}" r="3.5" style="fill:var(--tc)"/></svg>`
+    + `<circle cx="${c}" cy="${c}" r="3.4" style="fill:${col}"/></svg>`
 }
 
 // 生涯统计（对齐 Node CareerModal：items 全量倒序；meta 累计统计；前3领奖台 + 明细网格加载更多）
@@ -180,28 +180,45 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
 
 <template>
   <div class="page-home">
-    <!-- 用户资产卡 -->
+    <!-- 用户资产卡 — 左头像+环形经验进度 / 右三资源竖排 -->
     <div class="profile">
-      <div class="pc-head">
-        <div class="pc-face" @click="openCareer">
-          <img v-if="profile.avatar && /^(https?:)?\/\//i.test(profile.avatar)" :src="profile.avatar" alt="">
-          <span v-else>{{ (profile.name || profile.avatar || '?').charAt(0).toUpperCase() }}</span>
-          <span class="pc-lvl">Lv.{{ profile.level || '—' }}</span>
+      <div class="pc-body">
+        <!-- 左：头像 + 环形经验进度 + 文字 -->
+        <div class="pc-left">
+          <div class="avatar-ring">
+            <svg width="104" height="104" viewBox="0 0 104 104">
+              <circle cx="52" cy="52" r="46" style="fill:none;stroke:var(--border);stroke-width:8"/>
+              <circle cx="52" cy="52" r="46" style="fill:none;stroke:var(--primary);stroke-width:8;stroke-linecap:round"
+                      stroke-dasharray="289"
+                      :stroke-dashoffset="289 * (1 - (profile.expPercent || 0) / 100)"/>
+            </svg>
+            <div class="av" @click="openCareer">
+              <img v-if="profile.avatar && /^(https?:)?\/\//i.test(profile.avatar)" :src="profile.avatar" alt="">
+              <span v-else>{{ (profile.name || profile.avatar || '?').charAt(0).toUpperCase() }}</span>
+            </div>
+          </div>
+          <div class="pc-text">
+            <div class="pc-name">{{ profile.name || '未登录' }}</div>
+            <div class="pc-uid">UID · {{ profile.uid || '—' }}</div>
+            <div class="pc-exp">经验 <b>{{ fmtNum(profile.exp) }} / {{ fmtNum(profile.expMax) }}</b></div>
+            <span class="pc-lvl">Lv.{{ profile.level || '—' }}</span>
+          </div>
         </div>
-        <div class="pc-meta">
-          <div class="pc-name">{{ profile.name || '未登录' }}</div>
-          <div class="pc-uid">UID · {{ profile.uid || '—' }}</div>
+        <!-- 右：金币 / 点券 / 金豆 各一排 -->
+        <div class="pc-right">
+          <div class="res-row" style="--rc:var(--warn)">
+            <div class="res-ic">🪙</div>
+            <div class="res-meta"><span class="res-label">金币</span><span class="res-val">{{ fmtBig(profile.gold) }}</span></div>
+          </div>
+          <div class="res-row" style="--rc:var(--primary)">
+            <div class="res-ic">🎟️</div>
+            <div class="res-meta"><span class="res-label">点券</span><span class="res-val">{{ fmtBig(profile.coupons) }}</span></div>
+          </div>
+          <div class="res-row" style="--rc:var(--good)">
+            <div class="res-ic">🫘</div>
+            <div class="res-meta"><span class="res-label">金豆</span><span class="res-val">{{ fmtBig(profile.goldenBeans) }}</span></div>
+          </div>
         </div>
-      </div>
-      <div class="pc-exp">
-        <div class="pc-exp-top"><span class="lbl">经验</span><span class="val">{{ profile.expPercent || 0 }}%</span></div>
-        <div class="pc-track"><div class="pc-fill" :style="{ width: (profile.expPercent || 0) + '%' }"></div></div>
-        <div class="pc-exp-num">经验 {{ fmtNum(profile.exp) }} / {{ fmtNum(profile.expMax) }}</div>
-      </div>
-      <div class="res">
-        <div class="res-tile" style="--c:var(--warn)"><b>{{ fmtBig(profile.gold) }}</b><small>金币</small></div>
-        <div class="res-tile" style="--c:var(--primary)"><b>{{ fmtBig(profile.coupons) }}</b><small>点券</small></div>
-        <div class="res-tile" style="--c:var(--good)"><b>{{ fmtBig(profile.goldenBeans) }}</b><small>金豆</small></div>
       </div>
     </div>
 
