@@ -146,7 +146,8 @@ func IsFertilizerContainerFullError(msg string) bool {
 }
 
 // DecodeSellReply 解析 SellReply，返回(出售物品总件数, 获得金币数)
-// 对齐 Node deriveGoldGainFromSellReply：SellReply sell_items=1 / get_items=2，金币 item id==1001
+// 对齐 Node deriveGoldGainFromSellReply / getGoldFromItems：
+// SellReply sell_items=1 / get_items=2，金币 item id==1001 或 500001（两种形态都认）
 func DecodeSellReply(buf []byte) (soldCount, gold int64) {
 	r := NewReader(buf)
 	r.EachField(func(field, wire int, r *Reader) bool {
@@ -172,8 +173,8 @@ func DecodeSellReply(buf []byte) (soldCount, gold int64) {
 		})
 		if field == 1 { // sell_items
 			soldCount += it.Count
-		} else if field == 2 { // get_items：金币 id==1001
-			if it.ID == 1001 {
+		} else if field == 2 { // get_items：金币 id==1001 或 500001（对齐 Node getGoldFromItems）
+			if it.ID == 1001 || it.ID == 500001 {
 				gold += it.Count
 			}
 		}

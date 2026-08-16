@@ -1655,6 +1655,7 @@ var autoSellSkipItemIDs = map[int64]bool{41221: true}
 const sellBatchSize = 15
 
 func autoSellAfterHarvest(accountID string, c *gw.Client) {
+	prevGold := c.Gold() // 卖前余额（对齐 Node totalsBefore.gold，用于余额差值兜底）
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
@@ -1670,7 +1671,7 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 	if len(sell) == 0 {
 		return
 	}
-	totalGold := int64(0)
+	parsedGold := int64(0) // 出售响应解析金币（对齐 Node totalGoldFromReply）
 	soldKinds := 0
 	// 分批出售（对齐 Node warehouse.js sellAllFruits：SELL_BATCH_SIZE=15）
 	for i := 0; i < len(sell); i += sellBatchSize {
@@ -1680,7 +1681,7 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 		}
 		batch := sell[i:end]
 		if gold, ok := trySellBatch(accountID, c, batch); ok {
-			totalGold += gold
+			parsedGold += gold
 			soldKinds += len(batch)
 			continue
 		}
@@ -1688,13 +1689,32 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 		for _, it := range batch {
 			g, ok := trySellOne(accountID, c, it)
 			if ok {
-				totalGold += g
+				parsedGold += g
 				soldKinds++
 			}
 		}
 		if end < len(sell) {
 			time.Sleep(300 * time.Millisecond)
 		}
+	}
+	// 对齐 Node 金币结算 = max(出售响应解析值, 余额差值兜底)
+	// 等待余额状态刷新（对齐 Node 等待 getUserState().gold 更新，最多 3s）
+	afterGold := prevGold
+	waitStart := time.Now()
+	for time.Since(waitStart) < 3*time.Second {
+		if g := c.Gold(); g != prevGold {
+			afterGold = g
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	goldByState := int64(0)
+	if afterGold > prevGold {
+		goldByState = afterGold - prevGold
+	}
+	totalGold := parsedGold
+	if goldByState > totalGold {
+		totalGold = goldByState
 	}
 	if totalGold > 0 {
 		recordOperation(accountID, "sell", totalGold)
