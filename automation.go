@@ -172,6 +172,10 @@ func randomIntervalMs(minMs, maxMs int) time.Duration {
 // farmInterval 农场巡查间隔（秒→毫秒），默认 2–5s
 // nextHelpTime 帮忙通道下次运行时刻：极速务农开启时同样读前端 HelpMin/Max 配置（turbo 快照也读前端）
 func nextHelpTime(iv config.IntervalsConfig, turbo bool) time.Time {
+	if turbo {
+		// 极速务农专注抢帮：固定 1.5s 快轮（比普通 helpInterval 更快，配合只跑护主犬独占模式）
+		return time.Now().Add(1500 * time.Millisecond)
+	}
 	return time.Now().Add(helpInterval(iv))
 }
 
@@ -253,14 +257,15 @@ func automationLoop(accountID string, stop chan struct{}) {
 		cfg := getCfg()
 		now := time.Now()
 
-		shouldFarm := cfg.Automation.Farm && now.After(nextFarm)
-		// 极速务农(turbo)：对齐 Node friend-orchestrator doHelp=(helpEnabled||turbo)、doSteal=(stealEnabled&&!turbo)、doBad=(badEnabled&&!turbo)
-		turbo := cfg.Automation.FriendTurboMode
+		// 极速务农(turbo)：对齐 Node friend-orchestrator 独占模式——生效时暂停 farm/买肥/steal/bad/goldenbug，
+		// 只跑「护主犬循环 + 心跳/ACE」，避免其它巡查抢占 WS 使心跳被淹没导致假断连
+		turbo := computeEffectiveTurbo(cfg)
+		shouldFarm := cfg.Automation.Farm && !turbo && now.After(nextFarm)
 		shouldSteal := cfg.Automation.Friend && cfg.Automation.FriendSteal && !turbo && now.After(nextSteal)
 		shouldHelp := cfg.Automation.Friend &&
 			(cfg.Automation.FriendHelp || cfg.Automation.FriendBad || cfg.Automation.FriendGoldenBug || turbo) &&
 			now.After(nextHelp)
-		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && now.After(nextBuy)
+		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && !turbo && now.After(nextBuy)
 		shouldTask := cfg.Automation.Task && now.After(nextTask)
 		shouldHb := now.After(nextHb)
 

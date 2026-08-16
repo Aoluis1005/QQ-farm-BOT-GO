@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +36,77 @@ const guardDogID = 90021
 const maxHelpTargetsPerCycle = 24
 // 偷到后下一轮快扫间隔（对齐参考 GO rapidStealInterval）
 const rapidStealInterval = time.Second
+
+// 极速务农护主犬分批的轮换起点（对齐 node friend-orchestrator turboRoundIndex：
+// 避免每轮都取列表头导致后排护主犬永远轮不到）
+// ft 好友候选（gid/level/need 用于排序；need 越大越优先帮忙）——包级定义，供护主犬轮换分片使用
+type ft struct {
+	gid   int64
+	level int64
+	need  int64
+}
+
+var turboRoundIndex int
+
+// beijingMinutes 当前北京时间（UTC+8）的分钟数，用于极速务农定时段比较
+func beijingMinutes() int {
+	d := time.Now().UTC().Add(8 * time.Hour)
+	return d.Hour()*60 + d.Minute()
+}
+
+// parseScheduleWindow 解析 "HH:mm-HH:mm" 时间段；非法/跨午夜返回 nil
+func parseScheduleWindow(raw string) [2]int {
+	m := regexp.MustCompile(`^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$`).FindStringSubmatch(strings.TrimSpace(raw))
+	if m == nil {
+		return [2]int{}
+	}
+	s := mustInt(m[1])*60 + mustInt(m[2])
+	e := mustInt(m[3])*60 + mustInt(m[4])
+	if s >= e {
+		return [2]int{}
+	}
+
+	return [2]int{s, e}
+}
+
+func mustInt(s string) int {
+	v, _ := strconv.Atoi(s)
+	return v
+}
+
+// computeEffectiveTurbo 极速务农当前是否「生效」（对齐 node friend-orchestrator computeEffectiveTurbo）：
+// 总开关关 → 不生效；未启用定时 → 持续生效；启用定时 → 仅北京时间落在设定段 [start,end) 内生效，段外正常巡查
+func computeEffectiveTurbo(cfg config.AccountConfig) bool {
+	a := cfg.Automation
+	if !a.FriendTurboMode {
+		return false
+	}
+	if !a.FriendTurboScheduled {
+		return true
+	}
+	win := parseScheduleWindow(a.FriendTurboScheduleTime)
+	if win[0] == 0 && win[1] == 0 {
+		return false
+	}
+	now := beijingMinutes()
+	return now >= win[0] && now < win[1]
+}
+
+// rotateTargets 从轮换起点取 limit 个候选并推进回绕（对齐 node turboRoundIndex），保证全部护主犬都被覆盖
+func rotateTargets(targets []ft, limit int) []ft {
+	n := len(targets)
+	if n <= limit {
+		turboRoundIndex = 0
+		return targets
+	}
+	start := turboRoundIndex % n
+	chunk := make([]ft, 0, limit)
+	for i := 0; i < limit; i++ {
+		chunk = append(chunk, targets[(start+i)%n])
+	}
+	turboRoundIndex = (start + limit) % n
+	return chunk
+}
 
 // badDailyLimit 每日放虫/草次数上限（对齐 Node friend-operation-limits.js BAD_DAILY_LIMIT=100，
 // 作为服务端未回传 day_times_lt 时的兜底）
@@ -436,12 +510,6 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		return false
 	}
 
-	// ft 好友候选（gid/level/need 用于排序；need 越大越优先帮忙）
-	type ft struct {
-		gid   int64
-		level int64
-		need  int64
-	}
 	var stealTargets, helpTargets, badTargets []ft
 	expLimitEnabled := cfg.Automation.FriendHelpExpLimit
 	helpExpReached := expLimitEnabled && !getCanGetHelpExp()
@@ -457,7 +525,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 		// 帮忙目标：缺水/草/虫，need 降序、护主犬优先
 		if !onlySteal && !skHelp && p != nil && (p.DryNum > 0 || p.WeedNum > 0 || p.InsectNum > 0) {
-			isTurbo := cfg.Automation.FriendTurboMode
+			isTurbo := computeEffectiveTurbo(cfg)
 			// 极速务农：暂停一切巡查、只帮护主犬（用护主犬缓存判定，非护主犬不帮）
 			if isTurbo {
 				if !hasGuardDog(f.GID) {
@@ -513,11 +581,17 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	if !onlySteal {
 		// 每轮帮忙农场数上限：极速务农 15，普通 24（对齐参考 GO maxHelpTargetsPerCycle），剩余下一轮继续
 		limit := turboHelpRoundLimit
-		if !cfg.Automation.FriendTurboMode {
+		turboEff := computeEffectiveTurbo(cfg)
+		if !turboEff {
 			limit = maxHelpTargetsPerCycle
 		}
 		if len(helpTargets) > limit {
-			helpTargets = helpTargets[:limit]
+			if turboEff {
+				// 极速护主犬分批轮换起点，保证全部护主犬都被覆盖（对齐 node turboRoundIndex）
+				helpTargets = rotateTargets(helpTargets, limit)
+			} else {
+				helpTargets = helpTargets[:limit]
+			}
 		}
 		for _, t := range helpTargets {
 			if scanTimedOut() {
@@ -542,7 +616,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	}
 
 	// 2.5 黄金虫放置（极速务农：暂停一切巡查、涡轮不放金虫）
-	if cfg.Automation.FriendGoldenBug && !cfg.Automation.FriendTurboMode {
+	if cfg.Automation.FriendGoldenBug && !computeEffectiveTurbo(cfg) {
 		for _, t := range helpTargets {
 			res := doFriendOperation(c, accountID, t.gid, "goldenbug")
 			if res != nil && res.EnterError != "" {
@@ -553,7 +627,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	}
 
 	// 3. 捣乱（受每日上限约束，对齐 Node BAD_DAILY_LIMIT）
-	if !onlySteal && cfg.Automation.FriendBad && !cfg.Automation.FriendTurboMode {
+	if !onlySteal && cfg.Automation.FriendBad && !computeEffectiveTurbo(cfg) {
 		if isBadPaused(accountID) {
 			appendOpLog(accountID, "friend", "捣乱已暂停，等待恢复")
 		} else {

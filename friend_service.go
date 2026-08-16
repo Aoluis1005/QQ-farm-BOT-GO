@@ -441,7 +441,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 		// 进农场后实时护主犬判定（对齐 Node __briefDogInfo：经验满/极速模式且非实时护主犬 → 本次不帮，
 		// 弥补 checkFriends 进入前缓存 getFriendDog 的滞后）
 		acfg := models.GetAccountConfig(accountID)
-		guardOnly := acfg.Automation.FriendTurboMode || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp())
+		guardOnly := computeEffectiveTurbo(acfg) || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp())
 		if guardOnly && enterReply.DogID != guardDogID {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "经验已满且非护主犬，跳过"}
 		}

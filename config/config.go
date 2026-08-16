@@ -12,7 +12,9 @@ type AutomationConfig struct {
 	LandUpgrade             bool `json:"land_upgrade"`            // 自动升级土地
 	Friend                  bool `json:"friend"`                  // 自动好友互动
 	FriendHelpExpLimit      bool `json:"friend_help_exp_limit"` // 经验满只帮护主犬
-	FriendTurboMode         bool `json:"friend_turbo_mode"`      // 极速务农
+	FriendTurboMode         bool   `json:"friend_turbo_mode"`      // 极速务农
+	FriendTurboScheduled    bool   `json:"friend_turbo_scheduled"`  // 定时极速务农（仅定时段内生效）
+	FriendTurboScheduleTime string `json:"friend_turbo_schedule_time"` // 极速时段 "HH:mm-HH:mm"（北京时间）
 	FriendSteal             bool `json:"friend_steal"`            // 自动偷菜
 	FriendHelp              bool `json:"friend_help"`             // 自动帮忙
 	FriendBad               bool `json:"friend_bad"`              // 自动捣乱
@@ -111,6 +113,8 @@ func DefaultAccountConfig() AccountConfig {
 			Friend:                 true,
 			FriendHelpExpLimit:     true,
 			FriendTurboMode:        false,
+			FriendTurboScheduled:   false,
+			FriendTurboScheduleTime: "",
 			FriendSteal:            true,
 			FriendHelp:             true,
 			FriendBad:              false,
