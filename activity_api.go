@@ -579,6 +579,11 @@ const (
 	qingmeiSellCmd       = 16
 	qingmeiBrewSteps     = 3
 	qingmeiStepDelay     = 1 * time.Second
+
+	// 对齐 Node：硬 ID 定位（不卡日期/标题）
+	qingmeiRootActivityID  = 2026081200 // 青酿换万金 组根
+	qingmeiClaimActivityID = 2026081201 // 每日领种子结点
+	qingmeiWineActivityID  = 2026081202 // 酿制并出售结点
 	// OperateRequest 请求字段编号（activitypb.proto）
 	qingmeiClaimParamF   = 103
 	qingmeiWineStartF    = 112
@@ -617,29 +622,13 @@ func qingmeiMaterialItems(ctx context.Context, accountID string) []qingmeiMat {
 	return mats
 }
 
-// qingmeiActIDs 动态定位当前在期的青梅活动组根、领种子结点(claim,type4)、酿制结点(wine,type12 或 payload 含 QingMei)
+// qingmeiActIDs 定位青梅活动组根/领种子结点/酿制结点。
+// 对齐 Node：优先按常量活动 ID 直接定位（root=2026081200 / claim=2026081201 / wine=2026081202），不卡日期/标题；
+// 若组树中不存在这些精确 ID，则回退到类型/playload 启发式（无日期门控）。
 func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, root *ActivityNode, err error) {
-	if rootID == 0 {
-		body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
-		if e != nil {
-			return 0, 0, 0, nil, e
-		}
-		now := time.Now().Unix()
-		for _, it := range ParseActivityList(body) {
-			if it.ID%100 != 0 || it.Title != "青酿换万金" {
-				continue
-			}
-			// 有任一在期子活动即视为在期
-			on := it.StartTime > 0 && it.EndTime > 0 && it.StartTime <= now && now <= it.EndTime
-			if on {
-				rootID = it.ID
-				break
-			}
-		}
-		if rootID == 0 {
-			return 0, 0, 0, nil, fmt.Errorf("青梅活动（青酿换万金）当前未在进行中")
-		}
-	}
+	rootID = qingmeiRootActivityID
+	claimID = qingmeiClaimActivityID
+	wineID = qingmeiWineActivityID
 	gb := proto.NewBuilder()
 	gb.FieldInt64(1, rootID)
 	gb.FieldString(2, "")
@@ -655,21 +644,21 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	}
 	root = ParseActivityGroup(gbody)
 	if root == nil {
-		return rootID, 0, 0, root, fmt.Errorf("青梅活动分组解析失败")
+		return rootID, claimID, wineID, root, fmt.Errorf("青梅活动分组解析失败")
 	}
+	// 先按精确 ID 定位 claim/wine 结点
+	var foundClaim, foundWine bool
 	var walk func(n *ActivityNode)
 	walk = func(n *ActivityNode) {
 		if n == nil {
 			return
 		}
 		if n.Info != nil {
-			if n.Info.Type == 4 && claimID == 0 {
-				claimID = n.Info.ID
+			if n.Info.ID == claimID {
+				foundClaim = true
 			}
-			if n.Info.Type == 12 || strings.Contains(n.Info.Payload, "QingMei") {
-				if wineID == 0 {
-					wineID = n.Info.ID
-				}
+			if n.Info.ID == wineID {
+				foundWine = true
 			}
 		}
 		for _, ch := range n.Children {
@@ -677,6 +666,29 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 		}
 	}
 	walk(root)
+	if !foundClaim || !foundWine {
+		// 回退：类型/playload 启发式（无日期门控）
+		claimID, wineID = 0, 0
+		walk = func(n *ActivityNode) {
+			if n == nil {
+				return
+			}
+			if n.Info != nil {
+				if n.Info.Type == 4 && claimID == 0 {
+					claimID = n.Info.ID
+				}
+				if n.Info.Type == 12 || strings.Contains(n.Info.Payload, "QingMei") {
+					if wineID == 0 {
+						wineID = n.Info.ID
+					}
+				}
+			}
+			for _, ch := range n.Children {
+				walk(ch)
+			}
+		}
+		walk(root)
+	}
 	if claimID == 0 || wineID == 0 {
 		return rootID, claimID, wineID, root, fmt.Errorf("未找到青梅领种子/酿制结点")
 	}

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '@/api'
 import { getAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -144,7 +144,13 @@ function rankBadge(idx) {
   return idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : 'rank-bronze'
 }
 
-onMounted(load)
+// 首页日志/资产实时刷新：每 5s 拉一次（对齐 Node 前端轮询），切换账号时 next 轮自动带新 accountId
+let pollTimer = null
+onMounted(() => {
+  load()
+  pollTimer = setInterval(load, 5000)
+})
+onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null } })
 </script>
 
 <template>
