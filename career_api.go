@@ -96,7 +96,7 @@ func decorateCareerItems(raw []*proto.CareerStatItem) []map[string]interface{} {
 		rar, lvl := int64(0), int64(0)
 		if ok {
 			name, rar, lvl = fi.Name, fi.Rarity, fi.Level
-			image = iconFor(name)
+			image = GetItemImageURL(int(it.FruitID))
 		}
 		if name == "" {
 			name = fmt.Sprintf("果实 %d", it.FruitID)
@@ -128,7 +128,7 @@ func decorateCareerLevelStats(raw []*proto.CareerLevelStat) []map[string]interfa
 		image := ""
 		if ok {
 			name = fi.Name
-			image = iconFor(name)
+			image = GetItemImageURL(int(it.FruitID))
 		}
 		if name == "" {
 			name = fmt.Sprintf("果实 %d", it.FruitID)
