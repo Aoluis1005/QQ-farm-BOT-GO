@@ -438,6 +438,13 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 			Message: fmt.Sprintf("捣乱完成 虫%d/草%d", bugCount, weedCount)}
 
 	case "help":
+		// 进农场后实时护主犬判定（对齐 Node __briefDogInfo：经验满/极速模式且非实时护主犬 → 本次不帮，
+		// 弥补 checkFriends 进入前缓存 getFriendDog 的滞后）
+		acfg := models.GetAccountConfig(accountID)
+		guardOnly := acfg.Automation.FriendTurboMode || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp())
+		if guardOnly && enterReply.DogID != guardDogID {
+			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "经验已满且非护主犬，跳过"}
+		}
 		// 好友帮忙：单次进入内用一个 Farming RPC 完成浇水/除草/除虫（对齐 liyangpengs runFarmingWithFallback）。
 		// 把需帮地块（水/草/虫）合并去重，一次 PlantService.Farming（field_3=0、field_4=2）。
 		ids := dedupeInt64(append(append(append([]int64{}, analysis.NeedWater...), analysis.NeedWeed...), analysis.NeedBug...))

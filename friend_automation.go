@@ -358,6 +358,12 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		checkingFriendsMu.Unlock()
 	}()
 
+	// 整轮巡查超时兜底（对齐参考 GO 每轮 45s/90s ctx）：单轮卡死不拖死后续调度
+	scanStart := time.Now()
+	const scanDeadline = 90 * time.Second
+	scanTimedOut := func() bool { return time.Since(scanStart) > scanDeadline }
+	var stolenTotal, helpTotal int64
+
 	// 静默时段检查（对齐 Node inFriendQuietHours）
 	if inQuietHours(cfg) {
 		return
@@ -481,12 +487,15 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	// 1. 偷菜（对齐 Node 执行 steal → visitFriendForSteal）
 	if !onlyHelp {
 		for _, t := range stealTargets {
-			if !canOperate(opSteal, 0) {
-				break // 偷菜次数已达服务端上限（未知则不限）
+			if !canOperate(opSteal, 0) || scanTimedOut() {
+				break // 偷菜次数已达服务端上限（未知则不限）或整轮超时
 			}
 			res := doFriendOperation(c, accountID, t.gid, "steal")
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败（好友离线/不存在）跳过
+			}
+			if res != nil && res.Count > 0 {
+				stolenTotal += res.Count
 			}
 			time.Sleep(randomIntervalMs(100, 200))
 		}
@@ -503,6 +512,9 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			helpTargets = helpTargets[:turboHelpRoundLimit]
 		}
 		for _, t := range helpTargets {
+			if scanTimedOut() {
+				break // 整轮巡查超时
+			}
 			// 经验满判定可能在巡逻中途触发并翻转 canGetHelpExp=false。
 			// 对非护主犬好友实时复核，否则开关触发后本轮剩余普通好友仍会被无差别帮助。
 			if expLimitEnabled && !hasGuardDog(t.gid) && !getCanGetHelpExp() {
@@ -511,6 +523,9 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			// 帮忙用 exp 增量比对检测经验上限（对齐 Node visitFriendForHelp 内 checkExpLimit）
 			expBefore := c.Exp()
 			res := doFriendOperation(c, accountID, t.gid, "help")
+			if res != nil {
+				helpTotal += res.Count
+			}
 			if res != nil && res.Count > 0 && expLimitEnabled && getCanGetHelpExp() {
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
@@ -580,6 +595,9 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 5. 自动同意好友申请（对齐 Node autoAcceptFriendApply：检查待处理申请并自动同意）
 	autoAcceptFriendApply(c, accountID, cfg)
+
+	// 本轮巡查汇总（对齐参考 GO stealSummary/helpSummary）
+	appendOpLog(accountID, "friend", fmt.Sprintf("巡查汇总: 候选%d人 偷%d块 帮%d块", len(stealTargets)+len(helpTargets), stolenTotal, helpTotal))
 }
 
 // autoAcceptFriendApply 自动同意好友申请（对齐 Node autoAcceptFriendApply + checkAndAcceptApplications）
