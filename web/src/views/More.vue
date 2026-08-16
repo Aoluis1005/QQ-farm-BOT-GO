@@ -541,7 +541,7 @@ onMounted(() => {
     <!-- ============ 自动控制 ============ -->
     <div v-show="active === 'm-auto'">
       <div class="sub-head">🎛️ 自动控制 <small>核心自动化开关</small></div>
-      <div v-if="!autLoaded" style="padding:14px;color:#888">加载中…</div>
+      <div v-if="!autLoaded" style="padding:14px;color:var(--muted)">加载中…</div>
       <div class="auto-grid" style="margin-top:0" v-if="autLoaded">
         <div v-for="k in CORE_AUTO" :key="k" class="auto-item">
           <span>{{ AUTO_LABELS[k] }}</span>
@@ -898,7 +898,7 @@ onMounted(() => {
       <!-- 默认自动 -->
       <div v-show="defaultPane === 'd-auto'">
         <div class="sub-head" style="margin-top:16px">🎛️ 自动控制 <small>核心自动化开关</small></div>
-        <div v-if="!dAutLoaded" style="padding:14px;color:#888">加载中…</div>
+        <div v-if="!dAutLoaded" style="padding:14px;color:var(--muted)">加载中…</div>
         <div class="auto-grid" v-if="dAutLoaded">
           <div v-for="k in CORE_AUTO" :key="k" class="auto-item">
             <span>{{ AUTO_LABELS[k] }}</span>
