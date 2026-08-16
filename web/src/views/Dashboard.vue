@@ -26,6 +26,9 @@ const PATROL_GET = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // GET ke
 const PATROL_TRIO = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' }
 // legacy 各巡查项默认间隔：偷菜 3~10 / 帮忙 3~5 / 收菜 5~10（仅在接口无返回值时兜底）
 const PATROL_DEFAULT = { steal: { min: 3, max: 10 }, help: { min: 3, max: 5 }, farm: { min: 5, max: 10 } }
+// 巡查钟配色（对齐预览：偷菜绿/帮忙金/收菜蓝，接 App 主题 token）与扫动节奏
+const PATROL_COLOR = { 偷菜: 'var(--good)', 帮忙: 'var(--warn)', 收菜: 'var(--primary)' }
+const PATROL_DUR = { 偷菜: 6, 帮忙: 11, 收菜: 8 }
 
 // 生涯统计
 const careerOpen = ref(false)
@@ -109,10 +112,32 @@ function incVal(label) {
   return v === undefined || v === null ? '--' : Number(v).toLocaleString()
 }
 
-function avatarHtml() {
-  const a = profile.value.avatar
-  if (a && /^(https?:)?\/\//i.test(a)) return `<img src="${String(a).replace(/"/g, '&quot;')}" alt="" />`
-  return profile.value.avatar || '🐰'
+// 巡查钟 SVG：12 刻度 + 开启时扫动指针（装饰，表示巡查进行中）
+function patrolClockSvg(who) {
+  const s = 56, c = s / 2, r = s / 2 - 9
+  const on = !!patrol.value[who]?.enabled
+  const dur = PATROL_DUR[who] || 8
+  let t = ''
+  for (let i = 0; i < 12; i++) {
+    const major = i % 3 === 0
+    const a = (i * 30) * Math.PI / 180
+    const x1 = c + Math.sin(a) * r, y1 = c - Math.cos(a) * r
+    const x2 = c + Math.sin(a) * (r - (major ? 7 : 4)), y2 = c - Math.cos(a) * (r - (major ? 7 : 4))
+    t += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" style="stroke:var(--muted-2);stroke-width:${major ? 2 : 1};stroke-linecap:round;opacity:.55"/>`
+  }
+  let sweep = ''
+  if (on) {
+    const a0 = (-90 - 60) * Math.PI / 180, a1 = (-90) * Math.PI / 180
+    const ax0 = c + Math.sin(a0) * (r - 10), ay0 = c - Math.cos(a0) * (r - 10)
+    const ax1 = c + Math.sin(a1) * (r - 10), ay1 = c - Math.cos(a1) * (r - 10)
+    sweep = `<g><animateTransform attributeName="transform" type="rotate" from="0 ${c} ${c}" to="360 ${c} ${c}" dur="${dur}s" repeatCount="indefinite"/>`
+      + `<path d="M ${ax0.toFixed(1)} ${ay0.toFixed(1)} A ${r - 10} ${r - 10} 0 0 1 ${ax1.toFixed(1)} ${ay1.toFixed(1)}" style="stroke:var(--tc);stroke-width:5;fill:none;opacity:.2;stroke-linecap:butt"/>`
+      + `<line x1="${c}" y1="${c}" x2="${c}" y2="${c - r + 10}" style="stroke:var(--tc);stroke-width:2.5;stroke-linecap:round"/></g>`
+  }
+  return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">`
+    + `<circle cx="${c}" cy="${c}" r="${r}" style="fill:none;stroke:var(--border);stroke-width:5"/>`
+    + t + sweep
+    + `<circle cx="${c}" cy="${c}" r="3.5" style="fill:var(--tc)"/></svg>`
 }
 
 // 生涯统计（对齐 Node CareerModal：items 全量倒序；meta 累计统计；前3领奖台 + 明细网格加载更多）
@@ -157,22 +182,26 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
   <div class="page-home">
     <!-- 用户资产卡 -->
     <div class="profile">
-      <div class="avatar" @click="openCareer">
-        <div class="ring"><div class="face" v-html="avatarHtml()"></div></div>
-        <span class="lvl">Lv.{{ profile.level || '—' }}</span>
+      <div class="pc-head">
+        <div class="pc-face" @click="openCareer">
+          <img v-if="profile.avatar && /^(https?:)?\/\//i.test(profile.avatar)" :src="profile.avatar" alt="">
+          <span v-else>{{ (profile.name || profile.avatar || '?').charAt(0).toUpperCase() }}</span>
+          <span class="pc-lvl">Lv.{{ profile.level || '—' }}</span>
+        </div>
+        <div class="pc-meta">
+          <div class="pc-name">{{ profile.name || '未登录' }}</div>
+          <div class="pc-uid">UID · {{ profile.uid || '—' }}</div>
+        </div>
       </div>
-      <div class="pinfo">
-        <h2>{{ profile.name || '未登录' }}</h2>
-        <span class="uid">UID · {{ profile.uid || '—' }}</span>
-        <div class="stats">
-          <div class="stat"><strong>🪙 {{ fmtBig(profile.gold) }}</strong><span>金币</span></div>
-          <div class="stat"><strong>🎟️ {{ fmtBig(profile.coupons) }}</strong><span>点券</span></div>
-          <div class="stat"><strong>🫘 {{ fmtBig(profile.goldenBeans) }}</strong><span>金豆</span></div>
-        </div>
-        <div class="exp">
-          <div class="bar"><div class="fill" :style="{ width: (profile.expPercent || 0) + '%' }"></div></div>
-          <small>经验 {{ profile.exp ?? '--' }} / {{ profile.expMax ?? '--' }}</small>
-        </div>
+      <div class="pc-exp">
+        <div class="pc-exp-top"><span class="lbl">经验</span><span class="val">{{ profile.expPercent || 0 }}%</span></div>
+        <div class="pc-track"><div class="pc-fill" :style="{ width: (profile.expPercent || 0) + '%' }"></div></div>
+        <div class="pc-exp-num">经验 {{ fmtNum(profile.exp) }} / {{ fmtNum(profile.expMax) }}</div>
+      </div>
+      <div class="res">
+        <div class="res-tile" style="--c:var(--warn)"><b>{{ fmtBig(profile.gold) }}</b><small>金币</small></div>
+        <div class="res-tile" style="--c:var(--primary)"><b>{{ fmtBig(profile.coupons) }}</b><small>点券</small></div>
+        <div class="res-tile" style="--c:var(--good)"><b>{{ fmtBig(profile.goldenBeans) }}</b><small>金豆</small></div>
       </div>
     </div>
 
@@ -192,10 +221,12 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
     <!-- 巡查间隔 -->
     <div class="sec-title"><span>巡查间隔</span><span class="link" @click="allOn">全部开启</span></div>
     <div class="patrol">
-      <div v-for="(o, who) in PATROL_TRIO" :key="who" class="cell" @click="togglePatrol(who)">
-        <div class="ic" :class="'ic-' + { 偷菜: 'steal', 帮忙: 'help', 收菜: 'harvest' }[who]">{{ { 偷菜: '🕵️', 帮忙: '🤝', 收菜: '🧺' }[who] }}</div>
-        <h4>{{ who }}</h4>
-        <div class="timer">随机 {{ patrol[o]?.min ?? PATROL_DEFAULT[o].min }}~{{ patrol[o]?.max ?? PATROL_DEFAULT[o].max }} 秒</div>
+      <div v-for="(o, who) in PATROL_TRIO" :key="who" class="cell" :style="{ '--tc': PATROL_COLOR[who] }" @click="togglePatrol(who)">
+        <div class="pr-clock" v-html="patrolClockSvg(who)"></div>
+        <div class="pr-mid">
+          <div class="pr-name">{{ who }}</div>
+          <div class="pr-sub">随机 {{ patrol[o]?.min ?? PATROL_DEFAULT[o].min }}~{{ patrol[o]?.max ?? PATROL_DEFAULT[o].max }} 秒</div>
+        </div>
         <div class="switch" :class="{ on: patrol[o]?.enabled }"></div>
       </div>
     </div>
