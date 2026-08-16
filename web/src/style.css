@@ -163,7 +163,14 @@ body{
 }
 .res-meta{ display:flex; flex-direction:column; line-height:1.3; min-width:0; }
 .res-label{ font-size:11px; color:var(--muted); }
-.res-val{ font-size:16px; font-weight:800; color:var(--foreground); letter-spacing:.2px; }
+.res-val{ font-size:16px; font-weight:800; color:var(--foreground); letter-spacing:.2px; white-space:nowrap; }
+
+/* 极窄屏(手机)：略缩头像，给右侧资源列留出宽度，避免数值换行导致行高不齐 */
+@media (max-width:400px){
+  .avatar-ring{ width:92px; height:92px; }
+  .avatar-ring .av{ font-size:30px; }
+  .res-val{ font-size:15px; }
+}
 
 /* 段标题 */
 .sec-title{
