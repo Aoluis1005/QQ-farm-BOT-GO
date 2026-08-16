@@ -19,7 +19,7 @@ const hourOpts = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')
 
 /* ================= 自动控制开关（m-auto 与 d-auto 共用结构） ================= */
 const CORE_AUTO = ['farm', 'task', 'sell', 'friend', 'farm_push', 'land_upgrade', 'fertilizer_gift', 'fertilizer_buy_normal', 'fertilizer_buy_organic', 'skip_own_weed_bug', 'golden_bug_clear']
-const FRIEND_AUTO = ['friend_steal', 'friend_help', 'friend_bad', 'friend_golden_bug', 'friend_help_exp_limit', 'friend_turbo_mode']
+const FRIEND_AUTO = ['friend_steal', 'friend_help', 'friend_bad', 'friend_golden_bug', 'friend_help_exp_limit']
 const AUTO_LABELS = {
   farm: '自动种植收获', task: '自动做任务', sell: '自动卖果实', friend: '自动好友互动',
   farm_push: '推送触发巡田', land_upgrade: '自动升级土地', fertilizer_gift: '自动填充化肥',
@@ -71,6 +71,9 @@ const mS = reactive(freshStrategy())
 const dS = reactive(freshStrategy())
 const mPreview = ref('加载中…')
 const dPreview = ref('加载中…')
+// 极速务农定时时段（start/end 用 "HH:mm"，保存时组 "HH:mm-HH:mm" 下发后端 friend_turbo_schedule_time）
+const mTurbo = reactive({ scheduled: false, start: '08:00', end: '10:00' })
+const dTurbo = reactive({ scheduled: false, start: '08:00', end: '10:00' })
 
 /* ================= 背包种子（/api/bag/seeds）顺序 ================= */
 const mSeeds = ref([])           // 背包实际种子 [{seedId,name,count,requiredLevel,plantSize}]
@@ -108,6 +111,13 @@ async function loadAccountMore() {
     if (!d) return
     const aut = d.automation || {}
     applyAut(autCfg, aut)
+    const ts = aut.friend_turbo_schedule_time || ''
+    mTurbo.scheduled = !!aut.friend_turbo_scheduled
+    if (ts.includes('-')) {
+      const [s, e] = ts.split('-')
+      mTurbo.start = s || '08:00'
+      mTurbo.end = e || '10:00'
+    }
     mA.friendMinLevel = d.autoAcceptFriendMinLevel ?? 0
     mA.fertLandTypes = Array.isArray(aut.fertilizer_land_types) ? aut.fertilizer_land_types.slice() : []
     mA.fertStrategy = aut.fertilizer || 'smart_normal'
@@ -164,6 +174,13 @@ async function loadDefaultPlan() {
       dS.stealDelay = cfg.stealDelaySeconds ?? 1
       const aut = cfg.automation || {}
       applyAut(dAutCfg, aut)
+      const dts = aut.friend_turbo_schedule_time || ''
+      dTurbo.scheduled = !!aut.friend_turbo_scheduled
+      if (dts.includes('-')) {
+        const [s, e] = dts.split('-')
+        dTurbo.start = s || '08:00'
+        dTurbo.end = e || '10:00'
+      }
       dAutLoaded.value = true
       dA.friendMinLevel = cfg.autoAcceptFriendMinLevel ?? 0
       dA.fertLandTypes = Array.isArray(aut.fertilizer_land_types) ? aut.fertilizer_land_types.slice() : []
@@ -274,6 +291,8 @@ function resetSeeds(which) {
 /* ================= 收集 + 保存 ================= */
 function collectAuto() {
   const aut = { ...autCfg }
+  aut.friend_turbo_scheduled = mTurbo.scheduled
+  aut.friend_turbo_schedule_time = mTurbo.scheduled ? mTurbo.start + '-' + mTurbo.end : ''
   aut.fertilizer_land_types = mA.fertLandTypes.slice()
   aut.fertilizer = mA.fertStrategy
   aut.fertilizer_smart_seconds = mA.fertSeconds
@@ -297,6 +316,8 @@ function collectStrategy() {
 }
 function collectDefault() {
   const aut = { ...dAutCfg }
+  aut.friend_turbo_scheduled = dTurbo.scheduled
+  aut.friend_turbo_schedule_time = dTurbo.scheduled ? dTurbo.start + '-' + dTurbo.end : ''
   aut.fertilizer_land_types = dA.fertLandTypes.slice()
   aut.fertilizer = dA.fertStrategy
   aut.fertilizer_smart_seconds = dA.fertSeconds
@@ -554,6 +575,21 @@ onMounted(() => {
         <div v-for="k in FRIEND_AUTO" :key="k" class="auto-item">
           <span>{{ AUTO_LABELS[k] }}</span>
           <div class="switch" :class="{ on: autCfg[k] }" @click="toggleSwitch(autCfg, k)"></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:10px">
+        <div class="auto-item">
+          <span>极速务农</span>
+          <div class="switch" :class="{ on: autCfg.friend_turbo_mode }" @click="toggleSwitch(autCfg, 'friend_turbo_mode')"></div>
+        </div>
+        <div style="color:var(--muted);font-size:12px;padding:0 2px 6px">暂停其它巡查，定时只帮护主犬好友；开启后连接专注抢帮，不受 farm/买肥抢占</div>
+        <div class="strategy-row" v-if="autCfg.friend_turbo_mode">
+          <div class="mini-toggle"><span>定时分段</span><div class="switch" :class="{ on: mTurbo.scheduled }" @click="mTurbo.scheduled = !mTurbo.scheduled"></div></div>
+        </div>
+        <div class="strategy-row" style="margin-top:8px" v-if="autCfg.friend_turbo_mode && mTurbo.scheduled">
+          <div class="sel-wrap"><select class="field" v-model="mTurbo.start"><option v-for="h in hourOpts" :key="h" :value="h">{{ h }}</option></select></div>
+          <span style="color:var(--muted);padding:0 6px">—</span>
+          <div class="sel-wrap"><select class="field" v-model="mTurbo.end"><option v-for="h in hourOpts" :key="h" :value="h">{{ h }}</option></select></div>
         </div>
       </div>
 
@@ -910,6 +946,21 @@ onMounted(() => {
           <div v-for="k in FRIEND_AUTO" :key="k" class="auto-item">
             <span>{{ AUTO_LABELS[k] }}</span>
             <div class="switch" :class="{ on: dAutCfg[k] }" @click="toggleSwitch(dAutCfg, k)"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <div class="auto-item">
+            <span>极速务农</span>
+            <div class="switch" :class="{ on: dAutCfg.friend_turbo_mode }" @click="toggleSwitch(dAutCfg, 'friend_turbo_mode')"></div>
+          </div>
+          <div style="color:var(--muted);font-size:12px;padding:0 2px 6px">暂停其它巡查，定时只帮护主犬好友；开启后连接专注抢帮，不受 farm/买肥抢占</div>
+          <div class="strategy-row" v-if="dAutCfg.friend_turbo_mode">
+            <div class="mini-toggle"><span>定时分段</span><div class="switch" :class="{ on: dTurbo.scheduled }" @click="dTurbo.scheduled = !dTurbo.scheduled"></div></div>
+          </div>
+          <div class="strategy-row" style="margin-top:8px" v-if="dAutCfg.friend_turbo_mode && dTurbo.scheduled">
+            <div class="sel-wrap"><select class="field" v-model="dTurbo.start"><option v-for="h in hourOpts" :key="h" :value="h">{{ h }}</option></select></div>
+            <span style="color:var(--muted);padding:0 6px">—</span>
+            <div class="sel-wrap"><select class="field" v-model="dTurbo.end"><option v-for="h in hourOpts" :key="h" :value="h">{{ h }}</option></select></div>
           </div>
         </div>
         <div class="sub-head">💊 施肥策略 <small>按地块与阶段自动施肥</small></div>
