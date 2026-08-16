@@ -348,7 +348,7 @@ func handleFriendRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// 真实执行：进入→分析→RPC→离开（对齐 friend-visit.js doFriendOperation）
-		res := doFriendOperation(c, accountID, gid, req.OpType)
+		res := doFriendOperation(c, accountID, gid, "", req.OpType)
 		writeJSON(w, map[string]interface{}{
 			"ok":         res.OK,
 			"opType":     res.OpType,

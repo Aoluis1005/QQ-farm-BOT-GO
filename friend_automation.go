@@ -441,7 +441,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	scanStart := time.Now()
 	const scanDeadline = 90 * time.Second
 	scanTimedOut := func() bool { return time.Since(scanStart) > scanDeadline }
-	var stolenTotal, helpTotal int64
+	var stolenTotal int64
 
 	// 静默时段检查（对齐 Node inFriendQuietHours）
 	if inQuietHours(cfg) {
@@ -491,6 +491,14 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	friends, err := fetchAllFriends(c, platform, cfg.KnownFriendGIDs)
 	if err != nil || len(friends) == 0 {
 		return 0
+	}
+
+	// 好友名查表（供巡查明细日志显示「偷了谁/帮谁」，对齐 Node 逐好友日志）
+	nameByGID := make(map[int64]string, len(friends))
+	for _, f := range friends {
+		if f != nil {
+			nameByGID[f.GID] = f.Name
+		}
 	}
 
 	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求 60min）
@@ -563,7 +571,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if !canOperate(opSteal, 0) || scanTimedOut() {
 				break // 偷菜次数已达服务端上限（未知则不限）或整轮超时
 			}
-			res := doFriendOperation(c, accountID, t.gid, "steal")
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "steal")
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败（好友离线/不存在）跳过
 			}
@@ -604,10 +612,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			}
 			// 帮忙用 exp 增量比对检测经验上限（对齐 Node visitFriendForHelp 内 checkExpLimit）
 			expBefore := c.Exp()
-			res := doFriendOperation(c, accountID, t.gid, "help")
-			if res != nil {
-				helpTotal += res.Count
-			}
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "help")
 			if res != nil && res.Count > 0 && expLimitEnabled && getCanGetHelpExp() {
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
@@ -618,7 +623,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	// 2.5 黄金虫放置（极速务农：暂停一切巡查、涡轮不放金虫）
 	if cfg.Automation.FriendGoldenBug && !computeEffectiveTurbo(cfg) {
 		for _, t := range helpTargets {
-			res := doFriendOperation(c, accountID, t.gid, "goldenbug")
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "goldenbug")
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败跳过
 			}
@@ -636,7 +641,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 					appendOpLog(accountID, "friend", "今日捣乱次数已达上限")
 					break
 				}
-				res := doFriendOperation(c, accountID, t.gid, "bad")
+				res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "bad")
 				if res != nil {
 					if res.Count > 0 {
 						incBadDaily(accountID)
@@ -677,8 +682,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	// 5. 自动同意好友申请（对齐 Node autoAcceptFriendApply：检查待处理申请并自动同意）
 	autoAcceptFriendApply(c, accountID, cfg)
 
-	// 本轮巡查汇总（对齐参考 GO stealSummary/helpSummary）
-	appendOpLog(accountID, "friend", fmt.Sprintf("巡查汇总: 候选%d人 偷%d块 帮%d块", len(stealTargets)+len(helpTargets), stolenTotal, helpTotal))
+	// 本轮巡查明细以逐好友日志呈现（偷/帮谁、菜名、数量），不再输出空洞的候选/汇总行
 	return stolenTotal
 }
 

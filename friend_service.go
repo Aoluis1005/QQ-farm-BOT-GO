@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -329,9 +330,13 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 }
 
 // doFriendOperation 对好友执行单个操作（steal/water/weed/bug/bad），完整走 进入→操作→离开。
-func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string) *doFriendOperationResult {
+func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, opType string) *doFriendOperationResult {
 	if gid <= 0 {
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Message: "无效好友ID"}
+	}
+	displayName := name
+	if displayName == "" {
+		displayName = fmt.Sprintf("%d", gid)
 	}
 
 	// 1. 进入好友农场
@@ -367,6 +372,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 		okCount = int64(len(analysis.Stealable))
 		if okCount > 0 {
 			recordOperation(accountID, "steal", okCount)
+			appendOpLog(accountID, "friend", fmt.Sprintf("偷取 %s 的 %s（共%d块）", displayName, stealCropSummary(lands, analysis.Stealable), okCount))
 		}
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: okCount, Message: fmt.Sprintf("偷取完成 %d 块", okCount)}
 
@@ -460,6 +466,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 		ok := runFriendFarmingWithFallback(c, accountID, gid, target, snapshotKey)
 		if ok > 0 {
 			recordOperation(accountID, "helpFarming", ok)
+			appendOpLog(accountID, "friend", fmt.Sprintf("帮助 %s 务农 %d 块", displayName, ok))
 		}
 		if ok == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "帮忙失败或无需帮忙"}
@@ -480,6 +487,37 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, opType string)
 	default:
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Count: 0, Message: "未知操作类型"}
 	}
+}
+
+// stealCropSummary 统计可偷地块的作物名称与数量（对齐 Node 好友偷菜日志：显示菜名与个数）
+func stealCropSummary(lands []*proto.LandInfo, stealable []int64) string {
+	set := make(map[int64]struct{}, len(stealable))
+	for _, id := range stealable {
+		set[id] = struct{}{}
+	}
+	counts := map[string]int64{}
+	for _, land := range lands {
+		if land == nil || land.Plant == nil {
+			continue
+		}
+		if _, ok := set[land.ID]; !ok {
+			continue
+		}
+		nm := getPlantNameOrNull(land.Plant.ID)
+		if nm == "" {
+			nm = "作物"
+		}
+		counts[nm]++
+	}
+	if len(counts) == 0 {
+		return "作物"
+	}
+	parts := make([]string, 0, len(counts))
+	for nm, n := range counts {
+		parts = append(parts, fmt.Sprintf("%s×%d", nm, n))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "、")
 }
 
 // execFriendOp 执行好友农场操作；成功后从 reply 解析 operation_limits 刷新每日限制缓存
