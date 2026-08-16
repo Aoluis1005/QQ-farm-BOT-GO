@@ -412,6 +412,7 @@ body{
 .career-list{ display:flex; flex-direction:column; gap:8px; }
 .career-row{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:14px; background:var(--card); border:1px solid var(--border); }
 .career-row .im{ width:34px;height:34px;border-radius:10px; background:var(--card-strong); border:1px solid var(--border); display:grid;place-items:center; font-size:17px; flex:none; }
+.career-row .im img{ width:100%;height:100%;object-fit:cover;display:block;border-radius:10px; }
 .career-row .nm{ flex:1; min-width:0; font-size:13.5px; font-weight:600; }
 .career-row .cnt{ font-size:12.5px; color:var(--muted); flex:none; }
 .career-row .cnt b{ color:var(--primary); }

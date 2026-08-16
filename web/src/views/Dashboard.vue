@@ -190,7 +190,7 @@ onMounted(load)
   <div class="sheet-mask" :class="{ show: careerOpen }" @click="careerOpen = false"></div>
   <div class="sheet" :class="{ show: careerOpen }">
     <div class="handle"></div>
-    <h3>🧑🌾 生涯统计</h3>
+    <h3>生涯统计</h3>
     <p class="sub" style="margin-bottom:10px">{{ careerLoading ? '加载中…' : (career ? '' : '暂无数据') }}</p>
     <div style="max-height:62vh;overflow:auto">
       <template v-if="career">
@@ -206,11 +206,11 @@ onMounted(load)
           <small>经验 <b>{{ Number(careerPlayer.exp || 0).toLocaleString() }}</b> / {{ Number(careerPlayer.expMax || 0).toLocaleString() }}</small>
         </div>
         <div class="career-sec"><h4>🌾 收获排行<span class="sub">共 {{ careerItems.length }} 种</span></h4><div class="career-list">
-          <div v-for="(it, i) in careerItems" :key="i" class="career-row"><span class="im">🌾</span><span class="nm">{{ it.name }}</span><span class="cnt">× <b>{{ Number(it.count || 0).toLocaleString() }}</b></span></div>
+          <div v-for="(it, i) in careerItems" :key="i" class="career-row"><span class="im"><img v-if="it.image" :src="it.image" alt=""><span v-else>🌾</span></span><span class="nm">{{ it.name }}</span><span class="cnt">× <b>{{ Number(it.count || 0).toLocaleString() }}</b></span></div>
           <div v-if="!careerItems.length" class="career-empty">暂无收获记录</div>
         </div></div>
         <div class="career-sec"><h4>📈 作物等级<span class="sub">共 {{ careerLv.length }} 种</span></h4><div class="career-list">
-          <div v-for="(it, i) in careerLv" :key="i" class="career-row"><span class="im">🌟</span><span class="nm">{{ it.name }}</span><span class="cnt">Lv.{{ it.level || 0 }} × {{ Number(it.count || 0).toLocaleString() }}</span></div>
+          <div v-for="(it, i) in careerLv" :key="i" class="career-row"><span class="im"><img v-if="it.image" :src="it.image" alt=""><span v-else>🌟</span></span><span class="nm">{{ it.name }}</span><span class="cnt">Lv.{{ it.level || 0 }} × {{ Number(it.count || 0).toLocaleString() }}</span></div>
           <div v-if="!careerLv.length" class="career-empty">暂无作物等级数据</div>
         </div></div>
       </template>
