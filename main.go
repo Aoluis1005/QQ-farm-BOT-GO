@@ -183,6 +183,7 @@ func main() {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "status": "ok", "uptime": time.Since(startTime).Seconds(),
+		"version": buildVersion, "buildTime": buildTime,
 	})
 }
 
