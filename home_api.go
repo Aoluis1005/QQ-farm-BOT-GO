@@ -199,6 +199,10 @@ func handleHomeLogs(w http.ResponseWriter, r *http.Request) {
 			logs = append(logs, e)
 		}
 	}
+	// 日志按写入顺序为旧→新；整体翻转使 index0=最新，前端 v-for 自然把最新置顶、向下滚动
+	for i, j := 0, len(logs)-1; i < j; i, j = i+1, j-1 {
+		logs[i], logs[j] = logs[j], logs[i]
+	}
 	writeJSON(w, map[string]interface{}{"ok": true, "data": logs})
 }
 
