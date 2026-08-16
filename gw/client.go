@@ -664,6 +664,11 @@ func shouldCloseConnectionAfterTimeout(service, method string) bool {
 	if method == "Heartbeat" {
 		return false
 	}
+	// 离开好友农场是收尾/清理请求,超时直接忽略,不反噬整条连接触发重连。
+	// 对齐 Node friend-api.js:768 `// Ignore leave errors`。
+	if method == "Leave" {
+		return false
+	}
 	return service != "gamepb.acepb.AceService"
 }
 
