@@ -29,17 +29,23 @@ func handleCareer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 对齐 Node：用缩短短超时，避免与前端 axios 超时撞车
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-	rep, err := c.Request(ctx, careerService, "CareerInfoGet",
-		proto.EncodeCareerInfoGetRequest(), 10*time.Second)
-	if err != nil {
-		writeError(w, 502, "获取生涯统计失败: "+err.Error())
-		return
+	// 对齐 Node：用缩短短超时，避免与前端 axios 超时撞车。
+	// 生涯数据稳定，TTL 内读缓存避免重复请求（对齐 LandsCached 模式）。
+	body, ok := c.CareerCached(10 * time.Second)
+	if !ok {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		rep, err := c.Request(ctx, careerService, "CareerInfoGet",
+			proto.EncodeCareerInfoGetRequest(), 10*time.Second)
+		if err != nil {
+			writeError(w, 502, "获取生涯统计失败: "+err.Error())
+			return
+		}
+		body = rep.Body
+		c.StoreCareer(body)
 	}
 
-	car := proto.DecodeCareerInfoGetReply(rep.Body)
+	car := proto.DecodeCareerInfoGetReply(body)
 
 	// 首次获取生涯时把玩家头像缓存到连接，供 /api/home/profile 复用
 	if car.Avatar != "" {

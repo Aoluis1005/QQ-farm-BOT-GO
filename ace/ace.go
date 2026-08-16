@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,6 +41,11 @@ type Runtime struct {
 	appKey string
 	dir    string
 
+	// mu 串行化所有对 WASM 共享内存(TSKD)的访问。TSDK 非线程安全，
+	// 多 goroutine(前端 handler / 自动化 / loadAssets / 心跳 / ACE)并发调用会数据竞争->偶发假卡死。
+	// 对齐参考纯 GO 工程 internal/protocol/tsdk/runtime.go 的 r.mu。
+	mu sync.Mutex
+
 	// serverTime 服务器时间（秒），由后台 goroutine 从官方接口同步（对齐 Node q）
 	serverTime atomic.Int64
 }
@@ -57,6 +63,8 @@ func New(accountID string, gameID int64, appKey string) *Runtime {
 
 // Init 初始化：构建 host、加载 WASM、解混淆、initRuntime
 func (r *Runtime) Init(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.ctx = ctx
 	r.rt = wazero.NewRuntime(ctx)
 
@@ -403,6 +411,8 @@ func (r *Runtime) Ready() bool { return r.ready }
 
 // Encrypt 加密请求体（对应 Node cryptoWasm.encryptBuffer）
 func (r *Runtime) Encrypt(data []byte) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return nil, fmt.Errorf("TSDK runtime not ready")
 	}
@@ -421,6 +431,8 @@ func (r *Runtime) Encrypt(data []byte) ([]byte, error) {
 
 // Decrypt 解密响应体
 func (r *Runtime) Decrypt(data []byte) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return nil, fmt.Errorf("TSDK runtime not ready")
 	}
@@ -439,6 +451,8 @@ func (r *Runtime) Decrypt(data []byte) ([]byte, error) {
 
 // EncryptedInitInfo 初始化加密凭据（登录 auth_token）
 func (r *Runtime) EncryptedInitInfo() (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return "", fmt.Errorf("TSDK runtime not ready")
 	}
@@ -452,6 +466,8 @@ func (r *Runtime) EncryptedInitInfo() (string, error) {
 
 // BindUser 绑定用户 openId
 func (r *Runtime) BindUser(openID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -469,6 +485,8 @@ func (r *Runtime) BindUser(openID string) error {
 
 // HeartbeatTick 心跳
 func (r *Runtime) HeartbeatTick() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -479,6 +497,8 @@ func (r *Runtime) HeartbeatTick() error {
 
 // ProcessReceivedData 处理下行数据队列（对齐 Node tsdk-runtime.js processReceivedData）
 func (r *Runtime) ProcessReceivedData() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -489,6 +509,8 @@ func (r *Runtime) ProcessReceivedData() error {
 
 // SendStatus 主动上报状态（对齐 Node tsdk-runtime.js sendStatus）
 func (r *Runtime) SendStatus() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -499,6 +521,8 @@ func (r *Runtime) SendStatus() error {
 
 // DetectSpeedHack 速度检测（对齐 Node tsdk-runtime.js detectSpeedHack）
 func (r *Runtime) DetectSpeedHack(elapsedMs int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -513,6 +537,8 @@ func (r *Runtime) DetectSpeedHack(elapsedMs int64) error {
 // GetDataToServer 取待上报的 ACE 数据（对齐 Node tsdk-runtime.js getDataToServer）：
 // wasm 通过 lengthPtr 写出数据长度，返回数据指针；无数据返回空切片。
 func (r *Runtime) GetDataToServer() ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return nil, fmt.Errorf("TSDK runtime not ready")
 	}
@@ -544,6 +570,8 @@ func (r *Runtime) GetDataToServer() ([]byte, error) {
 
 // SendDataFromServer 回灌服务端下发数据（对齐 Node tsdk-runtime.js sendDataFromServer）
 func (r *Runtime) SendDataFromServer(data []byte) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -563,6 +591,8 @@ func (r *Runtime) SendDataFromServer(data []byte) error {
 // CheckFunctionArray 完整性校验（对齐 Node tsdk-runtime.js checkFunctionArray）。
 // names 为函数名列表（Node 传方法 toString 的字符串数组；Go 侧以导出名等价替代）。
 func (r *Runtime) CheckFunctionArray(names []string, typeFlag int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !r.ready {
 		return fmt.Errorf("TSDK runtime not ready")
 	}
@@ -606,6 +636,8 @@ func (r *Runtime) CheckFunctionArray(names []string, typeFlag int64) error {
 
 // Close 释放
 func (r *Runtime) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.rt != nil {
 		r.rt.Close(r.ctx)
 	}

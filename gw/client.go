@@ -58,6 +58,8 @@ type Client struct {
 	GID          int64
 	landsBytes   []byte // 预拉缓存：AllLands 原始 body
 	landsAt      time.Time
+	careerBytes  []byte // 生涯统计缓存：CareerInfoGet 原始 body（数据稳定，TTL 命中直接读，减少请求/竞争）
+	careerAt     time.Time
 	userName     string
 	level        int64
 	gold         int64
@@ -183,9 +185,18 @@ func (c *Client) login(ctx context.Context, code string) error {
 
 // Request 发送请求并等待响应（按 client_seq 匹配）
 func (c *Client) Request(ctx context.Context, service, method string, body []byte, timeout time.Duration) (*proto.Message, error) {
+	// 超时覆盖整个请求生命周期（含等待槽位）：单连接并发在途请求可能占满槽位，若此时用
+	// 无 deadline 的 ctx(前端 r.Context()/自动化 context.Background()) acquire 会无限等待，
+	// 表现为“点页面一直转圈/假卡死”。统一先加超时，槽位满时最多等 timeout 即快速失败。
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx2, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	// 槽位机制：限制单连接并发在途请求数，避免 ACE 轮询占满网关单槽位后
 	// 游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。对齐参考实现。
-	release, err := c.acquire(ctx, method == "Heartbeat")
+	release, err := c.acquire(ctx2, method == "Heartbeat")
 	if err != nil {
 		return nil, err
 	}
@@ -229,9 +240,6 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	}
 	c.mu.Unlock()
 	payload := proto.EncodeMessage(meta, encBody, token)
-
-	ctx2, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	// 串行化写：nhooyr.io/websocket 不允许并发 Write，而 Go 多线程下单连接会被
 	// 自动化 goroutine / 前端 handler / 心跳同时写，不加锁会交错损坏帧 → 网关超时/拿不到数据。
@@ -437,6 +445,20 @@ func (c *Client) StoreLands(body []byte) {
 func (c *Client) LandsCached(ttl time.Duration) ([]byte, bool) {
 	if c.landsBytes != nil && time.Since(c.landsAt) < ttl {
 		return c.landsBytes, true
+	}
+	return nil, false
+}
+
+// StoreCareer 写入/刷新生涯统计缓存
+func (c *Client) StoreCareer(body []byte) {
+	c.careerBytes = body
+	c.careerAt = time.Now()
+}
+
+// CareerCached 读取缓存的生涯统计数据（ttl 内命中；生涯数据稳定，TTL 内不重复请求）
+func (c *Client) CareerCached(ttl time.Duration) ([]byte, bool) {
+	if c.careerBytes != nil && time.Since(c.careerAt) < ttl {
+		return c.careerBytes, true
 	}
 	return nil, false
 }
