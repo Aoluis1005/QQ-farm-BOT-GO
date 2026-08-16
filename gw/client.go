@@ -137,6 +137,7 @@ func (c *Client) Connect(ctx context.Context, code string) error {
 		return fmt.Errorf("ws dial: %w", err)
 	}
 	c.conn = conn
+	c.conn.SetReadLimit(100 * 1024 * 1024) // align with Node ref (ws default maxPayload=100MiB); nhooyr default 32KB chokes on large Bag/AllLands frames -> StatusMessageTooBig -> reconnect storm
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.authToken = gatewayToken()
 
