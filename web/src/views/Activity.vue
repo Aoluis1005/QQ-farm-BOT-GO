@@ -55,8 +55,8 @@ async function refreshQiXiFriends() {
   qixi.friendsLoading = true
     // 获取好友列表（scrollable pagination, 首次加载 10 条）
   try {
-    const { data: fd } = await api.get('/api/friends/list')
-    const list = (fd && fd.ok && fd.data) || []
+    const fd = (await api.get('/api/friends/list')).data
+    const list = (fd && fd.ok && fd.data && fd.data.friends) || []
     qixi.allFriends = list.filter(f => f.gid).map(f => ({
       gid: f.gid,
       name: f.nickname || f.name || String(f.gid),
