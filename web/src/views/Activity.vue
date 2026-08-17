@@ -120,8 +120,12 @@ async function sprayAllLu() {
     } else app.error((data && data.error) || '喷洒失败')
   } catch (e) { app.error('喷洒失败') }
 }
+// 下一可筑档（档位独立门槛：档1=30/档2=50/档3=77，非累计）
+function qixiNextTier() { return (qixi.tiers || []).find(t => !t.claimed) || null }
 async function buildBridge() {
-  if (qixi.feather < qixi.bridgeTarget) { app.error(`鹊羽不足（${qixi.feather}/${qixi.bridgeTarget}）`); return }
+  const nt = qixiNextTier()
+  if (!nt) { app.error('三档奖励已全部领取'); return }
+  if (qixi.feather < nt.consume) { app.error(`鹊羽不足（${qixi.feather}/${nt.consume}）`); return }
   const a = acc(); if (!a) return
   try {
     const { data } = await api.post('/api/activity/qixi/bridge', { accountId: a.gid })
@@ -667,25 +671,25 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
       <div class="qixi-chips">
         <div class="qixi-chip gold"><div class="v">{{ qixi.feather }}</div><div class="k">鹊羽</div></div>
         <div class="qixi-chip green"><div class="v">{{ qixi.luStock }}</div><div class="k">鹊羽灵露</div></div>
-        <div class="qixi-chip rose"><div class="v">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</div><div class="k">鹊羽收集</div></div>
+        <div class="qixi-chip rose"><div class="v">{{ qixi.feather }}/{{ qixiNextTier() ? qixiNextTier().consume : qixi.bridgeTarget }}</div><div class="k">鹊羽收集</div></div>
         <div class="qixi-chip blue"><div class="v">{{ qixi.sachet }}</div><div class="k">鹊羽香囊</div></div>
       </div>
 
       <!-- 筑鹊桥 -->
       <div class="card">
         <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">共 {{ qixi.bridgeMax }} 档</span></div>
-        <div class="qixi-bar"><i :style="{ width: qixi.bridgeTarget > 0 ? Math.min(100, Math.round(qixi.feather / qixi.bridgeTarget * 100)) : 0 + '%' }"></i></div>
-        <div class="muted">累计收集 <b style="color:var(--good)">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</b> 鹊羽 · 集满 {{ qixi.bridgeTarget }} 可解锁全部 {{ qixi.bridgeMax }} 档筑桥奖励</div>
+        <div class="qixi-bar"><i :style="{ width: (qixiNextTier() ? qixiNextTier().consume : qixi.bridgeTarget) > 0 ? Math.min(100, Math.round(qixi.feather / (qixiNextTier() ? qixiNextTier().consume : qixi.bridgeTarget) * 100)) : 0 + '%' }"></i></div>
+        <div class="muted">当前进度 <b style="color:var(--good)">{{ qixi.feather }}/{{ qixiNextTier() ? qixiNextTier().consume : qixi.bridgeTarget }}</b> 鹊羽 · 集满可领取对应档奖励{{ qixiNextTier() ? '（第 ' + (qixi.tiers.indexOf(qixiNextTier()) + 1) + ' 档）' : '（已全部领取）' }}</div>
         <div class="qixi-rewards">
           <div v-if="!qixi.tiers.length" class="qixi-tier qixi-tier-empty">档位奖励加载中…</div>
           <div v-for="(t, i) in qixi.tiers" :key="i" class="qixi-tier">
-            <div class="qixi-tier-hd">第 {{ i + 1 }} 档 <span class="pill">消耗 {{ t.consume }} 鹊羽</span></div>
+            <div class="qixi-tier-hd">第 {{ i + 1 }} 档 <span class="pill">消耗 {{ t.consume }} 鹊羽</span><span v-if="t.claimed" class="pill" style="background:var(--good-soft)">已领取</span></div>
             <div class="qixi-tier-rw">
               <span v-for="(rw, j) in (t.rewards || [])" :key="j" class="qixi-rw"><b>{{ rw.name }}</b> ×{{ rw.count }}</span>
             </div>
           </div>
         </div>
-        <button class="btn primary block" :disabled="qixi.feather < qixi.bridgeTarget" @click="buildBridge">{{ qixi.feather >= qixi.bridgeTarget ? '筑建鹊桥' : '鹊羽未满，继续收集再筑桥' }}</button>
+        <button class="btn primary block" :disabled="!qixiNextTier() || qixi.feather < qixiNextTier().consume" @click="buildBridge">{{ !qixiNextTier() ? '三档奖励已全部领取' : (qixi.feather >= qixiNextTier().consume ? '筑建鹊桥（第 ' + (qixi.tiers.indexOf(qixiNextTier()) + 1) + ' 档 · 消耗 ' + qixiNextTier().consume + ' 鹊羽）' : '鹊羽不足（' + qixi.feather + '/' + qixiNextTier().consume + '）') }}</button>
       </div>
 
       <!-- 鹊羽灵露 -->

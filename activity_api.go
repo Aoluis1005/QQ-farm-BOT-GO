@@ -1222,6 +1222,15 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// 筑桥三档奖励（2026-08-17 抓包 GetGroup field112 确认：每档消耗 N 鹊羽 → 获得奖励）
+	// 档位 flag（GetGroup 响应 112.2.N.4：2=已领取/1=未领）→ 决定"下一可筑档"
+	tierFlags := map[int64]int64{}
+	if grep, e2 := c.Request(ctx, actSvc, "GetGroup", func() []byte {
+		b := proto.NewBuilder()
+		b.FieldInt64(1, 2026081800)
+		return b.Bytes()
+	}(), 12*time.Second); e2 == nil {
+		tierFlags = parseQiXiTierFlags(grep.Body)
+	}
 	tiers := []map[string]interface{}{
 		{
 			"consume": int64(30), // 第一档：消耗 30 鹊羽
@@ -1244,6 +1253,25 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
+	// 每档回填已领状态（flag=2 已领），并计算下一可筑档
+	nextConsume := int64(0)
+	nextIndex := -1
+	claimedAll := true
+	for i, t := range tiers {
+		claim := tierFlags[int64(i+1)]
+		t["claimed"] = claim == 2
+		if claim != 2 {
+			claimedAll = false
+			if nextIndex < 0 {
+				nextConsume = t["consume"].(int64)
+				nextIndex = i
+			}
+		}
+	}
+	bridgeTarget := nextConsume // 下一可筑档的鹊羽门槛（档位独立消耗，非累计）
+	if bridgeTarget == 0 {
+		bridgeTarget = int64(77)
+	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
@@ -1251,12 +1279,76 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 			"luStock":      lu,      // 鹊羽灵露（背包 301103）
 			"bridgeDone":   0,       // 待 Operate cmd 确认
 			"bridgeMax":    len(tiers),
-			"bridgeTarget": int64(77), // 第三档消耗（累计集满解锁全部 3 档）
-			"sachet":       sachet,    // 鹊羽香囊（背包 1025）
-			"luLimit":      nil,       // null=待接口确认
-			"tiers":        tiers,     // 筑桥三档奖励（消耗鹊羽 → 奖励）
+			"bridgeTarget": bridgeTarget, // 下一可筑档消耗（档位独立门槛）
+			"claimedAll":   claimedAll,   // 是否三档全领
+			"sachet":       sachet,       // 鹊羽香囊（背包 1025）
+			"luLimit":      nil,          // null=待接口确认
+			"tiers":        tiers,        // 筑桥三档奖励（消耗鹊羽 → 奖励，含 claimed）
 		},
 	})
+}
+
+// parseQiXiTierFlags 从 GetGroup 响应提取 1801 节点 field112 各档 flag（2=已领/1=未领）。
+// GetGroup 响应路径：field2(响应体) → field1(group) → field2(children容器) → field1(nodes) → node1801 → field112(配置) → field2(tiers) → {1:档号, 4:flag}
+func parseQiXiTierFlags(body []byte) map[int64]int64 {
+	out := map[int64]int64{}
+	get := func(buf []byte, no int) []byte {
+		for _, f := range readActFields(buf) {
+			if f.No == no && f.Wire == 2 {
+				return f.Bytes
+			}
+		}
+		return nil
+	}
+	body2 := get(body, 2) // 响应体
+	if body2 == nil {
+		return out
+	}
+	grp := get(body2, 1) // group
+	if grp == nil {
+		return out
+	}
+	kids := get(grp, 2) // children 容器
+	if kids == nil {
+		return out
+	}
+	for _, f := range readActFields(kids) {
+		if f.No != 1 || f.Wire != 2 {
+			continue
+		}
+		nid := int64(0)
+		for _, nf := range readActFields(f.Bytes) {
+			if nf.No == 1 && nf.Wire == 0 {
+				nid = nf.Varint
+			}
+		}
+		if nid != 2026081801 {
+			continue
+		}
+		for _, cf := range readActFields(f.Bytes) {
+			if cf.No != 112 || cf.Wire != 2 {
+				continue
+			}
+			for _, tf := range readActFields(cf.Bytes) {
+				if tf.No != 2 || tf.Wire != 2 {
+					continue
+				}
+				tierNo, flag := int64(0), int64(1)
+				for _, tif := range readActFields(tf.Bytes) {
+					switch {
+					case tif.No == 1 && tif.Wire == 0:
+						tierNo = tif.Varint
+					case tif.No == 4 && tif.Wire == 0:
+						flag = tif.Varint
+					}
+				}
+				if tierNo > 0 {
+					out[tierNo] = flag
+				}
+			}
+		}
+	}
+	return out
 }
 
 // ===== 鹊桥寄情：灵露喷洒（抓包确认 = ItemService.Use，UseRequest{item_id=301103,count=1,land_ids=[地块]}）=====
