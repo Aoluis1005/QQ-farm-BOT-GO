@@ -49,7 +49,9 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/debug/plant_rpc", handleDebugPlantRPC)
 	api.HandleFunc("/api/debug/bag_dump", handleDebugBagDump)
 	api.HandleFunc("/api/activity/qixi", handleQiXiStatus)
-	api.HandleFunc("/api/activity/qixi/spray", handleQiXiSpray) // 灵露喷洒（ItemService.Use + land_ids）
+	api.HandleFunc("/api/activity/qixi/spray", handleQiXiSpray)   // 灵露喷洒（ItemService.Use + land_ids）
+	api.HandleFunc("/api/activity/qixi/bridge", handleQiXiBridge) // 筑建鹊桥（Operate id=2026081801 cmd=25）
+	api.HandleFunc("/api/activity/qixi/gift", handleQiXiGift)     // 赠送鹊羽香囊（Enter 好友 + Operate）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 }
 
@@ -1282,25 +1284,44 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", err.Error())
 		return
 	}
+	// 好友喷洒必须先进入对方农场（抓包帧序列铁证：VisitService.Enter → ItemService.Use）
+	if req.HostGID > 0 {
+		if _, _, err := enterFriendFarm(c, req.HostGID, 2, ""); err != nil {
+			writeJSONMap(w, "ok", false, "error", "Enter:"+err.Error())
+			return
+		}
+		defer leaveFriendFarm(c, req.HostGID)
+	}
 	// 拉目标地块（hostGid>0 拉好友地块，否则自己的）
 	rep, err := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(req.HostGID), 15*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error())
 		return
 	}
+	allLandsHex := fmt.Sprintf("%X", rep.Body) // 临时调试
 	lands := proto.DecodeAllLandsReply(rep.Body).Lands
 	want := map[int64]bool{}
 	for _, id := range req.LandIDs {
 		want[id] = true
 	}
 	var selected []int64
+	var landDebug []map[string]interface{}
 	for _, l := range lands {
 		hasCrop := l.Plant != nil && len(l.Plant.Phases) > 0
-		if len(want) > 0 {
-			if want[l.ID] && hasCrop {
-				selected = append(selected, l.ID)
-			}
-		} else if hasCrop {
+		landDebug = append(landDebug, map[string]interface{}{
+			"id": l.ID, "size": l.LandSize, "master": l.MasterLandID, "slaves": l.SlaveLandIDs, "crop": hasCrop,
+		})
+		if !hasCrop {
+			continue
+		}
+		if len(want) > 0 && !want[l.ID] {
+			continue
+		}
+		// 合种地块（LandSize>1+SlaveLandIDs）：master+slaves 一起喷洒（对齐抓包合种喷洒 land_ids 多地块）
+		if l.LandSize > 1 && len(l.SlaveLandIDs) > 0 {
+			selected = append(selected, l.ID)
+			selected = append(selected, l.SlaveLandIDs...)
+		} else {
 			selected = append(selected, l.ID)
 		}
 	}
@@ -1309,10 +1330,30 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 逐块喷洒：每块一次 Use，消耗 1 瓶灵露（301103），活动规则恒得 1 根鹊羽（1024）
+	// 布局：{field1=corepb.Item{item_id=1,count=2,uid=6}, field2=land_ids}
+	// （Use 响应 field1 回显 corepb.Item 格式，推断请求 item 也是 corepb.Item 子消息）
+	luUID := int64(0)
+	if brep, e := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second); e == nil {
+		for _, it := range proto.DecodeBagReply(brep.Body).Items {
+			if it.ID == 301103 && it.UID > 0 {
+				luUID = it.UID
+				break
+			}
+		}
+	}
 	var sprayed []int64
 	var errs []string
 	for _, lid := range selected {
-		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", proto.EncodeUseRequestWithLands(301103, 1, []int64{lid}), 12*time.Second); e2 != nil {
+		item := proto.NewBuilder()
+		item.FieldInt64Always(1, 301103)
+		item.FieldInt64Always(2, 1)
+		if luUID > 0 {
+			item.FieldInt64(6, luUID)
+		}
+		ub := proto.NewBuilder()
+		ub.FieldMessage(1, item.Bytes())
+		ub.FieldInt64(2, lid)
+		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
 			errs = append(errs, fmt.Sprintf("land%d:%v", lid, e2))
 			continue
 		}
@@ -1325,8 +1366,161 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 			"sprayCount":  len(sprayed),
 			"featherGain": len(sprayed), // 每块 +1 鹊羽
 			"errors":      errs,
+			"luUID":       luUID, // 临时调试：灵露实例 uid
+			"selected":    selected,
+			"lands":       landDebug, // 临时调试：地块结构
+			"allLandsHex": allLandsHex, // 临时调试：AllLands 原始字节
 		},
 	})
+}
+
+// ===== 鹊桥寄情：筑建鹊桥（抓包 2026-08-17 实锤：ActivityService.Operate{id=2026081801, cmd=25}）=====
+// POST /api/activity/qixi/bridge  body: {"accountId":"..."}
+// 抓包响应 1487 明文：.2.1=2026081801、.2.2=25（请求回显）、.2.126=发放奖励
+// （鹊羽香囊1025×5 + 8小时化肥80003×4 + 点券1002×200）、.2.3.112.2.N.4=档位 flag(2=已领取)
+// 线上验证：Agoni 重复调用返回"该步骤奖励已领取"= 结构正确。
+func handleQiXiBridge(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	var req struct {
+		AccountID string `json:"accountId"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.AccountID != "" {
+		accountID = req.AccountID
+	}
+	if accountID == "" {
+		writeJSONMap(w, "ok", false, "error", "缺少 accountId")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	b := proto.NewBuilder()
+	b.FieldInt64(1, 2026081801) // 活动节点 id（抓包响应回显）
+	b.FieldInt64(2, 25)         // cmd=25 筑桥
+	body, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 20*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	rewards := parseActRewardField(body, 126)
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"data": map[string]interface{}{
+			"rewards": rewards,
+			"msg":     "筑桥成功",
+		},
+	})
+}
+
+// ===== 鹊桥寄情：赠送鹊羽香囊（流程对齐喷洒：先 Enter 好友农场再 Operate；cmd=26 待真机验证）=====
+// POST /api/activity/qixi/gift  body: {"accountId":"...","hostGid":123}
+// 玩法（tips 第 6 条）：活动期间可将鹊羽香囊赠送给好友。
+func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	var req struct {
+		AccountID string `json:"accountId"`
+		HostGID   int64  `json:"hostGid"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.AccountID != "" {
+		accountID = req.AccountID
+	}
+	if accountID == "" || req.HostGID <= 0 {
+		writeJSONMap(w, "ok", false, "error", "缺少 accountId/hostGid")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	// 先 Enter 好友农场（对齐抓包喷洒帧序列：Enter → 操作）
+	if _, _, err := enterFriendFarm(c, req.HostGID, 2, ""); err != nil {
+		writeJSONMap(w, "ok", false, "error", "Enter:"+err.Error())
+		return
+	}
+	defer leaveFriendFarm(c, req.HostGID)
+	b := proto.NewBuilder()
+	b.FieldInt64(1, 2026081801) // 活动节点 id
+	b.FieldInt64(2, 26)         // cmd=26 赠送香囊（待真机抓包确认，实测后可改）
+	body, err := c.Request(ctx, actSvc, "Operate", b.Bytes(), 20*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	rewards := parseActRewardField(body.Body, 126)
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"data": map[string]interface{}{
+			"giftTo": req.HostGID,
+			"msg":    "香囊赠送成功",
+			"rewards": rewards,
+		},
+	})
+}
+
+// parseActRewardField 从 Operate/GetGroup 响应体取 field126（或指定号）奖励块：
+// 响应结构：field2(响应体) → field126(奖励MSG) → field2 repeated items{1:id,2:count,6:uid}
+func parseActRewardField(body []byte, targetField int) []map[string]interface{} {
+	var out []map[string]interface{}
+	get := func(buf []byte, no int) []byte {
+		for _, f := range readActFields(buf) {
+			if f.No == no && f.Wire == 2 {
+				return f.Bytes
+			}
+		}
+		return nil
+	}
+	body2 := get(body, 2) // .2 响应体
+	if body2 == nil {
+		return out
+	}
+	rew := get(body2, targetField) // .2.126
+	if rew == nil {
+		return out
+	}
+	for _, f := range readActFields(rew) {
+		if f.No == 2 && f.Wire == 2 { // 每个奖励 item
+			iid, cnt := int64(0), int64(0)
+			for _, it := range readActFields(f.Bytes) {
+				switch {
+				case it.No == 1 && it.Wire == 0:
+					iid = it.Varint
+				case it.No == 2 && it.Wire == 0:
+					cnt = it.Varint
+				}
+			}
+			if iid > 0 {
+				out = append(out, map[string]interface{}{"id": iid, "name": qixiItemName(iid), "count": cnt})
+			}
+		}
+	}
+	return out
+}
+
+// qixiItemName 鹊桥物品名映射（2026-08-17 用户确认 + 抓包实锤）
+func qixiItemName(id int64) string {
+	switch id {
+	case 1024:
+		return "鹊羽"
+	case 1025:
+		return "鹊羽香囊"
+	case 1002:
+		return "点券"
+	case 80001, 80002, 80003, 80004:
+		return "化肥"
+	case 101325:
+		return "鹊桥寄情礼包一"
+	case 101326:
+		return "鹊桥寄情礼包二"
+	case 401004:
+		return "鹊桥寄情铭牌"
+	case 301103:
+		return "鹊羽灵露"
+	}
+	return fmt.Sprintf("物品#%d", id)
 }
 
 // ===== 临时调试：ItemService.Use 探测（灵露喷洒=放黄金虫=使用物品到地块）=====
@@ -1346,6 +1540,8 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 		hfield = 4
 	}
 	shape := r.URL.Query().Get("shape")
+	layout := r.URL.Query().Get("layout")
+	uid, _ := strconv.ParseInt(r.URL.Query().Get("uid"), 10, 64)
 	if item <= 0 {
 		writeError(w, 400, "missing item")
 		return
@@ -1354,7 +1550,18 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 		count = 1
 	}
 	var body []byte
-	if shape == "flat" {
+	if layout == "social" { // PutSocialItem 风格平铺: host_gid=1, land_ids=2, item_id=3, count=4
+		b := proto.NewBuilder()
+		if hostGID > 0 {
+			b.FieldInt64(1, hostGID)
+		}
+		if landID > 0 {
+			b.FieldInt64(2, landID)
+		}
+		b.FieldInt64Always(3, item)
+		b.FieldInt64Always(4, count)
+		body = b.Bytes()
+	} else if shape == "flat" {
 		b := proto.NewBuilder()
 		b.FieldInt64(1, item)
 		b.FieldInt64(2, count)
@@ -1364,8 +1571,11 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 		if hostGID > 0 {
 			b.FieldInt64(hfield, hostGID)
 		}
+		if uid > 0 {
+			b.FieldInt64(6, uid)
+		}
 		body = b.Bytes()
-	} else { // nested: 外层 field1=子消息{item,count,land@lfield,host@hfield}
+	} else { // nested: 外层 field1=子消息{item,count,land@lfield,host@hfield,uid@6}
 		sub := proto.NewBuilder()
 		sub.FieldInt64Always(1, item)
 		sub.FieldInt64Always(2, count)
@@ -1374,6 +1584,9 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 		}
 		if hostGID > 0 {
 			sub.FieldInt64(hfield, hostGID)
+		}
+		if uid > 0 {
+			sub.FieldInt64(6, uid)
 		}
 		b := proto.NewBuilder()
 		b.FieldMessage(1, sub.Bytes())

@@ -120,20 +120,33 @@ async function sprayAllLu() {
     } else app.error((data && data.error) || '喷洒失败')
   } catch (e) { app.error('喷洒失败') }
 }
-function buildBridge() {
-  qixiOperate('筑鹊桥', 'CMD_BRIDGE', {})
-  app.success('已发起筑鹊桥（cmd 待回填）')
+async function buildBridge() {
+  if (qixi.feather < qixi.bridgeTarget) { app.error(`鹊羽不足（${qixi.feather}/${qixi.bridgeTarget}）`); return }
+  const a = acc(); if (!a) return
+  try {
+    const { data } = await api.post('/api/activity/qixi/bridge', { accountId: a.gid })
+    if (data && data.ok) {
+      const rw = data.data.rewards || []
+      const names = rw.length ? rw.map(x => `${x.name}×${x.count}`).join('、') : ''
+      app.success(`筑桥成功！${names ? '获得：' + names : ''}`)
+      loadQiXi()
+    } else app.error((data && data.error) || '筑桥失败')
+  } catch (e) { app.error('筑桥失败') }
 }
-function giftSachetTo(friend) {
+async function giftSachetTo(friend) {
   if (qixi.sachet <= 0) { app.error('香囊库存为空'); return }
-  qixiOperate('香囊赠送', 'CMD_GIFT', { gid: friend.gid, count: 1 })
-  qixi.sachet--
-  app.success(`已向 ${friend.name} 赠送香囊 ×1`)
+  const a = acc(); if (!a) return
+  try {
+    const { data } = await api.post('/api/activity/qixi/gift', { accountId: a.gid, hostGid: friend.gid })
+    if (data && data.ok) {
+      app.success(`已向 ${friend.name} 赠送香囊 ×1`)
+      loadQiXi()
+    } else app.error((data && data.error) || '赠送失败')
+  } catch (e) { app.error('赠送失败') }
 }
 function giftSachet() {
-  // 兜底：无好友列表时仍可用独立按钮
-  qixiOperate('香囊赠送', 'CMD_GIFT', { gid: 'g_target', count: 1 })
-  app.success('已发起香囊赠送（cmd 待回填）')
+  // 兜底：无好友列表时提示从好友列表选择
+  app.error('请从好友列表中选择赠送对象')
 }
 // 去标签
 function stripTags(s) { return String(s || '').replace(/<[^>]+>/g, '') }

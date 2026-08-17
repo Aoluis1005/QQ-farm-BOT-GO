@@ -409,6 +409,16 @@ func (r *Runtime) fn(symbol string) api.Function { return r.mod.ExportedFunction
 // Ready 是否初始化完成
 func (r *Runtime) Ready() bool { return r.ready }
 
+// DebugExportSignature 打印导出函数参数签名（诊断用）
+func (r *Runtime) DebugExportSignature(name string) string {
+	fn := r.mod.ExportedFunction(name)
+	if fn == nil {
+		return name + ": nil"
+	}
+	def := fn.Definition()
+	return fmt.Sprintf("%s: params=%v results=%v", name, def.ParamTypes(), def.ResultTypes())
+}
+
 // Encrypt 加密请求体（对应 Node cryptoWasm.encryptBuffer）
 func (r *Runtime) Encrypt(data []byte) ([]byte, error) {
 	r.mu.Lock()
@@ -426,6 +436,89 @@ func (r *Runtime) Encrypt(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("encryptData: %w", err)
 	}
 	raw, _ := r.mem.Read(ptr, uint32(len(data)))
+	return append([]byte(nil), raw...), nil
+}
+
+// DecryptV2 用 decryptDataV2 解密（真机 App 可能用 V2 加密）
+func (r *Runtime) DecryptV2(data []byte) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ready {
+		return nil, fmt.Errorf("TSDK runtime not ready")
+	}
+	ptr, err := r.alloc(data)
+	if err != nil {
+		return nil, err
+	}
+	defer r.free(ptr)
+	dec := r.fn(exportsMap["decryptDataV2"])
+	if _, err := dec.Call(r.ctx, uint64(ptr), uint64(len(data))); err != nil {
+		return nil, fmt.Errorf("decryptDataV2: %w", err)
+	}
+	raw, _ := r.mem.Read(ptr, uint32(len(data)))
+	return append([]byte(nil), raw...), nil
+}
+
+// DecryptV2Extra 用 decryptDataV2（4 参数）解密。extra 是第 3/4 参数（诊断用）。
+func (r *Runtime) DecryptV2Extra(data []byte, p3, p4 uint32) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ready {
+		return nil, fmt.Errorf("TSDK runtime not ready")
+	}
+	ptr, err := r.alloc(data)
+	if err != nil {
+		return nil, err
+	}
+	defer r.free(ptr)
+	dec := r.fn(exportsMap["decryptDataV2"])
+	if _, err := dec.Call(r.ctx, uint64(ptr), uint64(len(data)), uint64(p3), uint64(p4)); err != nil {
+		return nil, fmt.Errorf("decryptDataV2: %w", err)
+	}
+	raw, _ := r.mem.Read(ptr, uint32(len(data)))
+	return append([]byte(nil), raw...), nil
+}
+
+// DecryptBufferV2 用 V1/V2 解密（4 参数：inPtr,inLen,outPtr,outLenCap，结果写 outPtr 返回长度）
+func (r *Runtime) DecryptBufferV2(data []byte, v2 bool) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ready {
+		return nil, fmt.Errorf("TSDK runtime not ready")
+	}
+	inPtr, err := r.alloc(data)
+	if err != nil {
+		return nil, err
+	}
+	defer r.free(inPtr)
+	outCap := len(data) + 64
+	outPtr, err := r.alloc(make([]byte, outCap))
+	if err != nil {
+		return nil, err
+	}
+	defer r.free(outPtr)
+	fn := r.fn(exportsMap["decryptData"])
+	if v2 {
+		fn = r.fn(exportsMap["decryptDataV2"])
+	}
+	res, err := fn.Call(r.ctx, uint64(inPtr), uint64(len(data)), uint64(outPtr), uint64(outCap))
+	if err != nil {
+		return nil, err
+	}
+	// 返回 1 个值：可能是输出指针或输出长度
+	if len(res) == 0 {
+		return nil, fmt.Errorf("no result")
+	}
+	ret := uint32(res[0])
+	// 尝试作为指针读取（ret 在有效内存范围则是指针）
+	var raw []byte
+	if ret >= outPtr && ret < outPtr+uint32(outCap) {
+		raw, _ = r.mem.Read(ret, uint32(outCap)-ret+outPtr)
+	} else if ret <= uint32(outCap) {
+		raw, _ = r.mem.Read(outPtr, ret)
+	} else {
+		raw, _ = r.mem.Read(outPtr, uint32(outCap))
+	}
 	return append([]byte(nil), raw...), nil
 }
 
