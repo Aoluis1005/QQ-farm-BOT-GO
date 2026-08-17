@@ -151,9 +151,19 @@ function parseQiXiTips(payload) {
 async function loadQiXi() {
   const a = acc(); if (!a) return
   qixi.tips = null; qixi.err = ''
-  // TODO: 08-18 接口活后，从 GetGroup 子树动态获取数据芯片（鹊羽/灵露/进度/香囊）
-  // 当前占位示意数据
-  qixi.feather = 128; qixi.luStock = 36; qixi.bridgeDone = 2; qixi.sachet = 7
+  // 首页数据芯片从 /api/activity/qixi 实时获取（鹊羽/灵露=背包301103）
+  try {
+    const sd = await api.get('/api/activity/qixi', { params: { accountId: a.gid } })
+    if (sd.data && sd.data.ok && sd.data.data) {
+      const d = sd.data.data
+      qixi.feather = n(d.feather)
+      qixi.luStock = n(d.luStock)
+      qixi.bridgeDone = n(d.bridgeDone)
+      qixi.bridgeMax = n(d.bridgeMax) || 5
+      qixi.sachet = n(d.sachet)
+      qixi.luLimit = d.luLimit
+    }
+  } catch (e) { /* 数据接口失败不阻塞玩法加载 */ }
   try {
     const { data } = await api.get('/api/activity/group', { params: { id: QIXI_INFO_ID } })
     if (!(data && data.ok)) { qixi.err = (data && data.error) || '加载失败'; return }

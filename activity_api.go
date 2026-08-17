@@ -46,6 +46,9 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/qingmei/wine", handleQingmeiWine)
 	// TODO: 临时鹊桥 cmd 探测接口，探测完成后删除
 	api.HandleFunc("/api/debug/act_operate", handleDebugActOperate)
+	api.HandleFunc("/api/debug/plant_rpc", handleDebugPlantRPC)
+	api.HandleFunc("/api/debug/bag_dump", handleDebugBagDump)
+	api.HandleFunc("/api/activity/qixi", handleQiXiStatus)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -1067,6 +1070,20 @@ func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
 	b := proto.NewBuilder()
 	b.FieldInt64(1, id)
 	b.FieldInt64(2, cmd)
+	// 可选扩展参数（灵露喷洒 land_id 等）
+	if landID, _ := strconv.ParseInt(r.URL.Query().Get("land_id"), 10, 64); landID > 0 {
+		hostGid, _ := strconv.ParseInt(r.URL.Query().Get("host_gid"), 10, 64)
+		sf, _ := strconv.Atoi(r.URL.Query().Get("ext_field"))
+		if sf == 0 {
+			sf = 101
+		}
+		sub := proto.NewBuilder()
+		sub.FieldInt64(1, landID)
+		if hostGid > 0 {
+			sub.FieldInt64(2, hostGid)
+		}
+		b.FieldMessage(sf, sub.Bytes())
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 20*time.Second)
@@ -1089,5 +1106,112 @@ func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
 			fields = append(fields, map[string]interface{}{"field": f.No, "wire": f.Wire})
 		}
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "cmd": cmd, "fields": fields})
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "cmd": cmd, "hex": fmt.Sprintf("%X", body), "fields": fields})
+}
+
+// ===== 临时调试：PlantService 方法探测（鹊桥灵露喷洒方法名定位，探测后删除） =====
+// GET /api/debug/plant_rpc?accountId=X&method=<PlantService方法>&land_id=..&host_gid=..&item_id=..
+// 参数布局：land_ids=1 / host_gid=2 / item_id=3（可先试 Fertilize 类 {land_ids=1,item_id=2}）
+func handleDebugPlantRPC(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	method := r.URL.Query().Get("method")
+	layout := r.URL.Query().Get("layout")
+	landID, _ := strconv.ParseInt(r.URL.Query().Get("land_id"), 10, 64)
+	hostGid, _ := strconv.ParseInt(r.URL.Query().Get("host_gid"), 10, 64)
+	itemID, _ := strconv.ParseInt(r.URL.Query().Get("item_id"), 10, 64)
+	if method == "" {
+		writeError(w, 400, "missing method")
+		return
+	}
+	b := proto.NewBuilder()
+	if landID > 0 {
+		b.FieldInt64(1, landID)
+	}
+	if hostGid > 0 {
+		b.FieldInt64(2, hostGid)
+	}
+	if itemID > 0 {
+		// Feriliize 布局：item 放 field2（fertilizer_id），host 不占 field2 时
+		if layout == "fertilize" {
+			// 重建：land_ids=1, fertilizer_id=2
+			b = proto.NewBuilder()
+			b.FieldInt64(1, landID)
+			b.FieldInt64(2, itemID)
+		} else {
+			b.FieldInt64(3, itemID)
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, plantService, method, b.Bytes(), 20*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error(), "method", method)
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "method": method, "bodyLen": len(body), "hex": fmt.Sprintf("%X", body)})
+}
+
+// ===== 临时调试：背包物品列表（鹊桥物品ID/数量确认，探测后删除） ======
+func handleDebugBagDump(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error())
+		return
+	}
+	br := proto.DecodeBagReply(rep.Body)
+	items := []map[string]interface{}{}
+	total := int64(0)
+	for _, it := range br.Items {
+		if it.Count > 0 {
+			items = append(items, map[string]interface{}{"id": it.ID, "count": it.Count})
+			total += it.Count
+		}
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "totalKinds": len(items), "items": items})
+}
+
+// ===== 鹊桥寄情：首页动态数据（鹊羽/鹊羽灵露/进度/香囊）=====
+// 鹊羽与鹊羽灵露为同一背包物品 301103；筑桥进度/香囊待后续 cmd 确认后接入。
+func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error())
+		return
+	}
+	br := proto.DecodeBagReply(rep.Body)
+	lu := int64(0)
+	for _, it := range br.Items {
+		if it.ID == 301103 { // 鹊羽灵露（鹊羽同物品）
+			lu = it.Count
+			break
+		}
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"data": map[string]interface{}{
+			"feather":    lu, // 鹊羽
+			"luStock":    lu, // 鹊羽灵露库存
+			"bridgeDone": 0,  // 待 cmd 确认
+			"bridgeMax":  5,
+			"sachet":     0, // 待 cmd 确认
+			"luLimit":    nil, // null=待接口确认
+		},
+	})
 }
