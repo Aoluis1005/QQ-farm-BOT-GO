@@ -19,3 +19,4 @@ cmd/gwsig/
 node_ace_run.js
 node_dbg.js
 unpack_wxapkg.py
+cmd/
