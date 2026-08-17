@@ -1306,7 +1306,7 @@ func parseQiXiTierFlags(body []byte) map[int64]int64 {
 	if grp == nil {
 		return out
 	}
-	for _, child := range actBytesAll(grp, 2) { // root.field2 repeated = 子节点
+	for _, child := range actBytesAll(readActFields(grp), 2) { // root.field2 repeated = 子节点
 		info := get(child, 1)
 		nid := int64(0)
 		for _, nf := range readActFields(info) {
@@ -1321,7 +1321,7 @@ func parseQiXiTierFlags(body []byte) map[int64]int64 {
 		if cfg == nil {
 			return out
 		}
-		for _, tf := range actBytesAll(cfg, 2) { // 配置.field2 repeated = 各档
+		for _, tf := range actBytesAll(readActFields(cfg), 2) { // 配置.field2 repeated = 各档
 			tierNo, flag := int64(0), int64(1)
 			for _, tif := range readActFields(tf) {
 				switch {
