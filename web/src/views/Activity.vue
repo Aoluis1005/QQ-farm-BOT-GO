@@ -69,6 +69,7 @@ async function refreshQiXiFriends() {
     console.error('刷新鹊桥好友列表失败', e)
     app.error('好友列表加载失败')
   }
+  qixi.friendsLoading = false
 }
 function loadMoreQiXiFriends() {
   if (qixi.friendsDisplayCount >= qixi.allFriends.length) return
@@ -80,8 +81,6 @@ function onQiXiFriendScroll(e) {
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
     loadMoreQiXiFriends()
   }
-}
-  qixi.friendsLoading = false
 }
 // --- 鹊桥：Operate 桩（cmd 待 08-18 抓号回填） ---
 function qixiOperate(cmdName, cmdConst, payload) {
