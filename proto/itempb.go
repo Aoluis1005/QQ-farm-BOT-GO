@@ -102,6 +102,19 @@ func EncodeUseRequestFallback(itemID, count int64) []byte {
 	return b.Bytes()
 }
 
+// EncodeUseRequestWithLands 对齐 Node itempb.proto UseRequest{item_id=1,count=2,land_ids=3}，
+// 用于「在土地上使用物品」类操作（如鹊桥灵露喷洒：item_id=301103，land_ids=[目标地块]）。
+// 在 EncodeUseRequest 的平铺结构基础上补上重复 int64 的 land_ids（field 3）。
+func EncodeUseRequestWithLands(itemID, count int64, landIDs []int64) []byte {
+	b := NewBuilder()
+	b.FieldInt64(1, itemID)
+	b.FieldInt64(2, count)
+	for _, lid := range landIDs {
+		b.FieldInt64(3, lid)
+	}
+	return b.Bytes()
+}
+
 // IsBadParamError 对齐 Node warehouse.js:120 的判定：
 // msg.includes('code=1000020') || msg.includes('请求参数错误')
 func IsBadParamError(msg string) bool {

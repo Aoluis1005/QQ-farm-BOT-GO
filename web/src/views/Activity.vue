@@ -31,7 +31,7 @@ const QIXI_INFO_ID = 2026081801
 const qixi = reactive({
   tips: null, err: '',
   // 数据芯片（TODO: 08-18 接口活后从 GetGroup 子树动态获取）
-  feather: 0, luStock: 0, bridgeDone: 0, bridgeMax: 5, bridgeTarget: 30, sachet: 0,
+  feather: 0, luStock: 0, bridgeDone: 0, bridgeMax: 3, bridgeTarget: 77, sachet: 0, tiers: [],
   // 灵露
   luUsed: 0, luLimit: null, // null=待接口确认
   // 好友列表（手动刷新，避免进tab阻塞线程）
@@ -159,10 +159,11 @@ async function loadQiXi() {
       qixi.feather = n(d.feather)
       qixi.luStock = n(d.luStock)
       qixi.bridgeDone = n(d.bridgeDone)
-      qixi.bridgeMax = n(d.bridgeMax) || 5
-      qixi.bridgeTarget = n(d.bridgeTarget) || 30
+      qixi.bridgeMax = n(d.bridgeMax) || 3
+      qixi.bridgeTarget = n(d.bridgeTarget) || 77
       qixi.sachet = n(d.sachet)
       qixi.luLimit = d.luLimit
+      if (d.tiers && d.tiers.length) qixi.tiers = d.tiers
     }
   } catch (e) { /* 数据接口失败不阻塞玩法加载 */ }
   try {
@@ -646,14 +647,17 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
 
       <!-- 筑鹊桥 -->
       <div class="card">
-        <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">共 5 段</span></div>
+        <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">共 {{ qixi.bridgeMax }} 档</span></div>
         <div class="qixi-bar"><i :style="{ width: qixi.bridgeTarget > 0 ? Math.min(100, Math.round(qixi.feather / qixi.bridgeTarget * 100)) : 0 + '%' }"></i></div>
-        <div class="muted">累计收集 <b style="color:var(--good)">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</b> 鹊羽 · 集满 {{ qixi.bridgeTarget }} 可解锁全部 {{ qixi.bridgeMax }} 段筑桥奖励</div>
+        <div class="muted">累计收集 <b style="color:var(--good)">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</b> 鹊羽 · 集满 {{ qixi.bridgeTarget }} 可解锁全部 {{ qixi.bridgeMax }} 档筑桥奖励</div>
         <div class="qixi-rewards">
-          <div class="qixi-rw"><b>🌱</b>化肥</div>
-          <div class="qixi-rw"><b>🎫</b>点券</div>
-          <div class="qixi-rw"><b>💝</b>香囊</div>
-          <div class="qixi-rw"><b>🏅</b>铭牌</div>
+          <div v-if="!qixi.tiers.length" class="qixi-tier qixi-tier-empty">档位奖励加载中…</div>
+          <div v-for="(t, i) in qixi.tiers" :key="i" class="qixi-tier">
+            <div class="qixi-tier-hd">第 {{ i + 1 }} 档 <span class="pill">消耗 {{ t.consume }} 鹊羽</span></div>
+            <div class="qixi-tier-rw">
+              <span v-for="(rw, j) in (t.rewards || [])" :key="j" class="qixi-rw"><b>{{ rw.name }}</b> ×{{ rw.count }}</span>
+            </div>
+          </div>
         </div>
         <button class="btn primary block" :disabled="qixi.feather < qixi.bridgeTarget" @click="buildBridge">{{ qixi.feather >= qixi.bridgeTarget ? '筑建鹊桥' : '鹊羽未满，继续收集再筑桥' }}</button>
       </div>
@@ -779,19 +783,42 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
   border-radius: 999px;
 }
 .qixi-rewards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin: 10px 0;
 }
+.qixi-tier {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.qixi-tier-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 14px 10px;
+  font-size: 12.5px;
+}
+.qixi-tier-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.qixi-tier-rw {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .qixi-rw {
   background: var(--primary-soft);
-  border-radius: 10px;
-  padding: 8px;
-  text-align: center;
+  border-radius: 8px;
+  padding: 5px 9px;
   font-size: 12px;
 }
-.qixi-rw b { display: block; font-size: 15px; margin-bottom: 2px; }
+.qixi-rw b { font-weight: 600; margin-right: 2px; }
 
 /* 好友列表 */
 .qixi-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }

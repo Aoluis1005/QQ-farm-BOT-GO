@@ -1207,23 +1207,51 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	br := proto.DecodeBagReply(rep.Body)
-	lu := int64(0)
+	var lu, feather, sachet int64
 	for _, it := range br.Items {
-		if it.ID == 301103 { // 鹊羽灵露
+		switch it.ID {
+		case 301103: // 鹊羽灵露
 			lu = it.Count
-			break
+		case 1024: // 鹊羽（2026-08-17 抓包 ItemNotify/Bag 实锤：item 1024 数量 1→2→3 = 喷洒/收菜所得）
+			feather = it.Count
+		case 1025: // 鹊羽香囊（GetGroup field112 奖励物品，用户确认）
+			sachet = it.Count
 		}
+	}
+	// 筑桥三档奖励（2026-08-17 抓包 GetGroup field112 确认：每档消耗 N 鹊羽 → 获得奖励）
+	tiers := []map[string]interface{}{
+		{
+			"consume": int64(30), // 第一档：消耗 30 鹊羽
+			"rewards": []map[string]interface{}{
+				{"id": int64(1025), "name": "鹊羽香囊", "count": int64(5)},
+				{"id": int64(101325), "name": "鹊桥寄情礼包一", "count": int64(1)},
+			},
+		},
+		{
+			"consume": int64(50), // 第二档：消耗 50 鹊羽
+			"rewards": []map[string]interface{}{
+				{"id": int64(101326), "name": "鹊桥寄情礼包二", "count": int64(1)},
+				{"id": int64(1025), "name": "鹊羽香囊", "count": int64(5)},
+			},
+		},
+		{
+			"consume": int64(77), // 第三档：消耗 77 鹊羽
+			"rewards": []map[string]interface{}{
+				{"id": int64(401004), "name": "鹊桥寄情铭牌", "count": int64(1)},
+			},
+		},
 	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
-			"feather":    0,    // 鹊羽：当前尚未获得（来源待 Activity 状态 cmd 确认）
-			"luStock":    lu,   // 鹊羽灵露（背包 301103）
-			"bridgeDone": 0,    // 待 cmd 确认
-			"bridgeMax":  5,
-			"bridgeTarget": 30, // 鹊羽收集目标（5 段×6，图片 0/30）
-			"sachet":     0,    // 待 cmd 确认
-			"luLimit":    nil,  // null=待接口确认
+			"feather":      feather, // 鹊羽（背包 1024）
+			"luStock":      lu,      // 鹊羽灵露（背包 301103）
+			"bridgeDone":   0,       // 待 Operate cmd 确认
+			"bridgeMax":    len(tiers),
+			"bridgeTarget": int64(77), // 第三档消耗（累计集满解锁全部 3 档）
+			"sachet":       sachet,    // 鹊羽香囊（背包 1025）
+			"luLimit":      nil,       // null=待接口确认
+			"tiers":        tiers,     // 筑桥三档奖励（消耗鹊羽 → 奖励）
 		},
 	})
 }
