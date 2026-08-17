@@ -44,6 +44,8 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/qingmei", handleQingmei)
 	api.HandleFunc("/api/activity/qingmei/claim", handleQingmeiClaim)
 	api.HandleFunc("/api/activity/qingmei/wine", handleQingmeiWine)
+	// TODO: 临时鹊桥 cmd 探测接口，探测完成后删除
+	api.HandleFunc("/api/debug/act_operate", handleDebugActOperate)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -1049,4 +1051,43 @@ func qingmeiMarkClaimed(accountID string) {
 	qingmeiClaimedMu.Lock()
 	defer qingmeiClaimedMu.Unlock()
 	qingmeiClaimedDate[accountID] = qingmeiTodayKey()
+}
+
+// ===== 临时调试：鹊桥 Operate cmd 探测（TODO: 探测完成后删除） =====
+// GET /api/debug/act_operate?accountId=X&id=2026081802&cmd=N
+// 向指定账号发送 ActivityService.Operate(id,cmd) 空扩展请求，返回原始回包字段，用于确定鹊桥灵露/筑桥/香囊 cmd。
+func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+	cmd, _ := strconv.ParseInt(r.URL.Query().Get("cmd"), 10, 64)
+	if id <= 0 {
+		writeError(w, 400, "missing/invalid id")
+		return
+	}
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	b.FieldInt64(2, cmd)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 20*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err), "id", id, "cmd", cmd)
+		return
+	}
+	fields := []map[string]interface{}{}
+	for _, f := range readActFields(body) {
+		switch f.Wire {
+		case 0:
+			fields = append(fields, map[string]interface{}{"field": f.No, "varint": f.Varint})
+		case 2:
+			if len(f.Bytes) <= 4096 {
+				fields = append(fields, map[string]interface{}{"field": f.No, "bytesLen": len(f.Bytes), "str": string(f.Bytes)})
+			} else {
+				fields = append(fields, map[string]interface{}{"field": f.No, "bytesLen": len(f.Bytes)})
+			}
+		default:
+			fields = append(fields, map[string]interface{}{"field": f.No, "wire": f.Wire})
+		}
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "cmd": cmd, "fields": fields})
 }
