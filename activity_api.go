@@ -1336,9 +1336,14 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 	item, _ := strconv.ParseInt(r.URL.Query().Get("item"), 10, 64)
 	count, _ := strconv.ParseInt(r.URL.Query().Get("count"), 10, 64)
 	landID, _ := strconv.ParseInt(r.URL.Query().Get("land_id"), 10, 64)
+	hostGID, _ := strconv.ParseInt(r.URL.Query().Get("host_gid"), 10, 64)
 	lfield, _ := strconv.Atoi(r.URL.Query().Get("land_field"))
 	if lfield == 0 {
 		lfield = 3
+	}
+	hfield, _ := strconv.Atoi(r.URL.Query().Get("host_field"))
+	if hfield == 0 {
+		hfield = 4
 	}
 	shape := r.URL.Query().Get("shape")
 	if item <= 0 {
@@ -1356,13 +1361,19 @@ func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
 		if landID > 0 {
 			b.FieldInt64(lfield, landID)
 		}
+		if hostGID > 0 {
+			b.FieldInt64(hfield, hostGID)
+		}
 		body = b.Bytes()
-	} else { // nested: 外层 field1=子消息{item,count,land@lfield}
+	} else { // nested: 外层 field1=子消息{item,count,land@lfield,host@hfield}
 		sub := proto.NewBuilder()
 		sub.FieldInt64Always(1, item)
 		sub.FieldInt64Always(2, count)
 		if landID > 0 {
 			sub.FieldInt64(lfield, landID)
+		}
+		if hostGID > 0 {
+			sub.FieldInt64(hfield, hostGID)
 		}
 		b := proto.NewBuilder()
 		b.FieldMessage(1, sub.Bytes())
