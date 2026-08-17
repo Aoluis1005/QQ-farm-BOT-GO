@@ -93,7 +93,14 @@ function buildBridge() {
   qixiOperate('筑鹊桥', 'CMD_BRIDGE', {})
   app.success('已发起筑鹊桥（cmd 待回填）')
 }
+function giftSachetTo(friend) {
+  if (qixi.sachet <= 0) { app.error('香囊库存为空'); return }
+  qixiOperate('香囊赠送', 'CMD_GIFT', { gid: friend.gid, count: 1 })
+  qixi.sachet--
+  app.success(`已向 ${friend.name} 赠送香囊 ×1`)
+}
 function giftSachet() {
+  // 兜底：无好友列表时仍可用独立按钮
   qixiOperate('香囊赠送', 'CMD_GIFT', { gid: 'g_target', count: 1 })
   app.success('已发起香囊赠送（cmd 待回填）')
 }
@@ -640,6 +647,7 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
             <div class="qixi-av">{{ f.name[0] }}</div>
             <div style="flex:1"><div class="qixi-fnm">{{ f.name }}</div><div class="st">有作物地块 ×{{ f.lands }}</div></div>
             <button class="btn gold small" @click="sprayLu(f)">用灵露</button>
+            <button class="btn primary small" @click="giftSachetTo(f)">送香囊</button>
           </div>
         </div>
         <div v-else class="empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12.5px">👥 点击「🔄 刷新好友」加载有可作物地块的好友</div>
@@ -649,15 +657,6 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
       <div class="card">
         <div class="ttl"><span class="dot"></span>收菜被动触发</div>
         <div class="banner">🌾 自家收菜概率出「鹊羽」，<b>每日自动封顶 {{ qixi.passiveLimit }} 次</b>，无需任何操作。今日已触发 <span class="pill">{{ qixi.passiveTriggered }}/{{ qixi.passiveLimit }}</span></div>
-      </div>
-
-      <!-- 香囊赠送 -->
-      <div class="card">
-        <div class="ttl"><span class="dot"></span>鹊羽香囊 · 赠好友</div>
-        <div class="row">
-          <span class="muted">香囊库存 <b style="color:var(--primary)">{{ qixi.sachet }}</b> · 活动期内赠出可换金币</span>
-          <button class="btn primary" @click="giftSachet">💝 赠好友</button>
-        </div>
       </div>
 
       <!-- 活动说明 -->
