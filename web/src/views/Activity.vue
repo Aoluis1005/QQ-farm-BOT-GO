@@ -88,24 +88,37 @@ function qixiOperate(cmdName, cmdConst, payload) {
   console.log(`[${cmdName}]`, JSON.stringify(call))
   return call
 }
-function sprayLu(friend) {
+async function sprayLu(friend) {
   if (qixi.luStock <= 0) { app.error('灵露已空'); return false }
-  if (qixi.luLimit !== null && qixi.luUsed >= qixi.luLimit) { app.error('今日灵露已到上限'); return false }
-  qixiOperate('灵露主动', 'CMD_LU', { land_id: friend.landId || 0, host_gid: friend.gid })
-  qixi.luStock--; qixi.luUsed++
-  app.success(`向 ${friend.name} 喷洒灵露 → 鹊羽 +1`)
-  return true
+  const a = acc(); if (!a) return false
+  try {
+    const { data } = await api.post('/api/activity/qixi/spray', { accountId: a.gid, hostGid: friend.gid })
+    if (data && data.ok) {
+      const n = data.data.sprayCount || 0
+      if (n > 0) {
+        app.success(`向 ${friend.name} 喷洒灵露 ×${n} → 鹊羽 +${n}`)
+        loadQiXi()
+        return true
+      }
+      app.error(data.data.msg || '该好友无可喷洒地块')
+      return false
+    }
+    app.error((data && data.error) || '喷洒失败')
+    return false
+  } catch (e) { app.error('喷洒失败'); return false }
 }
-function sprayAllLu() {
-  if (!qixi.friends.length) { app.error('请先刷新好友列表'); return }
-  const order = qixi.friends.map((_, i) => i).sort(() => Math.random() - 0.5)
-  let n = 0
-  for (const i of order) {
-    const f = qixi.friends[i]
-    if (sprayLu(f)) n++
-    if (qixi.luStock <= 0 || (qixi.luLimit !== null && qixi.luUsed >= qixi.luLimit)) break
-  }
-  app.success(`随机喷洒完成，本次消耗灵露 ${n} 根`)
+async function sprayAllLu() {
+  if (qixi.luStock <= 0) { app.error('灵露已空'); return }
+  const a = acc(); if (!a) return
+  try {
+    const { data } = await api.post('/api/activity/qixi/spray', { accountId: a.gid })
+    if (data && data.ok) {
+      const n = data.data.sprayCount || 0
+      if (n > 0) app.success(`喷洒成功 ${n} 块地 → 鹊羽 +${n}`)
+      else app.error(data.data.msg || '无可喷洒地块')
+      loadQiXi()
+    } else app.error((data && data.error) || '喷洒失败')
+  } catch (e) { app.error('喷洒失败') }
 }
 function buildBridge() {
   qixiOperate('筑鹊桥', 'CMD_BRIDGE', {})

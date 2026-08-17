@@ -49,6 +49,7 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/debug/plant_rpc", handleDebugPlantRPC)
 	api.HandleFunc("/api/debug/bag_dump", handleDebugBagDump)
 	api.HandleFunc("/api/activity/qixi", handleQiXiStatus)
+	api.HandleFunc("/api/activity/qixi/spray", handleQiXiSpray) // 灵露喷洒（ItemService.Use + land_ids）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 }
 
@@ -1252,6 +1253,78 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 			"sachet":       sachet,    // 鹊羽香囊（背包 1025）
 			"luLimit":      nil,       // null=待接口确认
 			"tiers":        tiers,     // 筑桥三档奖励（消耗鹊羽 → 奖励）
+		},
+	})
+}
+
+// ===== 鹊桥寄情：灵露喷洒（抓包确认 = ItemService.Use，UseRequest{item_id=301103,count=1,land_ids=[地块]}）=====
+// POST /api/activity/qixi/spray  body: {"accountId":"...","hostGid":123,"landIds":[1,2]}
+// hostGid>0 喷好友地块（AllLands(hostGid)）；不传则喷自己地块；landIds 不传则自动选全部有作物地块；每块 +1 鹊羽。
+func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	var req struct {
+		AccountID string  `json:"accountId"`
+		HostGID   int64   `json:"hostGid"`
+		LandIDs   []int64 `json:"landIds"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.AccountID != "" {
+		accountID = req.AccountID
+	}
+	if accountID == "" {
+		writeJSONMap(w, "ok", false, "error", "缺少 accountId")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	// 拉目标地块（hostGid>0 拉好友地块，否则自己的）
+	rep, err := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(req.HostGID), 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error())
+		return
+	}
+	lands := proto.DecodeAllLandsReply(rep.Body).Lands
+	want := map[int64]bool{}
+	for _, id := range req.LandIDs {
+		want[id] = true
+	}
+	var selected []int64
+	for _, l := range lands {
+		hasCrop := l.Plant != nil && len(l.Plant.Phases) > 0
+		if len(want) > 0 {
+			if want[l.ID] && hasCrop {
+				selected = append(selected, l.ID)
+			}
+		} else if hasCrop {
+			selected = append(selected, l.ID)
+		}
+	}
+	if len(selected) == 0 {
+		writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "data": map[string]interface{}{"sprayed": []int64{}, "sprayCount": 0, "featherGain": 0, "errors": []string{}, "msg": "无可喷洒地块（无作物或未指定）"}})
+		return
+	}
+	// 逐块喷洒：每块一次 Use，消耗 1 瓶灵露（301103），活动规则恒得 1 根鹊羽（1024）
+	var sprayed []int64
+	var errs []string
+	for _, lid := range selected {
+		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", proto.EncodeUseRequestWithLands(301103, 1, []int64{lid}), 12*time.Second); e2 != nil {
+			errs = append(errs, fmt.Sprintf("land%d:%v", lid, e2))
+			continue
+		}
+		sprayed = append(sprayed, lid)
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID,
+		"data": map[string]interface{}{
+			"sprayed":     sprayed, // 成功喷洒的地块
+			"sprayCount":  len(sprayed),
+			"featherGain": len(sprayed), // 每块 +1 鹊羽
+			"errors":      errs,
 		},
 	})
 }
