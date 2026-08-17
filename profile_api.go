@@ -694,6 +694,10 @@ func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
 		if id <= 0 || count <= 0 {
 			continue
 		}
+		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，对齐 Node bag_priority 不种活动种子）
+		if eventSeeds[it.ID] || isBuySeedBlocked(it.ID) {
+			continue
+		}
 		// 仅纳入 Plant.json 收录的种子物品（对齐 Node：无 plant 条目则跳过；交互类型为 plant 但缺配置时记日志）
 		plant, ok := seedToPlantMap[id]
 		if !ok {

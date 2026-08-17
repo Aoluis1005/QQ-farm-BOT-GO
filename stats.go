@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -101,11 +102,12 @@ func saveStatsFile(accountID string, s *AccountStats) {
 }
 
 // recordOperation 记录一次操作（对齐 Node recordOperation）
-// recordGift 同气礼包（物品 101351 增量）累计
+// recordGift 同气礼包（物品 101351 增量）累计（对齐 Node network.js recordTongQiGift）
 func recordGift(accountID string, delta int64) {
 	s := getAccountStats(accountID)
 	s.TongQiGift += delta
 	saveStatsFile(accountID, s)
+	appendOpLog(accountID, "friend", fmt.Sprintf("获得同气连枝礼包 +%d (今日: %d)", delta, s.TongQiGift))
 }
 
 func recordOperation(accountID, opType string, count int64) {

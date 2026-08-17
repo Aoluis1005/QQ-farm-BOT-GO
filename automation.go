@@ -1007,6 +1007,49 @@ type seedCand struct {
 	reqLvl  int
 }
 
+// eventSeeds 活动种子（对齐 Node farm.js EVENT_SEEDS：昙花/荷包牡丹/银杏树苗/蝴蝶兰/风信子/蔷薇）
+// 活动种子只从背包种植（event_plant 模式），【禁止从商店购买】——商店候选需排除，
+// 否则"最高经验/时"策略会选到活动种子 → 购买失败 → 一直卡在种植失败。
+var eventSeeds = map[int64]bool{
+	20224:   true, // 昙花
+	20249:   true, // 荷包牡丹
+	20025:   true, // 银杏树苗
+	20109:   true, // 蝴蝶兰
+	20112:   true, // 风信子
+	20121:   true, // 蔷薇
+	49003:   true, // 星语铃花（活动种子，2026-08-18 用户实测）
+	1049003: true, // 黄金·星语铃花（变异）
+}
+
+// failedBuySeeds 动态黑名单：购买失败（活动种子/不可购）的种子记入，后续轮次跳过候选。
+// 活动种子会持续新增，静态黑名单追不上，购买失败即自动排除（自愈，无需维护清单）。
+var failedBuySeeds = struct {
+	sync.Mutex
+	m map[int64]time.Time // seedID → 失败时间（当日有效）
+}{m: map[int64]time.Time{}}
+
+// markBuySeedFailed 记录一次购买失败（供 ensureSeedOwned 调用）
+func markBuySeedFailed(seedID int64) {
+	failedBuySeeds.Lock()
+	failedBuySeeds.m[seedID] = time.Now()
+	failedBuySeeds.Unlock()
+}
+
+// isBuySeedBlocked 判断种子是否在动态黑名单（当日有效；跨天自然解封，活动种子可能下架）
+func isBuySeedBlocked(seedID int64) bool {
+	failedBuySeeds.Lock()
+	defer failedBuySeeds.Unlock()
+	t, ok := failedBuySeeds.m[seedID]
+	if !ok {
+		return false
+	}
+	if time.Since(t) > 24*time.Hour {
+		delete(failedBuySeeds.m, seedID)
+		return false
+	}
+	return true
+}
+
 // bagSeedItem 背包种子（按 plantSize 过滤后用于种植），对齐 Node plantFromBagSeeds 的可用种子
 type bagSeedItem struct {
 	seedID int64
@@ -1064,6 +1107,12 @@ func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfi
 		}
 		if pe, ok := getPlantByID(g.ItemID); ok && pe.Size != 1 {
 			continue // 仅 1x1 从商店买（2x2 走背包/优先）
+		}
+		if eventSeeds[g.ItemID] {
+			continue // 活动种子禁止商店购买（只走背包 event_plant，对齐 Node EVENT_SEEDS）
+		}
+		if isBuySeedBlocked(g.ItemID) {
+			continue // 历史上购买失败的种子（动态黑名单，活动种子自愈排除）
 		}
 		cc := seedCand{seedID: g.ItemID, goodsID: g.ID, price: g.Price, reqLvl: reqLvl}
 		cands = append(cands, cc)
@@ -1151,6 +1200,10 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
+		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，不进 bag_priority，对齐 Node）
+		if eventSeeds[it.ID] || isBuySeedBlocked(it.ID) {
+			continue
+		}
 		// 背包物品是种子，须按 seed_id 查 Plant.json（对齐 Node getPlantBySeedId）；
 		// 误用 getPlantByID(plant.id) 会在 plant.id != seed_id 时漏掉该种子。
 		pe, ok := seedToPlantMap[int(it.ID)]
@@ -1228,6 +1281,8 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int6
 	brep, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "BuyGoods",
 		proto.EncodeBuyGoodsRequest(goodsID, buy, price), 12*time.Second)
 	if err != nil {
+		// 购买失败 → 记入动态黑名单（活动种子/不可购种子自动排除，防循环卡死）
+		markBuySeedFailed(seedID)
 		return 0, err
 	}
 	// 对齐 Node plantFromShop：从购买结果取真实种子 ID
@@ -1252,6 +1307,10 @@ func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size
 	var seeds []bagSeedItem
 	for _, it := range proto.DecodeBagReply(rep.Body).Items {
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
+			continue
+		}
+		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，对齐 Node bag_priority 不种活动种子）
+		if eventSeeds[it.ID] || isBuySeedBlocked(it.ID) {
 			continue
 		}
 		pe, ok := seedToPlantMap[int(it.ID)]

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/gw"
@@ -59,6 +60,95 @@ func runTaskAuto(accountID string, c *gw.Client) {
 	if ticketGain := claimIllustratedRewardsGo(ctx, accountID, c); ticketGain > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取图鉴奖励：点券+%d", ticketGain))
 	}
+	// 商城免费礼（对齐 Node mall.js buyFreeGifts：GetMallListBySlotType(1) → is_free 商品 → Purchase）
+	if n := buyFreeGiftsGo(ctx, accountID); n > 0 {
+		appendOpLog(accountID, "task", fmt.Sprintf("领取商城免费礼包 x%d", n))
+	}
+	// 每日分享礼包（对齐 Node share.js performDailyShare：CheckCanShare → ReportShare → ClaimShareReward）
+	if performDailyShareGo(ctx, accountID) {
+		appendOpLog(accountID, "task", "领取每日分享礼包")
+	}
+}
+
+// 每日礼包领取状态（对齐 Node mall.js/share.js 的 doneDateKey 内存态；跨天自动重置）
+var (
+	dailyGiftMu      sync.Mutex
+	freeGiftDoneDate string // 商城免费礼已领日期（todayKey）
+	shareDoneDate    string // 分享礼包已领日期
+)
+
+// buyFreeGiftsGo 商城免费礼（对齐 Node mall.js buyFreeGifts）
+// MallService.GetMallListBySlotType(slot=1) → goods_list 中 is_free 商品 → Purchase(goods_id, 1)
+func buyFreeGiftsGo(ctx context.Context, accountID string) int {
+	dailyGiftMu.Lock()
+	done := freeGiftDoneDate == todayKey()
+	dailyGiftMu.Unlock()
+	if done {
+		return 0
+	}
+	mallSvc := "gamepb.mallpb.MallService"
+	rep, err := rpcRequest(ctx, accountID, mallSvc, "GetMallListBySlotType", proto.EncodeGetMallListBySlotTypeRequest(1), 15*time.Second)
+	if err != nil {
+		return 0
+	}
+	var free []proto.MallGoods
+	for _, g := range proto.DecodeMallListBySlotTypeReply(rep).GoodsList {
+		if g.IsFree && g.GoodsID > 0 {
+			free = append(free, g)
+		}
+	}
+	if len(free) == 0 {
+		return 0
+	}
+	bought := 0
+	for _, g := range free {
+		if _, e := rpcRequest(ctx, accountID, mallSvc, "Purchase", proto.EncodePurchaseRequest(g.GoodsID, 1), 12*time.Second); e == nil {
+			bought++
+		}
+		time.Sleep(300 * time.Millisecond) // 对齐 Node 逐个购买间隔
+	}
+	dailyGiftMu.Lock()
+	freeGiftDoneDate = todayKey()
+	dailyGiftMu.Unlock()
+	return bought
+}
+
+// performDailyShareGo 每日分享礼包（对齐 Node share.js performDailyShare）
+// 1) CheckCanShare（field1=can_share）→ 2) ReportShare{shared:true} → 3) ClaimShareReward{claimed:true}
+func performDailyShareGo(ctx context.Context, accountID string) bool {
+	dailyGiftMu.Lock()
+	done := shareDoneDate == todayKey()
+	dailyGiftMu.Unlock()
+	if done {
+		return false
+	}
+	// 1) CheckCanShare
+	checkBody, err := rpcRequest(ctx, accountID, shareSvc, "CheckCanShare", []byte{}, 12*time.Second)
+	if err != nil {
+		return false
+	}
+	if actNum(readActFields(checkBody), 1) == 0 { // can_share=false → 今日无可分享
+		dailyGiftMu.Lock()
+		shareDoneDate = todayKey()
+		dailyGiftMu.Unlock()
+		return false
+	}
+	// 2) ReportShare {shared:true}
+	repB := proto.NewBuilder()
+	repB.FieldBool(1, true)
+	if _, err := rpcRequest(ctx, accountID, shareSvc, "ReportShare", repB.Bytes(), 12*time.Second); err != nil {
+		return false
+	}
+	// 3) ClaimShareReward {claimed:true}（对齐 Node share.js claimShareReward）
+	clB := proto.NewBuilder()
+	clB.FieldBool(1, true)
+	if _, err := rpcRequest(ctx, accountID, shareSvc, "ClaimShareReward", clB.Bytes(), 12*time.Second); err != nil {
+		return false
+	}
+	dailyGiftMu.Lock()
+	shareDoneDate = todayKey()
+	dailyGiftMu.Unlock()
+	return true
 }
 
 // claimActivesGo 领取日/周活跃奖励（对齐 Node task.js checkAndClaimActives）

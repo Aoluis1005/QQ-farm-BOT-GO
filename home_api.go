@@ -96,7 +96,10 @@ func handleHomeIncome(w http.ResponseWriter, r *http.Request) {
 		initStats(accountID, c.Gold(), c.Exp(), c.Coupon())
 		updateStats(accountID, c.Gold(), c.Exp())
 	}
-	writeJSON(w, map[string]interface{}{"ok": true, "data": getTodayIncome(accountID)})
+	income := getTodayIncome(accountID)
+	// 同气礼盒：Node 语义 = ItemNotify 推送(帮忙好友获得) → stats.TongQiGift 今日累计（跨天清零），
+	// 非背包存量（income 卡片全是"今日"口径）。触发可靠性见 gw/client.go applyItemNotify + recordGift 日志。
+	writeJSON(w, map[string]interface{}{"ok": true, "data": income})
 }
 
 func handleHomePatrol(w http.ResponseWriter, r *http.Request) {
@@ -212,16 +215,20 @@ func formatGold(v int64) string {
 		v = -v
 	}
 	s := ""
-	for {
-		s = fmt.Sprintf("%d%s", v%1000, s)
-		v /= 1000
-		if v == 0 {
-			break
-		}
-		s = "," + s
-		if v < 1000 {
-			s = fmt.Sprintf("%d", v) + s
-			break
+	if v == 0 {
+		s = "0"
+	} else {
+		for {
+			s = fmt.Sprintf("%03d%s", v%1000, s)
+			v /= 1000
+			if v == 0 {
+				break
+			}
+			s = "," + s
+			if v < 1000 {
+				s = fmt.Sprintf("%d", v) + s
+				break
+			}
 		}
 	}
 	if neg {

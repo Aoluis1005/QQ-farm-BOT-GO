@@ -251,6 +251,10 @@ func handleSeeds(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]seedOut, 0, len(seedIDs))
 	for id := range seedIDs {
+		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，不应作为优先种子选项）
+		if eventSeeds[int64(id)] || isBuySeedBlocked(int64(id)) {
+			continue
+		}
 		item := seedOut{
 			SeedID:        id,
 			GoodsID:       0,

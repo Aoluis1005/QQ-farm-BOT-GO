@@ -8,3 +8,14 @@ go-farm-bot
 node_modules/
 web/node_modules/
 
+
+# 逆向/解密工具与解包产物（严禁入库——含 openid/加密工具，违反直接开 issue 批评）
+wxgame_out/
+tools/
+ace_pools/
+cmd/acedec/
+cmd/gwdec/
+cmd/gwsig/
+node_ace_run.js
+node_dbg.js
+unpack_wxapkg.py

@@ -1423,21 +1423,25 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 	}
 	var sprayed []int64
 	var errs []string
-	for _, lid := range selected {
-		item := proto.NewBuilder()
-		item.FieldInt64Always(1, 301103)
-		item.FieldInt64Always(2, 1)
-		if luUID > 0 {
-			item.FieldInt64(6, luUID)
-		}
-		ub := proto.NewBuilder()
-		ub.FieldMessage(1, item.Bytes())
-		ub.FieldInt64(2, lid)
-		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
-			errs = append(errs, fmt.Sprintf("land%d:%v", lid, e2))
-			continue
-		}
-		sprayed = append(sprayed, lid)
+	// 喷洒真实结构（2026-08-17 tsdk.wasm 解密抓包明文实锤）：单次 Use，无 land_ids
+	// UseRequest = { field1 (LEN): item{301103,1,uid}, field2 (LEN): {host_gid, 标记9} }
+	item := proto.NewBuilder()
+	item.FieldInt64Always(1, 301103)
+	item.FieldInt64Always(2, 1)
+	if luUID > 0 {
+		item.FieldInt64(6, luUID)
+	}
+	sub := proto.NewBuilder()
+	sub.FieldInt64Always(1, req.HostGID)
+	sub.FieldInt64Always(2, 9) // 喷洒标记（抓包第一次=9）
+	ub := proto.NewBuilder()
+	ub.FieldMessage(1, item.Bytes())
+	ub.FieldMessage(2, sub.Bytes())
+	sprayHex := fmt.Sprintf("%X", ub.Bytes())
+	if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
+		errs = append(errs, fmt.Sprintf("spray:%v(hex:%s)", e2, sprayHex))
+	} else {
+		sprayed = append(sprayed, 0) // 无 land 概念，成功即完成
 	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
@@ -1525,6 +1529,10 @@ func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
 	b := proto.NewBuilder()
 	b.FieldInt64(1, 2026081801) // 活动节点 id
 	b.FieldInt64(2, 26)         // cmd=26 赠送香囊（待真机抓包确认，实测后可改）
+	// Operate ext 结构（筑桥明文实锤 field125={field1:0}）：送香囊 ext={field1: 目标好友gid}
+	ext := proto.NewBuilder()
+	ext.FieldInt64Always(1, req.HostGID)
+	b.FieldMessage(125, ext.Bytes())
 	body, err := c.Request(ctx, actSvc, "Operate", b.Bytes(), 20*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))

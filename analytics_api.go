@@ -99,6 +99,12 @@ func getPlantRankings(sortBy string) []map[string]interface{} {
 		if plant.SeedID <= 0 || plant.GrowPhases == "" {
 			continue
 		}
+		if eventSeeds[int64(plant.SeedID)] {
+			continue // 活动种子排除（商店买不到，推荐/选种都不出现）
+		}
+		if isBuySeedBlocked(int64(plant.SeedID)) {
+			continue // 动态黑名单：历史上购买失败的种子
+		}
 		growTime := parseGrowTime(plant.GrowPhases)
 		if growTime <= 0 {
 			continue
