@@ -53,15 +53,20 @@ function qixiTick() {
 // --- 鹊桥：刷新好友列表 ---
 async function refreshQiXiFriends() {
   qixi.friendsLoading = true
-  // TODO: 实际实现 enterFriendFarm(gid) → AllLands → filter seed_id>0
-  // 占位示意数据
-  await new Promise(r => setTimeout(r, 300))
-  qixi.friends = [
-    { name: '阿狸', gid: 'g_ali', lands: 3 },
-    { name: '小桃', gid: 'g_xiaot', lands: 2 },
-    { name: '七喜', gid: 'g_qixi', lands: 4 },
-    { name: '陈酿', gid: 'g_chen', lands: 1 },
-  ]
+    // 获取好友列表 + 地块信息（TODO: enterFriendFarm 批量获取地块数，暂用占位 hasCrops:true）
+  try {
+    const { data: fd } = await api.get('/api/friends/list', { params: { accountId: acc() } })
+    const list = (fd && fd.ok && fd.data) || []
+    qixi.friends = list.filter(f => f.gid).map(f => ({
+      gid: f.gid,
+      name: f.nickname || f.name || String(f.gid),
+      lands: '?',
+      hasCrops: true,
+    }))
+  } catch (e) {
+    console.error('刷新鹊桥好友列表失败', e)
+    app.error('好友列表加载失败')
+  }
   qixi.friendsLoading = false
 }
 // --- 鹊桥：Operate 桩（cmd 待 08-18 抓号回填） ---
