@@ -25,10 +25,78 @@ const shopState = reactive({ items: [], bal: 0, cur: '星砂', err: '' })
 const giftState = reactive({ nodes: [], summary: {}, day: 0, total: 0, err: '' })
 const qmState = reactive({ activity: {}, reward: {}, material: {}, err: '' })
 
-/* ---------- 鹊桥寄情（QiXi，未上线先展示玩法框架） ---------- */
+/* ---------- 鹊桥寄情（QiXi） ---------- */
 const QIXI_ROOT_ID = 2026081800
 const QIXI_INFO_ID = 2026081801
-const qixi = reactive({ tips: null, err: '' })
+const qixi = reactive({
+  tips: null, err: '',
+  // 数据芯片（TODO: 08-18 接口活后从 GetGroup 子树动态获取）
+  feather: 0, luStock: 0, bridgeDone: 0, bridgeMax: 5, sachet: 0,
+  // 灵露
+  luUsed: 0, luLimit: null, // null=待接口确认
+  // 好友列表（手动刷新，避免进tab阻塞线程）
+  friends: [], friendsLoading: false,
+  // 被动
+  passiveTriggered: 0, passiveLimit: 3
+})
+// --- 鹊桥：倒计时 ---
+const qixiCd = ref('')
+let qixiCdTimer = null
+function qixiTick() {
+  const OPEN = new Date('2026-08-18T00:00:00+08:00').getTime()
+  const diff = OPEN - Date.now()
+  if (diff <= 0) { qixiCd.value = '🟢 活动已开启'; if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null } return }
+  const s = Math.floor(diff / 1000)
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60
+  qixiCd.value = `⏳ 距开启 ${String(d).padStart(2, '0')}:${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+// --- 鹊桥：刷新好友列表 ---
+async function refreshQiXiFriends() {
+  qixi.friendsLoading = true
+  // TODO: 实际实现 enterFriendFarm(gid) → AllLands → filter seed_id>0
+  // 占位示意数据
+  await new Promise(r => setTimeout(r, 300))
+  qixi.friends = [
+    { name: '阿狸', gid: 'g_ali', lands: 3 },
+    { name: '小桃', gid: 'g_xiaot', lands: 2 },
+    { name: '七喜', gid: 'g_qixi', lands: 4 },
+    { name: '陈酿', gid: 'g_chen', lands: 1 },
+  ]
+  qixi.friendsLoading = false
+}
+// --- 鹊桥：Operate 桩（cmd 待 08-18 抓号回填） ---
+function qixiOperate(cmdName, cmdConst, payload) {
+  const call = { svc: 'ActivityService.Operate', cmd: cmdConst, payload }
+  console.log(`[${cmdName}]`, JSON.stringify(call))
+  return call
+}
+function sprayLu(friend) {
+  if (qixi.luStock <= 0) { app.error('灵露已空'); return false }
+  if (qixi.luLimit !== null && qixi.luUsed >= qixi.luLimit) { app.error('今日灵露已到上限'); return false }
+  qixiOperate('灵露主动', 'CMD_LU', { land_id: friend.landId || 0, host_gid: friend.gid })
+  qixi.luStock--; qixi.luUsed++
+  app.success(`向 ${friend.name} 喷洒灵露 → 鹊羽 +1`)
+  return true
+}
+function sprayAllLu() {
+  if (!qixi.friends.length) { app.error('请先刷新好友列表'); return }
+  const order = qixi.friends.map((_, i) => i).sort(() => Math.random() - 0.5)
+  let n = 0
+  for (const i of order) {
+    const f = qixi.friends[i]
+    if (sprayLu(f)) n++
+    if (qixi.luStock <= 0 || (qixi.luLimit !== null && qixi.luUsed >= qixi.luLimit)) break
+  }
+  app.success(`随机喷洒完成，本次消耗灵露 ${n} 根`)
+}
+function buildBridge() {
+  qixiOperate('筑鹊桥', 'CMD_BRIDGE', {})
+  app.success('已发起筑鹊桥（cmd 待回填）')
+}
+function giftSachet() {
+  qixiOperate('香囊赠送', 'CMD_GIFT', { gid: 'g_target', count: 1 })
+  app.success('已发起香囊赠送（cmd 待回填）')
+}
 // 去标签
 function stripTags(s) { return String(s || '').replace(/<[^>]+>/g, '') }
 // 解析 payload.tips：按【标题】分段，含 <br/> 拆条
@@ -58,6 +126,9 @@ function parseQiXiTips(payload) {
 async function loadQiXi() {
   const a = acc(); if (!a) return
   qixi.tips = null; qixi.err = ''
+  // TODO: 08-18 接口活后，从 GetGroup 子树动态获取数据芯片（鹊羽/灵露/进度/香囊）
+  // 当前占位示意数据
+  qixi.feather = 128; qixi.luStock = 36; qixi.bridgeDone = 2; qixi.sachet = 7
   try {
     const { data } = await api.get('/api/activity/group', { params: { id: QIXI_INFO_ID } })
     if (!(data && data.ok)) { qixi.err = (data && data.error) || '加载失败'; return }
@@ -319,7 +390,7 @@ function fmtDay(s) {
   return (x.getMonth() + 1) + '月' + x.getDate() + '日'
 }
 
-onMounted(() => { loadActivity(); loadQiXi() })
+onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000) })
 </script>
 
 <template>
@@ -522,32 +593,246 @@ onMounted(() => { loadActivity(); loadQiXi() })
 
     <!-- ===== 鹊桥寄情 ===== -->
     <div v-else-if="curPanel && curPanel.key === 'qixi'">
-      <div class="act-card">
-        <div class="act-card-hd"><h4>🌉 鹊桥寄情</h4><span class="act-badge">{{ (qixi.tips && qixi.tips.title) || '七夕' }} · 8/18—8/22</span></div>
+      <!-- Hero -->
+      <div class="qixi-hero">
+        <h1>🌉 鹊桥寄情</h1>
+        <div class="qixi-sub">七夕限定活动 · 活动时间 2026-08-18 ~ 08-22</div>
+        <span class="qixi-cd">{{ qixiCd }}</span>
       </div>
-      <template v-if="qixi.tips && qixi.tips.sections.length">
-        <div v-for="(sec, i) in qixi.tips.sections" :key="i" class="act-card" style="border:1px solid var(--border)">
-          <div class="act-card-hd"><h4>{{ sec.title }}</h4></div>
-          <ul style="margin:2px 0 2px 18px;padding:0;color:var(--muted);line-height:1.7;list-style:disc;font-size:12.5px">
-            <li v-for="(it, j) in sec.items" :key="j" style="margin:3px 0">{{ it }}</li>
-          </ul>
-        </div>
-      </template>
-      <div v-else class="act-empty">{{ qixi.tips ? '玩法细则待 8/18 更新' : (qixi.err || '正在加载玩法...') }}</div>
 
-      <div class="act-card" style="border:1px dashed var(--border)">
-        <div class="act-card-hd"><h4>🦅 玩法操作</h4><span class="act-badge off">8/18 开放</span></div>
-        <div class="act-stats">
-          <span>鹊羽 <b>—</b></span><span>鹊羽灵露 <b>—</b></span><span>鹊羽香囊 <b>—</b></span>
-        </div>
-        <div class="act-actions">
-          <button class="act-btn" disabled>使用鹊羽灵露</button>
-          <button class="act-btn" disabled>筑建鹊桥</button>
-        </div>
-        <div class="act-hint">活动 8/18 上线、后端接入鹊桥接口后，这里即可查看鹊羽数量并筑桥</div>
+      <!-- 数据芯片 -->
+      <div class="qixi-chips">
+        <div class="qixi-chip gold"><div class="v">{{ qixi.feather }}</div><div class="k">鹊羽</div></div>
+        <div class="qixi-chip green"><div class="v">{{ qixi.luStock }}</div><div class="k">鹊羽灵露</div></div>
+        <div class="qixi-chip rose"><div class="v">{{ qixi.bridgeDone }}/{{ qixi.bridgeMax }}</div><div class="k">鹊桥进度</div></div>
+        <div class="qixi-chip blue"><div class="v">{{ qixi.sachet }}</div><div class="k">鹊羽香囊</div></div>
       </div>
+      <div class="qixi-chip-hint">※ 数据示意，08-18 接口活后动态获取</div>
+
+      <!-- 筑鹊桥 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">消耗鹊羽</span></div>
+        <div class="qixi-bar"><i :style="{ width: qixi.bridgeMax > 0 ? Math.min(100, Math.round(qixi.bridgeDone / qixi.bridgeMax * 100)) : 0 + '%' }"></i></div>
+        <div class="muted">已筑 {{ qixi.bridgeDone }} / {{ qixi.bridgeMax }} 段 · 再消耗 60 鹊羽可解锁全部奖励</div>
+        <div class="qixi-rewards">
+          <div class="qixi-rw"><b>🌱</b>化肥</div>
+          <div class="qixi-rw"><b>🎫</b>点券</div>
+          <div class="qixi-rw"><b>💝</b>香囊</div>
+          <div class="qixi-rw"><b>🏅</b>铭牌</div>
+        </div>
+        <button class="btn primary block" :disabled="qixi.feather < 60" @click="buildBridge">{{ qixi.feather >= 60 ? '筑建鹊桥' : '鹊羽不足，攒满再筑桥' }}</button>
+      </div>
+
+      <!-- 鹊羽灵露 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>鹊羽灵露 · 主动触发</div>
+        <div class="banner">💡 在任意好友/自家地块主动喷洒，<b>恒得 1 根鹊羽</b>，不受变异·成熟度影响。无需挑地，随机用即可。</div>
+        <div class="row" style="margin-top:12px">
+          <span class="muted">灵露库存 <b style="color:var(--good)">{{ qixi.luStock }}</b> · 今日已用 {{ qixi.luUsed }}/{{ qixi.luLimit !== null ? qixi.luLimit : '?' }} <span class="pill warn" v-if="qixi.luLimit === null">日限待接口确认</span></span>
+          <button class="btn ghost" @click="sprayAllLu">🎲 一键随机喷洒</button>
+        </div>
+        <div class="row" style="margin:4px 0">
+          <span class="muted">好友列表（手动刷新，避免进tab阻塞线程）</span>
+          <button class="btn small" @click="refreshQiXiFriends" :disabled="qixi.friendsLoading">{{ qixi.friendsLoading ? '⏳ 刷新中…' : '🔄 刷新好友' }}</button>
+        </div>
+        <div class="qixi-flist" v-if="qixi.friends.length">
+          <div v-for="(f, i) in qixi.friends" :key="i" class="qixi-frow">
+            <div class="qixi-av">{{ f.name[0] }}</div>
+            <div style="flex:1"><div class="qixi-fnm">{{ f.name }}</div><div class="st">有作物地块 ×{{ f.lands }}</div></div>
+            <button class="btn gold small" @click="sprayLu(f)">用灵露</button>
+          </div>
+        </div>
+        <div v-else class="empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12.5px">👥 点击「🔄 刷新好友」加载有可作物地块的好友</div>
+      </div>
+
+      <!-- 被动触发 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>收菜被动触发</div>
+        <div class="banner">🌾 自家收菜概率出「鹊羽」，<b>每日自动封顶 {{ qixi.passiveLimit }} 次</b>，无需任何操作。今日已触发 <span class="pill">{{ qixi.passiveTriggered }}/{{ qixi.passiveLimit }}</span></div>
+      </div>
+
+      <!-- 香囊赠送 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>鹊羽香囊 · 赠好友</div>
+        <div class="row">
+          <span class="muted">香囊库存 <b style="color:var(--primary)">{{ qixi.sachet }}</b> · 活动期内赠出可换金币</span>
+          <button class="btn primary" @click="giftSachet">💝 赠好友</button>
+        </div>
+      </div>
+
+      <!-- 活动说明 -->
+      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+        <summary style="cursor:pointer;font-weight:700;font-size:14px;list-style:none">📜 活动说明（接口已放出）</summary>
+        <ol style="margin:10px 0 0 18px;font-size:12.5px;color:var(--foreground)">
+          <li v-for="(sec, i) in (qixi.tips && qixi.tips.sections || [])" :key="i" style="margin:4px 0">
+            <b>{{ sec.title }}</b>
+            <ul style="margin:2px 0 2px 14px;padding:0;list-style:disc;color:var(--muted)">
+              <li v-for="(it, j) in sec.items" :key="j" style="margin:花粉2px 0">{{ it }}</li>
+            </ul>
+          </li>
+        </ol>
+        <div v-if="!(qixi.tips && qixi.tips.sections && qixi.tips.sections.length)" style="color:var(--muted);font-size:12.5px">
+          {{ qixi.tips ? '玩法细则待 8/18 更新' : (qixi.err || '正在加载玩法...') }}
+        </div>
+      </details>
+
+      <div class="foot" style="text-align:center;font-size:11px;color:var(--muted);margin-top:4px">数据为占位示意 · 协议桩 cmd 待 08-18 抓号回填</div>
     </div>
 
     <div v-else-if="curPanel" class="act-empty">该活动暂无可展示的面板</div>
   </div>
 </template>
+
+<style scoped>
+/* ===== 鹊桥寄情 ===== */
+.qixi-hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: var(--on-primary);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 14px;
+}
+.qixi-hero h1 { font-size: 22px; display: flex; align-items: center; gap: 8px; }
+.qixi-sub { opacity: 0.92; font-size: 13px; margin-top: 6px; }
+.qixi-cd {
+  display: inline-block;
+  margin-top: 10px;
+  background: rgba(255,255,255,.22);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 数据芯片 */
+.qixi-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.qixi-chip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+.qixi-chip .v { font-size: 20px; font-weight: 700; }
+.qixi-chip .k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.qixi-chip.gold .v { color: var(--warn); }
+.qixi-chip.rose .v { color: var(--danger); }
+.qixi-chip.green .v { color: var(--good); }
+.qixi-chip.blue .v { color: var(--primary); }
+.qixi-chip-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* 筑桥 */
+.qixi-bar {
+  height: 10px;
+  background: var(--primary-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.qixi-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  border-radius: 999px;
+}
+.qixi-rewards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+}
+.qixi-rw {
+  background: var(--primary-soft);
+  border-radius: 10px;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+}
+.qixi-rw b { display: block; font-size: 15px; margin-bottom: 2px; }
+
+/* 好友列表 */
+.qixi-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.qixi-frow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.qixi-av {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-2), var(--primary));
+  color: var(--on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex: none;
+}
+.qixi-fnm { font-size: 13.5px; font-weight: 600; }
+
+/* 通用元素（在鹊桥面板作用域内定义） */
+.ttl { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 7px; margin-bottom: 12px; }
+.ttl .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.banner {
+  background: var(--primary-soft);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 12.5px;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pill {
+  display: inline-block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--good);
+}
+.pill.warn { background: none; color: var(--warn); border-color: var(--warn); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(17,24,39,.05);
+}
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+.btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.ghost { background: var(--primary-soft); color: var(--primary); }
+.btn.gold { background: var(--warn); color: #fff; }
+.btn.block { width: 100%; }
+.btn.small { padding: 6px 12px; font-size: 11px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.muted { color: var(--muted); font-size: 12.5px; }
+.st { font-size: 11px; color: var(--muted); }
+.empty { text-align: center; padding: 14px; color: var(--muted); font-size: 12.5px; }
+.foot { text-align: center; font-size: 11px; color: var(--muted); margin-top: 4px; }
+</style>
