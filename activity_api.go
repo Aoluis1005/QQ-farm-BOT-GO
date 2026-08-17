@@ -1289,7 +1289,9 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseQiXiTierFlags 从 GetGroup 响应提取 1801 节点 field112 各档 flag（2=已领/1=未领）。
-// GetGroup 响应路径：field2(响应体) → field1(group) → field2(children容器) → field1(nodes) → node1801 → field112(配置) → field2(tiers) → {1:档号, 4:flag}
+// 导航对齐 ParseActivityGroup（线上已验证）：rpcRequest 返回的 body 已是响应体(信封 field2)，
+// 响应体.field1 = root node(1800)，root.field2 每个直接是子节点(1801/1802)，
+// 节点.field1(info).field1 = id，节点.field112(配置).field2 repeated = tiers{1:档号, 4:flag}
 func parseQiXiTierFlags(body []byte) map[int64]int64 {
 	out := map[int64]int64{}
 	get := func(buf []byte, no int) []byte {
@@ -1300,24 +1302,14 @@ func parseQiXiTierFlags(body []byte) map[int64]int64 {
 		}
 		return nil
 	}
-	body2 := get(body, 2) // 响应体
-	if body2 == nil {
-		return out
-	}
-	grp := get(body2, 1) // group
+	grp := get(body, 1) // 响应体.field1 = root node（1800）
 	if grp == nil {
 		return out
 	}
-	kids := get(grp, 2) // children 容器
-	if kids == nil {
-		return out
-	}
-	for _, f := range readActFields(kids) {
-		if f.No != 1 || f.Wire != 2 {
-			continue
-		}
+	for _, child := range actBytesAll(grp, 2) { // root.field2 repeated = 子节点
+		info := get(child, 1)
 		nid := int64(0)
-		for _, nf := range readActFields(f.Bytes) {
+		for _, nf := range readActFields(info) {
 			if nf.No == 1 && nf.Wire == 0 {
 				nid = nf.Varint
 			}
@@ -1325,26 +1317,22 @@ func parseQiXiTierFlags(body []byte) map[int64]int64 {
 		if nid != 2026081801 {
 			continue
 		}
-		for _, cf := range readActFields(f.Bytes) {
-			if cf.No != 112 || cf.Wire != 2 {
-				continue
+		cfg := get(child, 112)
+		if cfg == nil {
+			return out
+		}
+		for _, tf := range actBytesAll(cfg, 2) { // 配置.field2 repeated = 各档
+			tierNo, flag := int64(0), int64(1)
+			for _, tif := range readActFields(tf) {
+				switch {
+				case tif.No == 1 && tif.Wire == 0:
+					tierNo = tif.Varint
+				case tif.No == 4 && tif.Wire == 0:
+					flag = tif.Varint
+				}
 			}
-			for _, tf := range readActFields(cf.Bytes) {
-				if tf.No != 2 || tf.Wire != 2 {
-					continue
-				}
-				tierNo, flag := int64(0), int64(1)
-				for _, tif := range readActFields(tf.Bytes) {
-					switch {
-					case tif.No == 1 && tif.Wire == 0:
-						tierNo = tif.Varint
-					case tif.No == 4 && tif.Wire == 0:
-						flag = tif.Varint
-					}
-				}
-				if tierNo > 0 {
-					out[tierNo] = flag
-				}
+			if tierNo > 0 {
+				out[tierNo] = flag
 			}
 		}
 	}
