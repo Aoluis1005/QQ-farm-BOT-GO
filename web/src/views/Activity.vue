@@ -31,7 +31,7 @@ const QIXI_INFO_ID = 2026081801
 const qixi = reactive({
   tips: null, err: '',
   // 数据芯片（TODO: 08-18 接口活后从 GetGroup 子树动态获取）
-  feather: 0, luStock: 0, bridgeDone: 0, bridgeMax: 5, sachet: 0,
+  feather: 0, luStock: 0, bridgeDone: 0, bridgeMax: 5, bridgeTarget: 30, sachet: 0,
   // 灵露
   luUsed: 0, luLimit: null, // null=待接口确认
   // 好友列表（手动刷新，避免进tab阻塞线程）
@@ -160,6 +160,7 @@ async function loadQiXi() {
       qixi.luStock = n(d.luStock)
       qixi.bridgeDone = n(d.bridgeDone)
       qixi.bridgeMax = n(d.bridgeMax) || 5
+      qixi.bridgeTarget = n(d.bridgeTarget) || 30
       qixi.sachet = n(d.sachet)
       qixi.luLimit = d.luLimit
     }
@@ -639,23 +640,22 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
       <div class="qixi-chips">
         <div class="qixi-chip gold"><div class="v">{{ qixi.feather }}</div><div class="k">鹊羽</div></div>
         <div class="qixi-chip green"><div class="v">{{ qixi.luStock }}</div><div class="k">鹊羽灵露</div></div>
-        <div class="qixi-chip rose"><div class="v">{{ qixi.bridgeDone }}/{{ qixi.bridgeMax }}</div><div class="k">鹊桥进度</div></div>
+        <div class="qixi-chip rose"><div class="v">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</div><div class="k">鹊羽收集</div></div>
         <div class="qixi-chip blue"><div class="v">{{ qixi.sachet }}</div><div class="k">鹊羽香囊</div></div>
       </div>
-      <div class="qixi-chip-hint">※ 数据示意，08-18 接口活后动态获取</div>
 
       <!-- 筑鹊桥 -->
       <div class="card">
-        <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">消耗鹊羽</span></div>
-        <div class="qixi-bar"><i :style="{ width: qixi.bridgeMax > 0 ? Math.min(100, Math.round(qixi.bridgeDone / qixi.bridgeMax * 100)) : 0 + '%' }"></i></div>
-        <div class="muted">已筑 {{ qixi.bridgeDone }} / {{ qixi.bridgeMax }} 段 · 再消耗 60 鹊羽可解锁全部奖励</div>
+        <div class="ttl"><span class="dot"></span>筑鹊桥 <span class="pill">共 5 段</span></div>
+        <div class="qixi-bar"><i :style="{ width: qixi.bridgeTarget > 0 ? Math.min(100, Math.round(qixi.feather / qixi.bridgeTarget * 100)) : 0 + '%' }"></i></div>
+        <div class="muted">累计收集 <b style="color:var(--good)">{{ qixi.feather }}/{{ qixi.bridgeTarget }}</b> 鹊羽 · 集满 {{ qixi.bridgeTarget }} 可解锁全部 {{ qixi.bridgeMax }} 段筑桥奖励</div>
         <div class="qixi-rewards">
           <div class="qixi-rw"><b>🌱</b>化肥</div>
           <div class="qixi-rw"><b>🎫</b>点券</div>
           <div class="qixi-rw"><b>💝</b>香囊</div>
           <div class="qixi-rw"><b>🏅</b>铭牌</div>
         </div>
-        <button class="btn primary block" :disabled="qixi.feather < 60" @click="buildBridge">{{ qixi.feather >= 60 ? '筑建鹊桥' : '鹊羽不足，攒满再筑桥' }}</button>
+        <button class="btn primary block" :disabled="qixi.feather < qixi.bridgeTarget" @click="buildBridge">{{ qixi.feather >= qixi.bridgeTarget ? '筑建鹊桥' : '鹊羽未满，继续收集再筑桥' }}</button>
       </div>
 
       <!-- 鹊羽灵露 -->

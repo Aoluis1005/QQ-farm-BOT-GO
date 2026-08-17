@@ -49,6 +49,7 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/debug/plant_rpc", handleDebugPlantRPC)
 	api.HandleFunc("/api/debug/bag_dump", handleDebugBagDump)
 	api.HandleFunc("/api/activity/qixi", handleQiXiStatus)
+	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -1124,21 +1125,31 @@ func handleDebugPlantRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b := proto.NewBuilder()
-	if landID > 0 {
-		b.FieldInt64(1, landID)
-	}
-	if hostGid > 0 {
-		b.FieldInt64(2, hostGid)
-	}
-	if itemID > 0 {
-		// Feriliize 布局：item 放 field2（fertilizer_id），host 不占 field2 时
-		if layout == "fertilize" {
-			// 重建：land_ids=1, fertilizer_id=2
-			b = proto.NewBuilder()
+	if layout == "putinsects" {
+		// PutInsects/PutWeeds: host_gid=1, land_ids=2
+		if hostGid > 0 {
+			b.FieldInt64(1, hostGid)
+		}
+		if landID > 0 {
+			b.FieldInt64(2, landID)
+		}
+	} else {
+		if landID > 0 {
 			b.FieldInt64(1, landID)
-			b.FieldInt64(2, itemID)
-		} else {
-			b.FieldInt64(3, itemID)
+		}
+		if hostGid > 0 {
+			b.FieldInt64(2, hostGid)
+		}
+		if itemID > 0 {
+			// Feriliize 布局：item 放 field2（fertilizer_id），host 不占 field2 时
+			if layout == "fertilize" {
+				// 重建：land_ids=1, fertilizer_id=2
+				b = proto.NewBuilder()
+				b.FieldInt64(1, landID)
+				b.FieldInt64(2, itemID)
+			} else {
+				b.FieldInt64(3, itemID)
+			}
 		}
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -1179,7 +1190,7 @@ func handleDebugBagDump(w http.ResponseWriter, r *http.Request) {
 }
 
 // ===== 鹊桥寄情：首页动态数据（鹊羽/鹊羽灵露/进度/香囊）=====
-// 鹊羽与鹊羽灵露为同一背包物品 301103；筑桥进度/香囊待后续 cmd 确认后接入。
+// 鹊羽灵露 = 背包物品 301103；鹊羽当前未获得（来源待 Activity 状态 cmd 确认）；筑桥进度/香囊待确认。
 func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
@@ -1198,7 +1209,7 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 	br := proto.DecodeBagReply(rep.Body)
 	lu := int64(0)
 	for _, it := range br.Items {
-		if it.ID == 301103 { // 鹊羽灵露（鹊羽同物品）
+		if it.ID == 301103 { // 鹊羽灵露
 			lu = it.Count
 			break
 		}
@@ -1206,12 +1217,67 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
-			"feather":    lu, // 鹊羽
-			"luStock":    lu, // 鹊羽灵露库存
-			"bridgeDone": 0,  // 待 cmd 确认
+			"feather":    0,    // 鹊羽：当前尚未获得（来源待 Activity 状态 cmd 确认）
+			"luStock":    lu,   // 鹊羽灵露（背包 301103）
+			"bridgeDone": 0,    // 待 cmd 确认
 			"bridgeMax":  5,
-			"sachet":     0, // 待 cmd 确认
-			"luLimit":    nil, // null=待接口确认
+			"bridgeTarget": 30, // 鹊羽收集目标（5 段×6，图片 0/30）
+			"sachet":     0,    // 待 cmd 确认
+			"luLimit":    nil,  // null=待接口确认
 		},
 	})
+}
+
+// ===== 临时调试：ItemService.Use 探测（灵露喷洒=放黄金虫=使用物品到地块）=====
+// GET /api/debug/item_use?accountId=X&item=..&count=..&land_id=..&land_field=3&shape=nested|flat
+func handleDebugItemUse(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	item, _ := strconv.ParseInt(r.URL.Query().Get("item"), 10, 64)
+	count, _ := strconv.ParseInt(r.URL.Query().Get("count"), 10, 64)
+	landID, _ := strconv.ParseInt(r.URL.Query().Get("land_id"), 10, 64)
+	lfield, _ := strconv.Atoi(r.URL.Query().Get("land_field"))
+	if lfield == 0 {
+		lfield = 3
+	}
+	shape := r.URL.Query().Get("shape")
+	if item <= 0 {
+		writeError(w, 400, "missing item")
+		return
+	}
+	if count <= 0 {
+		count = 1
+	}
+	var body []byte
+	if shape == "flat" {
+		b := proto.NewBuilder()
+		b.FieldInt64(1, item)
+		b.FieldInt64(2, count)
+		if landID > 0 {
+			b.FieldInt64(lfield, landID)
+		}
+		body = b.Bytes()
+	} else { // nested: 外层 field1=子消息{item,count,land@lfield}
+		sub := proto.NewBuilder()
+		sub.FieldInt64Always(1, item)
+		sub.FieldInt64Always(2, count)
+		if landID > 0 {
+			sub.FieldInt64(lfield, landID)
+		}
+		b := proto.NewBuilder()
+		b.FieldMessage(1, sub.Bytes())
+		body = b.Bytes()
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", err.Error())
+		return
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Use", body, 15*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error(), "hex", fmt.Sprintf("%X", body))
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "hex": fmt.Sprintf("%X", body), "bodyLen": len(rep.Body), "respHex": fmt.Sprintf("%X", rep.Body)})
 }
