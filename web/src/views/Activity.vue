@@ -35,7 +35,7 @@ const qixi = reactive({
   // 灵露
   luUsed: 0, luLimit: null, // null=待接口确认
   // 好友列表（手动刷新，避免进tab阻塞线程）
-  friends: [], friendsLoading: false,
+  friends: [], allFriends: [], friendsDisplayCount: 0, friendsPerPage: 10, friendsLoading: false,
   // 被动
   passiveTriggered: 0, passiveLimit: 3
 })
@@ -53,20 +53,34 @@ function qixiTick() {
 // --- 鹊桥：刷新好友列表 ---
 async function refreshQiXiFriends() {
   qixi.friendsLoading = true
-    // 获取好友列表 + 地块信息（TODO: enterFriendFarm 批量获取地块数，暂用占位 hasCrops:true）
+    // 获取好友列表（scrollable pagination, 首次加载 10 条）
   try {
-    const { data: fd } = await api.get('/api/friends/list', { params: { accountId: acc() } })
+    const { data: fd } = await api.get('/api/friends/list')
     const list = (fd && fd.ok && fd.data) || []
-    qixi.friends = list.filter(f => f.gid).map(f => ({
+    qixi.allFriends = list.filter(f => f.gid).map(f => ({
       gid: f.gid,
       name: f.nickname || f.name || String(f.gid),
       lands: '?',
       hasCrops: true,
     }))
+    qixi.friendsDisplayCount = Math.min(qixi.friendsPerPage, qixi.allFriends.length)
+    qixi.friends = qixi.allFriends.slice(0, qixi.friendsDisplayCount)
   } catch (e) {
     console.error('刷新鹊桥好友列表失败', e)
     app.error('好友列表加载失败')
   }
+}
+function loadMoreQiXiFriends() {
+  if (qixi.friendsDisplayCount >= qixi.allFriends.length) return
+  qixi.friendsDisplayCount = Math.min(qixi.friendsDisplayCount + qixi.friendsPerPage, qixi.allFriends.length)
+  qixi.friends = qixi.allFriends.slice(0, qixi.friendsDisplayCount)
+}
+function onQiXiFriendScroll(e) {
+  const el = e.target
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+    loadMoreQiXiFriends()
+  }
+}
   qixi.friendsLoading = false
 }
 // --- 鹊桥：Operate 桩（cmd 待 08-18 抓号回填） ---
@@ -647,12 +661,15 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
           <span class="muted">好友列表（手动刷新，避免进tab阻塞线程）</span>
           <button class="btn small" @click="refreshQiXiFriends" :disabled="qixi.friendsLoading">{{ qixi.friendsLoading ? '⏳ 刷新中…' : '🔄 刷新好友' }}</button>
         </div>
-        <div class="qixi-flist" v-if="qixi.friends.length">
+        <div class="qixi-flist" v-if="qixi.friends.length" @scroll="onQiXiFriendScroll">
           <div v-for="(f, i) in qixi.friends" :key="i" class="qixi-frow">
             <div class="qixi-av">{{ f.name[0] }}</div>
             <div style="flex:1"><div class="qixi-fnm">{{ f.name }}</div><div class="st">有作物地块 ×{{ f.lands }}</div></div>
             <button class="btn gold small" @click="sprayLu(f)">用灵露</button>
             <button class="btn primary small" @click="giftSachetTo(f)">送香囊</button>
+          </div>
+          <div v-if="qixi.friendsDisplayCount < qixi.allFriends.length" class="qixi-loadmore" @click="loadMoreQiXiFriends">
+            📜 下滑加载更多（{{ qixi.friendsDisplayCount }}/{{ qixi.allFriends.length }}）
           </div>
         </div>
         <div v-else class="empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12.5px">👥 点击「🔄 刷新好友」加载有可作物地块的好友</div>
@@ -690,11 +707,14 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
 <style scoped>
 /* ===== 鹊桥寄情 ===== */
 .qixi-hero {
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  color: var(--on-primary);
+  background: linear-gradient(135deg, #ff7eb3 0%, #e23a8a 100%);
+  color: #fff;
   border-radius: 14px;
   padding: 20px;
   margin-bottom: 14px;
+}
+[data-theme="dark"] .qixi-hero {
+  background: linear-gradient(135deg, #c44d7a 0%, #a82868 100%);
 }
 .qixi-hero h1 { font-size: 22px; display: flex; align-items: center; gap: 8px; }
 .qixi-sub { opacity: 0.92; font-size: 13px; margin-top: 6px; }
@@ -765,7 +785,8 @@ onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInter
 .qixi-rw b { display: block; font-size: 15px; margin-bottom: 2px; }
 
 /* 好友列表 */
-.qixi-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.qixi-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.qixi-loadmore { text-align: center; padding: 10px; font-size: 12px; color: var(--muted); cursor: pointer; border-top: 1px solid var(--border); }
 .qixi-frow {
   display: flex;
   align-items: center;
