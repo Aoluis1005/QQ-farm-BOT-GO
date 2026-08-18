@@ -60,25 +60,45 @@ func runTaskAuto(accountID string, c *gw.Client) {
 	if ticketGain := claimIllustratedRewardsGo(ctx, accountID, c); ticketGain > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取图鉴奖励：点券+%d", ticketGain))
 	}
+}
+
+// runDailyRoutinesGo 每日例行（对齐 Node worker.ts runDailyRoutines：邮件/分享/月卡/商城免费礼/会员）。
+// 独立于任务开关（不依赖 cfg.Automation.Task），由 automationLoop 登录后立即执行 + 跨天检测触发。
+// 每项内部有 doneDate 内存态防重（同一天只真正执行一次，后续直接跳过）。
+// 每项执行后无论结果都记日志（对齐 Node log('邮箱'/'月卡'/'会员'/'商城'/'分享', ...)），日志页每天可见。
+func runDailyRoutinesGo(accountID string, c *gw.Client) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	appendOpLog(accountID, "task", "每日例行开始")
 	// 商城免费礼（对齐 Node mall.js buyFreeGifts：GetMallListBySlotType(1) → is_free 商品 → Purchase）
 	if n := buyFreeGiftsGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取商城免费礼包 x%d", n))
+	} else {
+		appendOpLog(accountID, "task", "商城：今日无免费商品可领")
 	}
 	// 每日分享礼包（对齐 Node share.js performDailyShare：CheckCanShare → ReportShare → ClaimShareReward）
 	if performDailyShareGo(ctx, accountID) {
 		appendOpLog(accountID, "task", "领取每日分享礼包")
+	} else {
+		appendOpLog(accountID, "task", "分享：今日不可分享或已领取")
 	}
 	// 邮件奖励（对齐 Node email.ts checkAndClaimEmails：GetEmailList(box 1+2) → BatchClaimEmail）
 	if n := claimEmailsGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取邮箱奖励 %d 封", n))
+	} else {
+		appendOpLog(accountID, "task", "邮箱：今日无待领邮件奖励")
 	}
 	// 月卡礼包（对齐 Node monthcard.ts performDailyMonthCardGift：GetMonthCardInfos → ClaimMonthCardReward）
 	if n := claimMonthCardGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取月卡礼包 %d 个", n))
+	} else {
+		appendOpLog(accountID, "task", "月卡：无月卡或今日已领")
 	}
 	// QQ会员每日礼包（对齐 Node qqvip.ts performDailyVipGift：RefreshVipInfo → GetQQVipRewardsStatus → ClaimQQVipRewards）
 	if n := claimVipGiftGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取QQ会员礼包 %d 个", n))
+	} else {
+		appendOpLog(accountID, "task", "会员：今日无可领会员礼包")
 	}
 }
 
@@ -306,12 +326,14 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		return 0
 	}
 	var claimable []emailItemInfo
+	queried := false // 至少一个 box 查询成功才算"已检查"（避免 RPC 失败误报无可领）
 	for _, box := range []int64{1, 2} {
 		rep, err := rpcRequest(ctx, accountID, emailSvc, "GetEmailList",
 			proto.EncodeGetEmailListRequest(box), 12*time.Second)
 		if err != nil {
 			continue
 		}
+		queried = true
 		// GetEmailListReply{ emails=1(repeated EmailItem) }
 		for _, f := range readActFields(rep) {
 			if f.No != 1 || f.Wire != 2 {
@@ -337,6 +359,9 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		emailDoneDate = todayKey()
 		dailyGiftMu.Unlock()
+		if queried {
+			appendOpLog(accountID, "task", "邮箱：今日无可领取邮件奖励")
+		}
 		return 0
 	}
 	// 批量领取（按 box 分组，对齐 Node byBox）
@@ -406,6 +431,7 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		monthCardDoneDate = todayKey()
 		dailyGiftMu.Unlock()
+		appendOpLog(accountID, "task", "月卡：当前没有月卡或今日无可领取月卡礼包")
 		return 0
 	}
 	claimed := 0
@@ -460,6 +486,7 @@ func claimVipGiftGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		vipDoneDate = todayKey()
 		dailyGiftMu.Unlock()
+		appendOpLog(accountID, "task", "会员：今日暂无可领取QQ会员礼包")
 		return 0
 	}
 	if _, err := rpcRequest(ctx, accountID, vipSvc, "ClaimQQVipRewards",

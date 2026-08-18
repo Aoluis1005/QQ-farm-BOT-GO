@@ -242,6 +242,9 @@ func automationLoop(accountID string, stop chan struct{}) {
 	nextBuy := time.Now().Add(30 * time.Second)
 	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
 	nextTask := time.Now().Add(15 * time.Second)
+	// 每日例行（对齐 Node startDailyRoutineTimer：登录后立即执行一次 + 跨天检测再执行，
+	// 独立于任务开关 runDailyRoutinesGo 内部按日期防重）——lastDailyDate 初始为空 → 首轮立即执行
+	lastDailyDate := ""
 	// 游戏网络心跳（对齐 Node network.startHeartbeat setInterval 25s）；并入统一串行线，不再独立 goroutine
 	nextHb := time.Now().Add(gwHeartbeatInterval)
 	hbMiss := 0
@@ -268,9 +271,12 @@ func automationLoop(accountID string, stop chan struct{}) {
 		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && !turbo && now.After(nextBuy)
 		shouldTask := cfg.Automation.Task && now.After(nextTask)
 		shouldHb := now.After(nextHb)
+		// 每日例行：登录后首轮立即执行（lastDailyDate 为空），此后仅跨天执行
+		// （对齐 Node startDailyRoutineTimer 的 lastDailyRunDate 跨日检测，30s 轮询里只比较日期）
+		shouldDaily := lastDailyDate != todayKey()
 
 		// 无到期任务：睡到最近到期时刻再驱动一次 tick（对齐 scheduleUnifiedNextTick 取 nearest）
-		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask && !shouldHb {
+		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask && !shouldHb && !shouldDaily {
 			nearest := nextFarm
 			if nextSteal.Before(nearest) {
 				nearest = nextSteal
@@ -373,6 +379,11 @@ func automationLoop(accountID string, stop chan struct{}) {
 		if shouldTask {
 			runTaskAuto(accountID, c)
 			nextTask = time.Now().Add(30 * time.Second)
+		}
+		// 每日例行（独立于任务开关，对齐 Node runDailyRoutines）——放在 task 之后执行
+		if shouldDaily {
+			runDailyRoutinesGo(accountID, c)
+			lastDailyDate = todayKey()
 		}
 	}
 }
