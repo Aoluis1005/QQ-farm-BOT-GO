@@ -320,6 +320,12 @@ func (c *Client) readLoop() {
 			if strings.Contains(typ, "ItemNotify") {
 				c.applyItemNotify(eventBody)
 			}
+			// BasicNotify 基础信息变化 → 用服务端绝对余额/经验/等级校准 c.gold/c.exp/c.level
+			// （对齐 Node network.ts BasicNotify：notify.basic.gold→userState.gold），
+			// 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值/autoSell 差值爆数）。
+			if strings.Contains(typ, "BasicNotify") {
+				c.applyBasicNotify(eventBody)
+			}
 			// LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push
 			if strings.Contains(typ, "LandsNotify") {
 				host := proto.DecodeLandsNotifyHostGid(eventBody)
@@ -377,6 +383,27 @@ func (c *Client) applyItemNotify(body []byte) {
 		}
 	}
 	c.mu.Unlock()
+}
+
+// applyBasicNotify 基础信息变化通知：用服务端绝对余额/经验/等级校准内存缓存。
+// 对齐权威 Node network.ts handleNotify BasicNotify：notify.basic.gold → userState.gold 等，
+// 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值 / autoSell 差值爆数）。
+func (c *Client) applyBasicNotify(body []byte) {
+	bi := proto.DecodeBasicNotify(body)
+	if bi == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if bi.Gold > 0 {
+		c.gold = bi.Gold
+	}
+	if bi.Exp > 0 {
+		c.exp = bi.Exp
+	}
+	if bi.Level > 0 {
+		c.level = bi.Level
+	}
 }
 
 func max64(a, b int64) int64 {

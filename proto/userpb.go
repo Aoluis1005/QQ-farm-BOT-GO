@@ -57,31 +57,7 @@ func DecodeLoginReply(buf []byte) *LoginReply {
 		switch field {
 		case 1:
 			if wire == WireLen {
-				sub := r.ReadBytes()
-				bi := &BasicInfo{}
-				er := NewReader(sub)
-				er.EachField(func(f, w int, r *Reader) bool {
-					switch f {
-					case 1:
-						bi.GID = r.ReadInt64()
-					case 2:
-						bi.Name = r.ReadString()
-					case 3:
-						bi.Level = r.ReadInt64()
-					case 4:
-						bi.Exp = r.ReadInt64()
-					case 5:
-						bi.Gold = r.ReadInt64()
-					case 6:
-						bi.OpenID = r.ReadString()
-					case 7:
-						bi.Avatar = r.ReadString()
-					default:
-						r.Skip(w)
-					}
-					return true
-				})
-				rep.Basic = bi
+				rep.Basic = decodeBasicInfo(r.ReadBytes())
 			} else {
 				r.Skip(wire)
 			}
@@ -93,6 +69,51 @@ func DecodeLoginReply(buf []byte) *LoginReply {
 		return true
 	})
 	return rep
+}
+
+// decodeBasicInfo 解析 BasicInfo 子消息（登录 Basic 与 BasicNotify.basic 复用同字段布局）。
+func decodeBasicInfo(sub []byte) *BasicInfo {
+	bi := &BasicInfo{}
+	er := NewReader(sub)
+	er.EachField(func(f, w int, r *Reader) bool {
+		switch f {
+		case 1:
+			bi.GID = r.ReadInt64()
+		case 2:
+			bi.Name = r.ReadString()
+		case 3:
+			bi.Level = r.ReadInt64()
+		case 4:
+			bi.Exp = r.ReadInt64()
+		case 5:
+			bi.Gold = r.ReadInt64()
+		case 6:
+			bi.OpenID = r.ReadString()
+		case 7:
+			bi.Avatar = r.ReadString()
+		default:
+			r.Skip(w)
+		}
+		return true
+	})
+	return bi
+}
+
+// DecodeBasicNotify 解析基础信息变化通知（BasicNotify，field1=basis/BasicInfo）。
+// 服务端会定期推送绝对余额/经验/等级，用于把被 ItemNotify 变化量污染的余额校准回真实值
+// （对齐权威 Node network.ts handleNotify BasicNotify 分支）。
+func DecodeBasicNotify(buf []byte) *BasicInfo {
+	var bi *BasicInfo
+	r := NewReader(buf)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		if field == 1 && wire == WireLen {
+			bi = decodeBasicInfo(r.ReadBytes())
+		} else {
+			r.Skip(wire)
+		}
+		return true
+	})
+	return bi
 }
 
 // EncodeHeartbeatRequest 心跳请求
