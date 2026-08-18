@@ -166,6 +166,30 @@ async function fetchDogInfo() {
   app.success(d?.ok ? '狗信息已更新' : ('获取失败：' + (d?.error || '未知')))
   loadFriends()
 }
+// 手动添加"已知好友 GID"（对齐 Node knownFriendGids：好友列表拉不到时填 GID 让 bot 抓取/巡查）
+const knownGids = ref([]); const knownOpen = ref(false); const knownGidInput = ref('')
+async function loadKnownGids() {
+  try {
+    const d = await api.get('/api/friend-known-gids')
+    knownGids.value = Array.isArray(d?.data?.data) ? d.data.data : (Array.isArray(d?.data) ? d.data : [])
+  } catch (e) {}
+}
+async function addKnownGids() {
+  const gids = String(knownGidInput.value || '').split(/[,，\s]+/).map(x => Number(x.trim())).filter(x => x > 0)
+  if (!gids.length) { app.error('请输入有效的 GID（多个用逗号分隔）'); return }
+  try {
+    const d = await api.post('/api/friend-known-gids/batch-add', { gids })
+    app.success(d?.data?.message || `已添加 ${gids.length} 个已知好友 GID`)
+    knownGidInput.value = ''
+    await loadKnownGids(); loadFriends()
+  } catch (e) { app.error('添加失败：' + (e.response?.data?.error || e.message)) }
+}
+async function removeKnownGid(gid) {
+  try {
+    await api.post('/api/friend-known-gids/remove', { gid: String(gid) })
+    await loadKnownGids(); loadFriends()
+  } catch (e) {}
+}
 /* 加好友（对齐 legacy parseShareLink + /api/friend/apply） */
 const addLink = ref(''); const addPreview = ref(''); const addMsg = ref('')
 function refreshPreview() {
@@ -387,8 +411,18 @@ onUnmounted(() => { clearInterval(landTimer) })
           <button class="chip" :class="{ on: friendDogFilter === 'all' }" @click="friendDogFilter='all'">全部</button>
           <button class="chip" :class="{ on: friendDogFilter === 'noGuardDog' }" @click="friendDogFilter='noGuardDog'">无护主犬</button>
           <button class="chip" :class="{ on: friendDogFilter === 'guardDog' }" @click="friendDogFilter='guardDog'">有护主犬</button>
-          <button class="chip" style="margin-left:auto" @click="fetchDogInfo">🐶 获取狗信息</button>
+          <button class="chip" style="margin-left:auto" @click="knownOpen = !knownOpen; if (knownOpen) loadKnownGids()">📇 抓取GID</button>
+          <button class="chip" @click="fetchDogInfo">🐶 获取狗信息</button>
           <button class="chip" @click="loadFriends">🔄 刷新</button>
+        </div>
+        <div v-if="knownOpen" style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input class="field" v-model="knownGidInput" placeholder="好友 GID（多个用逗号分隔）" style="flex:1;min-width:200px">
+          <button class="chip" style="border-color:var(--primary);color:var(--primary)" @click="addKnownGids">添加抓取</button>
+          <span v-if="knownGids.length" style="font-size:12px;color:var(--muted)">已添加：
+            <span v-for="g in knownGids" :key="g" style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1px 8px;margin:2px">
+              {{ g }} <a @click="removeKnownGid(g)" style="color:var(--danger,#e54);cursor:pointer">✕</a>
+            </span>
+          </span>
         </div>
         <div>
           <div v-for="f in shownFriends" :key="String(f.uid ?? f.gid)" class="friend-card" :data-uid="String(f.uid ?? f.gid)">
