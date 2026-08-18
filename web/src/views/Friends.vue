@@ -167,6 +167,36 @@ async function autoAcceptFriend() {
     app.error('检查申请失败：' + (e.response?.data?.error || e.message))
   }
 }
+// 手动添加"已知好友 GID"（对齐 Node knownFriendGids：好友列表拉不到时填 GID 让 bot 抓取/巡查）
+const knownOpen = ref(false)
+const knownGidInput = ref('')
+const knownGids = ref([])
+async function loadKnownGids() {
+  try {
+    const { data } = await api.get('/api/friend-known-gids')
+    knownGids.value = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
+  } catch (e) { /* 忽略 */ }
+}
+async function addKnownGids() {
+  const gids = String(knownGidInput.value || '').split(/[,，\s]+/).map(x => Number(x.trim())).filter(x => x > 0)
+  if (!gids.length) { app.error('请输入有效的 GID（多个用逗号分隔）'); return }
+  try {
+    const { data } = await api.post('/api/friend-known-gids/batch-add', { gids })
+    app.success(data.message || `已添加 ${gids.length} 个已知好友 GID`)
+    knownGidInput.value = ''
+    await loadKnownGids()
+    loadFriends(true)
+  } catch (e) {
+    app.error('添加失败：' + (e.response?.data?.error || e.message))
+  }
+}
+async function removeKnownGid(gid) {
+  try {
+    await api.post('/api/friend-known-gids/remove', { gid: String(gid) })
+    await loadKnownGids()
+    loadFriends(true)
+  } catch (e) { /* 忽略 */ }
+}
 
 // 好友农场详情
 const friendLandDialog = ref(false)
@@ -203,6 +233,7 @@ onMounted(() => loadFriends())
         <h2>好友列表 <small>({{ friends.length }}人 · 护主犬 {{ guardDogCount() }}只)</small></h2>
         <div class="sec-actions">
           <button class="btn ghost sm" @click="applyOpen = !applyOpen">➕ 添加好友</button>
+          <button class="btn ghost sm" @click="knownOpen = !knownOpen; if (knownOpen) loadKnownGids()">📇 抓取GID</button>
           <button class="btn ghost sm" @click="autoAcceptFriend">自动同意申请</button>
           <button class="btn ghost sm" @click="loadFriends(true)">刷新</button>
         </div>
@@ -211,6 +242,16 @@ onMounted(() => loadFriends())
         <input v-model="applyGid" placeholder="好友 UID" class="input" />
         <input v-model="applyCode" placeholder="验证码（可选）" class="input" />
         <button class="btn primary sm" @click="applyFriend">申请添加</button>
+      </div>
+      <div class="apply-form" v-if="knownOpen">
+        <input v-model="knownGidInput" placeholder="好友 GID（多个用逗号分隔）" class="input" style="flex:1" />
+        <button class="btn primary sm" @click="addKnownGids">添加抓取</button>
+        <span v-if="knownGids.length" class="known-gids">
+          <small>已添加：</small>
+          <span v-for="g in knownGids" :key="g" class="known-gid-chip">
+            {{ g }} <a class="known-gid-del" @click="removeKnownGid(g)">✕</a>
+          </span>
+        </span>
       </div>
       <div v-if="friendLoading" class="empty-tip">加载中...</div>
       <div v-else-if="!friends.length" class="empty-tip">暂无好友</div>

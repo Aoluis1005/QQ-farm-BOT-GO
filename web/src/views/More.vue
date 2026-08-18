@@ -263,7 +263,10 @@ watch(() => [dS.strategy, dS.fallback, dS.preferredSeed], () => computePreview('
 function seedRows(priority) {
   const byId = new Map(mSeeds.value.map(s => [s.seedId, s]))
   const ordered = (priority).map(id => byId.get(id)).filter(Boolean)
-  const rest = mSeeds.value.filter(s => !ordered.includes(s))
+  const rest = mSeeds.value
+    .filter(s => !ordered.includes(s))
+    .slice()
+    .sort((a, b) => (b.requiredLevel || 0) - (a.requiredLevel || 0)) // 未设置优先级的按等级降序，列表不再乱
   const items = [...ordered, ...rest]
   return items.map((s, i) => ({
     s, i, first: i === 0,
