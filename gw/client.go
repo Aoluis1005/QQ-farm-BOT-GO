@@ -739,9 +739,11 @@ func shouldCloseConnectionAfterTimeout(service, method string) bool {
 }
 
 // isSlowEndpoint 大报文/慢接口：集中放宽超时（消除大账号掉线，见 Request）。
-// Bag(背包大报文)/AllLands(好友地块)/GetSeasonInfo(千星赛季) 对 452 好友大账号常超 12-15s。
+// Bag(背包大报文)/AllLands(好友地块)/GetSeasonInfo(千星赛季)/GetGameFriends+GetAll(好友列表,
+// 452 好友分 13 批拉取) 对 452 好友大账号常超 12-15s。
 func isSlowEndpoint(service, method string) bool {
-	if method == "Bag" || method == "AllLands" || method == "GetSeasonInfo" {
+	switch method {
+	case "Bag", "AllLands", "GetSeasonInfo", "GetGameFriends", "GetAll":
 		return true
 	}
 	return false
