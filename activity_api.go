@@ -1423,25 +1423,35 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 	}
 	var sprayed []int64
 	var errs []string
-	// 喷洒真实结构（2026-08-17 tsdk.wasm 解密抓包明文实锤）：单次 Use，无 land_ids
-	// UseRequest = { field1 (LEN): item{301103,1,uid}, field2 (LEN): {host_gid, 标记9} }
+	// 喷洒真实结构（2026-08-17 tsdk.wasm 解密抓包明文实锤）：**逐地块喷洒**
+	// UseRequest = { field1 (LEN): item{301103,1,uid}, field2 (LEN): {host_gid, land_id} }
+	// 抓包明文：field2={08 gid 12 01 <land_id>}——field2 的 field2 是 LEN 包裹的 land_id（每块地一次 Use）
+	// 响应回显 LandInfo.land_id 确认：1383→land 9、1419→land 5。每块地只能喷一次（重复=1001065）。
 	item := proto.NewBuilder()
 	item.FieldInt64Always(1, 301103)
 	item.FieldInt64Always(2, 1)
 	if luUID > 0 {
 		item.FieldInt64(6, luUID)
 	}
-	sub := proto.NewBuilder()
-	sub.FieldInt64Always(1, req.HostGID)
-	sub.FieldInt64Always(2, 9) // 喷洒标记（抓包第一次=9）
-	ub := proto.NewBuilder()
-	ub.FieldMessage(1, item.Bytes())
-	ub.FieldMessage(2, sub.Bytes())
-	sprayHex := fmt.Sprintf("%X", ub.Bytes())
-	if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
-		errs = append(errs, fmt.Sprintf("spray:%v(hex:%s)", e2, sprayHex))
-	} else {
-		sprayed = append(sprayed, 0) // 无 land 概念，成功即完成
+	for _, landID := range selected {
+		sub := proto.NewBuilder()
+		sub.FieldInt64Always(1, req.HostGID)
+		// field2 = LEN 包裹的 land_id（varint 字节），对齐抓包 `12 01 09`/`12 01 05`
+		sub.FieldBytes(2, appendVarintBytes(landID))
+		ub := proto.NewBuilder()
+		ub.FieldMessage(1, item.Bytes())
+		ub.FieldMessage(2, sub.Bytes())
+		sprayHex := fmt.Sprintf("%X", ub.Bytes())
+		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
+			// 1001065 = 该地块今天已喷过（每块地限 1 次），跳过继续下一块
+			if strings.Contains(e2.Error(), "1001065") {
+				continue
+			}
+			errs = append(errs, fmt.Sprintf("land%d:%v(hex:%s)", landID, e2, sprayHex))
+		} else {
+			sprayed = append(sprayed, landID)
+		}
+		time.Sleep(300 * time.Millisecond) // 逐块间隔，避免密集请求
 	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,

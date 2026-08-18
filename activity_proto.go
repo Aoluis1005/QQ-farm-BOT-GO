@@ -833,3 +833,14 @@ func ParseSolarClaim(body []byte) *SolarClaimResult {
 	}
 	return res
 }
+
+// appendVarintBytes 将 varint 编码写入字节切片（LEN 字段内嵌小整数用，如喷洒 land_id）
+func appendVarintBytes(v int64) []byte {
+	var buf []byte
+	u := uint64(v)
+	for u >= 0x80 {
+		buf = append(buf, byte(u)|0x80)
+		u >>= 7
+	}
+	return append(buf, byte(u))
+}
