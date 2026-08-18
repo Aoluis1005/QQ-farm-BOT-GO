@@ -273,6 +273,12 @@ func handleSeeds(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, item)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].SeedID < out[j].SeedID })
+	// 按等级降序排序（高等级在前），同等级按 SeedID 升序；"优先种植种子"下拉/分析页都用这个顺序
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RequiredLevel != out[j].RequiredLevel {
+			return out[i].RequiredLevel > out[j].RequiredLevel
+		}
+		return out[i].SeedID < out[j].SeedID
+	})
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
 }
