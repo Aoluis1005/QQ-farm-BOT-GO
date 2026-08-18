@@ -1526,13 +1526,17 @@ func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer leaveFriendFarm(c, req.HostGID)
+	// 送香囊协议（liyangpengs activitypb.proto GiftQixiSachetRequest 实锤 2026-08-18）：
+	//   { activity_id=2026081802, operate_type=26, params(124)={ friend_gid=1, count=2 } }
+	// 注意：送香囊是独立的 1802 节点（QIXI_GIFT_ACTIVITY_ID），不是筑桥的 1801；
+	// 之前用 1801+field125 穷举全失败正是这个原因。
 	b := proto.NewBuilder()
-	b.FieldInt64(1, 2026081801) // 活动节点 id
-	b.FieldInt64(2, 26)         // cmd=26 赠送香囊（待真机抓包确认，实测后可改）
-	// Operate ext 结构（筑桥明文实锤 field125={field1:0}）：送香囊 ext={field1: 目标好友gid}
-	ext := proto.NewBuilder()
-	ext.FieldInt64Always(1, req.HostGID)
-	b.FieldMessage(125, ext.Bytes())
+	b.FieldInt64(1, 2026081802) // giftActivityId（送香囊节点）
+	b.FieldInt64(2, 26)         // operate_type（QIXI_GIFT_OPERATE_TYPE=26）
+	params := proto.NewBuilder()
+	params.FieldInt64(1, req.HostGID) // friend_gid
+	params.FieldInt64(2, 1)           // count=1（一次送 1 个）
+	b.FieldMessage(124, params.Bytes())
 	body, err := c.Request(ctx, actSvc, "Operate", b.Bytes(), 20*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
