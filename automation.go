@@ -1766,7 +1766,9 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	goldByState := int64(0)
-	if afterGold > prevGold {
+	// 对齐权威 deriveGoldGainFromSellReply：仅当余额已知(>0)时才用差值兜底，
+	// 防止 prevGold 卖前被取到 0 时把「卖出后余额整额」当收益入账（会把几十亿余额算进 sell）。
+	if prevGold > 0 && afterGold > prevGold {
 		goldByState = afterGold - prevGold
 	}
 	totalGold := parsedGold
