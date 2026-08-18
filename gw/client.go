@@ -53,6 +53,7 @@ type Client struct {
 	active      atomic.Int64
 	kickHook          func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
 	timeoutCloseHook  func() // 超时断连（服务端抖动/瞬时限流）时由连接池注入：标记该断连为“超时型”，重连不计上限
+	disconnectHook    func(reason string) // 连接异常断开（读错误/心跳连续失败）时由连接池注入：写前端可见的掉线日志
 	accountID    string
 	giftHook     func(accountID string, delta int64)
 	// lastBagSync 最近一次从背包同步点券/金豆的时间（节流用，避免首页高并发拉 Bag 触发风控）
@@ -294,6 +295,11 @@ func (c *Client) readLoop() {
 	for {
 		_, data, err := c.conn.Read(c.ctx)
 		if err != nil {
+			// 仅异常断开（非主动 Close）才报掉线日志：主动 Close 会先 cancel ctx，
+			// 此时 ctx.Err() != nil → 不重复打扰（被踢/服务停止/手动断开都属于主动侧）
+			if c.ctx.Err() == nil && c.disconnectHook != nil {
+				c.disconnectHook("连接读错误: " + err.Error())
+			}
 			c.Close()
 			return
 		}
@@ -436,6 +442,11 @@ func (c *Client) SetTimeoutCloseHook(f func()) {
 	c.timeoutCloseHook = f
 }
 
+// SetDisconnectHook 设置连接异常断开回调（连接池在创建连接时注册，用于写前端可见的掉线日志）
+func (c *Client) SetDisconnectHook(f func(reason string)) {
+	c.disconnectHook = f
+}
+
 // isKickCode 是否为需要重连的致命网关错误码（如 1000014=账号已在其他地方登录）。
 // 仅识别已确认的踢下线码，避免把瞬时错误误判为被踢而频繁重连。
 func isKickCode(code int64) bool {
@@ -531,6 +542,9 @@ func (c *Client) StartHeartbeat(ctx context.Context) {
 				if hbErr != nil {
 					miss++
 					if miss >= missLimit {
+						if c.disconnectHook != nil {
+							c.disconnectHook("心跳连续失败（" + hbErr.Error() + "），判定死连接")
+						}
 						c.Close() // 触发断开通知；幂等，readLoop 亦会调用
 						return
 					}

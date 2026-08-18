@@ -89,6 +89,8 @@ func (p *ClientPool) store(accountID string, c *gw.Client) {
 // 优先用 YYB openid 刷新 code 再连；带防抖避免与“别处登录”互踢形成自旋。
 // 仅当距上次重连超过冷却窗才执行，否则跳过（交给用户自行解决冲突端）。
 func (p *ClientPool) onKick(accountID string) {
+	// 被踢下线日志（对齐 Node kickout 事件；用户需要知道掉线时间与原因）
+	appendOpLog(accountID, "掉线", "账号在别处登录被踢下线（自动重连中）")
 	p.mu.Lock()
 	if until, ok := p.kickBackoffUntil[accountID]; ok && time.Now().Before(until) {
 		p.mu.Unlock()
@@ -125,11 +127,17 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	}
 	c.SetGiftHook(acc.ID, recordGift)
 	c.SetFarmPushHook(newFarmPushHandler(acc.ID))
-	// 超时断连回调：标记本次断连为“超时型”，使自动重连不受 reconnectMaxAttempts 上限约束
+	// 超时断连回调：标记本次断连为“超时型”，使自动重连不受 reconnectMaxAttempts 上限约束；
+	// 同时写前端可见掉线日志（用户需要知道掉线时间与原因）
 	c.SetTimeoutCloseHook(func() {
 		clientPool.mu.Lock()
 		clientPool.transientClose[acc.ID] = true
 		clientPool.mu.Unlock()
+		appendOpLog(acc.ID, "掉线", "游戏请求超时，连接断开（自动重连中）")
+	})
+	// 连接异常断开（读错误/心跳失败）回调：写前端可见掉线日志
+	c.SetDisconnectHook(func(reason string) {
+		appendOpLog(acc.ID, "掉线", reason+"（自动重连中）")
 	})
 	c.Prime() // 登录后立即预拉首页数据缓存
 	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine（对齐 Node 单线程）
