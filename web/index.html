@@ -1,9 +1,24 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>QQ 农场</title>
+    <script>
+      // 首帧主题初始化：必须在 Vue 挂载前、同步地给 <html> 一个合法 data-theme。
+      // 整个 UI 的颜色/背景/卡片全靠 [data-theme="dark"|"light"] 下的 CSS 变量，
+      // 若 localStorage 里的 ui_theme 是脏值(如 undefined/null/非法串)，就会被 onMounted
+      // 覆盖成非法值导致全部样式失效(白屏无UI)。这里强制校验：非法或缺省一律回退 dark。
+      (function () {
+        try {
+          var t = localStorage.getItem('ui_theme');
+          if (t !== 'dark' && t !== 'light') t = 'dark';
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
