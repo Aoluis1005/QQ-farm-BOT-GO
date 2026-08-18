@@ -165,6 +165,9 @@ func main() {
 			http.Error(w, "前端未构建", http.StatusInternalServerError)
 			return
 		}
+		// index.html 必须 no-cache：它引用带哈希的 asset，若被浏览器缓存旧版本会导致
+		// 前端更新后仍加载旧 JS（asset 哈希变化旧文件已删 → 页面功能不更新/报错）
+		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(idx)
 	})
