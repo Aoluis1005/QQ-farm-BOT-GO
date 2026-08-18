@@ -1765,15 +1765,12 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	goldByState := int64(0)
-	// 对齐权威 deriveGoldGainFromSellReply：仅当余额已知(>0)时才用差值兜底，
-	// 防止 prevGold 卖前被取到 0 时把「卖出后余额整额」当收益入账（会把几十亿余额算进 sell）。
-	if prevGold > 0 && afterGold > prevGold {
-		goldByState = afterGold - prevGold
-	}
+	// 对齐权威 deriveGoldGainFromSellReply：get_items 有金币(parsedGold)就直接作为收益，
+	// 不掺余额差值——避免 ItemNotify 把卖前余额覆盖成小值时，差值兜底把几十亿余额当收益。
+	// 仅当 get_items 无金币(parsedGold==0)且余额已知且增长时才用差值兜底。
 	totalGold := parsedGold
-	if goldByState > totalGold {
-		totalGold = goldByState
+	if totalGold == 0 && prevGold > 0 && afterGold > prevGold {
+		totalGold = afterGold - prevGold
 	}
 	if totalGold > 0 {
 		recordOperation(accountID, "sell", totalGold)
