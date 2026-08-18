@@ -28,10 +28,14 @@ type MallListReply struct {
 	GoodsList []MallGoods
 }
 
-// EncodeGetMallListBySlotTypeRequest 对齐 Node GetMallListBySlotTypeRequest{slot_type=1}
+// EncodeGetMallListBySlotTypeRequest 对齐 GetMallListBySlotTypeRequest{slot_type, sub_slot_type}
+// 注意：客户端必须显式发送 sub_slot_type（含 0）——liyangpengs mallpb.proto 注释
+// "The client always sends sub_slot_type, including zero"；只发 slot_type 会导致服务端
+// 返回错误的商品子集（实测商城只有 3 个商品且无免费礼）。
 func EncodeGetMallListBySlotTypeRequest(slotType int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, slotType) // int32，varint 兼容
+	b.FieldInt64(2, 0)        // sub_slot_type=0（显式发送，含零）
 	return b.Bytes()
 }
 
@@ -150,4 +154,24 @@ func DecodePurchaseReply(buf []byte) *PurchaseReply {
 		return true
 	})
 	return rep
+}
+
+// --- 月卡（对齐 Node core/src/proto/mallpb.proto 月卡部分） ---
+//
+//	GetMonthCardInfosRequest {}
+//	MonthCardInfo { int32 goods_id=1; corepb.Item reward=2; bool can_claim=3 }
+//	GetMonthCardInfosReply { repeated MonthCardInfo infos=1 }
+//	ClaimMonthCardRewardRequest { int32 goods_id=1 }
+//	ClaimMonthCardRewardReply { repeated corepb.Item items=1 }
+
+// EncodeGetMonthCardInfosRequest 空请求（无字段）
+func EncodeGetMonthCardInfosRequest() []byte {
+	return NewBuilder().Bytes()
+}
+
+// EncodeClaimMonthCardRewardRequest 领取月卡奖励
+func EncodeClaimMonthCardRewardRequest(goodsID int64) []byte {
+	b := NewBuilder()
+	b.FieldInt64(1, goodsID)
+	return b.Bytes()
 }

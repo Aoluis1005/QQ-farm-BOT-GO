@@ -180,8 +180,65 @@ func handleTaskClaim(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "claimed_task": req.TaskID})
 }
 
+// GET /api/task/daily-gifts 每日礼包领取状态（商城免费礼/分享/邮件/月卡/会员）
+// POST /api/task/daily-gifts/claim body: { type: "mall"|"share"|"email"|"monthcard"|"vip"|"all" }
+//   手动触发对应每日礼包领取（对齐 Node runDailyRoutines 每日例行五件套）
+func handleTaskDailyGifts(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	if accountID == "" {
+		writeJSONMap(w, "ok", false, "error", "缺少 accountId")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	dailyGiftMu.Lock()
+	state := map[string]interface{}{
+		"mall":      freeGiftDoneDate == todayKey(),
+		"share":     shareDoneDate == todayKey(),
+		"email":     emailDoneDate == todayKey(),
+		"monthcard": monthCardDoneDate == todayKey(),
+		"vip":       vipDoneDate == todayKey(),
+	}
+	dailyGiftMu.Unlock()
+
+	if r.Method != http.MethodPost {
+		writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "state": state})
+		return
+	}
+	var req struct {
+		Type string `json:"type"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	result := map[string]int{}
+	switch req.Type {
+	case "mall":
+		result["mall"] = buyFreeGiftsGo(ctx, accountID)
+	case "share":
+		if performDailyShareGo(ctx, accountID) {
+			result["share"] = 1
+		}
+	case "email":
+		result["email"] = claimEmailsGo(ctx, accountID)
+	case "monthcard":
+		result["monthcard"] = claimMonthCardGo(ctx, accountID)
+	case "vip":
+		result["vip"] = claimVipGiftGo(ctx, accountID)
+	default: // all 或缺省：全部执行
+		result["mall"] = buyFreeGiftsGo(ctx, accountID)
+		if performDailyShareGo(ctx, accountID) {
+			result["share"] = 1
+		}
+		result["email"] = claimEmailsGo(ctx, accountID)
+		result["monthcard"] = claimMonthCardGo(ctx, accountID)
+		result["vip"] = claimVipGiftGo(ctx, accountID)
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "result": result})
+}
+
 // registerTaskAPI 注册每日/成长任务相关接口（b6a4961 仅加了 handler 却漏注册，导致 /api/task/daily 一直 404 → 每日任务页长期无数据）
 func registerTaskAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/task/daily", handleTaskDaily)
 	mux.HandleFunc("/api/task/claim", handleTaskClaim)
+	mux.HandleFunc("/api/task/daily-gifts", handleTaskDailyGifts)
 }

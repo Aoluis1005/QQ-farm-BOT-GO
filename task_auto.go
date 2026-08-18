@@ -68,6 +68,18 @@ func runTaskAuto(accountID string, c *gw.Client) {
 	if performDailyShareGo(ctx, accountID) {
 		appendOpLog(accountID, "task", "领取每日分享礼包")
 	}
+	// 邮件奖励（对齐 Node email.ts checkAndClaimEmails：GetEmailList(box 1+2) → BatchClaimEmail）
+	if n := claimEmailsGo(ctx, accountID); n > 0 {
+		appendOpLog(accountID, "task", fmt.Sprintf("领取邮箱奖励 %d 封", n))
+	}
+	// 月卡礼包（对齐 Node monthcard.ts performDailyMonthCardGift：GetMonthCardInfos → ClaimMonthCardReward）
+	if n := claimMonthCardGo(ctx, accountID); n > 0 {
+		appendOpLog(accountID, "task", fmt.Sprintf("领取月卡礼包 %d 个", n))
+	}
+	// QQ会员每日礼包（对齐 Node qqvip.ts performDailyVipGift：RefreshVipInfo → GetQQVipRewardsStatus → ClaimQQVipRewards）
+	if n := claimVipGiftGo(ctx, accountID); n > 0 {
+		appendOpLog(accountID, "task", fmt.Sprintf("领取QQ会员礼包 %d 个", n))
+	}
 }
 
 // 每日礼包领取状态（对齐 Node mall.js/share.js 的 doneDateKey 内存态；跨天自动重置）
@@ -87,14 +99,21 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 		return 0
 	}
 	mallSvc := "gamepb.mallpb.MallService"
-	rep, err := rpcRequest(ctx, accountID, mallSvc, "GetMallListBySlotType", proto.EncodeGetMallListBySlotTypeRequest(1), 15*time.Second)
-	if err != nil {
-		return 0
-	}
+	// 遍历多个 slot 找免费商品：liyangpengs buyFreeGifts 用 slot=1，但 Node 精简版前端商城
+	// 用 slot=0（worker.js getMallGoodsList(0)）——不同 slot 内容不同，免费礼可能只在其中某个，
+	// 全部查一遍避免漏领（每日一次，代价可忽略）
 	var free []proto.MallGoods
-	for _, g := range proto.DecodeMallListBySlotTypeReply(rep).GoodsList {
-		if g.IsFree && g.GoodsID > 0 {
-			free = append(free, g)
+	seen := map[int64]bool{}
+	for _, slot := range []int64{1, 0} {
+		rep, err := rpcRequest(ctx, accountID, mallSvc, "GetMallListBySlotType", proto.EncodeGetMallListBySlotTypeRequest(slot), 15*time.Second)
+		if err != nil {
+			continue
+		}
+		for _, g := range proto.DecodeMallListBySlotTypeReply(rep).GoodsList {
+			if g.IsFree && g.GoodsID > 0 && !seen[g.GoodsID] {
+				seen[g.GoodsID] = true
+				free = append(free, g)
+			}
 		}
 	}
 	if len(free) == 0 {
@@ -133,9 +152,11 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 		dailyGiftMu.Unlock()
 		return false
 	}
-	// 2) ReportShare {shared:true}
+	// 2) ReportShare {shared:true, field_4=42}（对齐参考实现：ReportShareRequest{field_1:1, field_4:42}）
+	//    field_4=42 是分享场景标识，只发 field_1 服务端可能不识别导致每日分享领取失败
 	repB := proto.NewBuilder()
 	repB.FieldBool(1, true)
+	repB.FieldInt64(4, 42)
 	if _, err := rpcRequest(ctx, accountID, shareSvc, "ReportShare", repB.Bytes(), 12*time.Second); err != nil {
 		return false
 	}
@@ -258,3 +279,202 @@ func claimTaskRewardGo(ctx context.Context, accountID string, c *gw.Client, task
 	}
 	return false
 }
+
+// emailSvc / monthCardSvc / vipSvc 服务名（对齐 Node sendMsgAsync 首参）
+const (
+	emailSvc     = "gamepb.emailpb.EmailService"
+	vipSvc       = "gamepb.qqvippb.QQVipService"
+	monthCardSvc = "gamepb.mallpb.MallService"
+)
+
+// emailItemInfo 邮件条目（对齐 Node EmailItem 关键字段 + box 归属）
+type emailItemInfo struct {
+	Box       int64  // 所属邮箱类型（1/2）
+	ID        string // field1 id
+	Claimed   bool   // field4 claimed
+	HasReward bool   // field5 has_reward
+}
+
+// claimEmailsGo 邮件奖励领取（对齐 Node email.ts checkAndClaimEmails）
+// EmailService.GetEmailList(box 1+2) → 找 has_reward && !claimed → BatchClaimEmail（失败逐条单领）
+// 返回成功领取的邮件数。
+func claimEmailsGo(ctx context.Context, accountID string) int {
+	dailyGiftMu.Lock()
+	done := emailDoneDate == todayKey()
+	dailyGiftMu.Unlock()
+	if done {
+		return 0
+	}
+	var claimable []emailItemInfo
+	for _, box := range []int64{1, 2} {
+		rep, err := rpcRequest(ctx, accountID, emailSvc, "GetEmailList",
+			proto.EncodeGetEmailListRequest(box), 12*time.Second)
+		if err != nil {
+			continue
+		}
+		// GetEmailListReply{ emails=1(repeated EmailItem) }
+		for _, f := range readActFields(rep) {
+			if f.No != 1 || f.Wire != 2 {
+				continue
+			}
+			em := emailItemInfo{Box: box}
+			for _, ef := range readActFields(f.Bytes) {
+				switch {
+				case ef.No == 1 && ef.Wire == 2:
+					em.ID = string(ef.Bytes)
+				case ef.No == 4 && ef.Wire == 0:
+					em.Claimed = ef.Varint != 0
+				case ef.No == 5 && ef.Wire == 0:
+					em.HasReward = ef.Varint != 0
+				}
+			}
+			if em.ID != "" && !em.Claimed && em.HasReward {
+				claimable = append(claimable, em)
+			}
+		}
+	}
+	if len(claimable) == 0 {
+		dailyGiftMu.Lock()
+		emailDoneDate = todayKey()
+		dailyGiftMu.Unlock()
+		return 0
+	}
+	// 批量领取（按 box 分组，对齐 Node byBox）
+	byBox := map[int64][]string{}
+	for _, em := range claimable {
+		byBox[em.Box] = append(byBox[em.Box], em.ID)
+	}
+	batchOK := map[string]bool{} // "box:id" 已批量领取
+	claimed := 0
+	for box, ids := range byBox {
+		if _, err := rpcRequest(ctx, accountID, emailSvc, "BatchClaimEmail",
+			proto.EncodeBatchClaimEmailRequest(box, ids), 12*time.Second); err == nil {
+			for _, id := range ids {
+				batchOK[fmt.Sprintf("%d:%s", box, id)] = true
+			}
+			claimed += len(ids)
+		}
+		time.Sleep(300 * time.Millisecond) // 对齐 Node 批量后短暂间隔
+	}
+	// 批量失败的逐条单领（对齐 Node 批量失败静默 continue 单领）
+	for _, em := range claimable {
+		key := fmt.Sprintf("%d:%s", em.Box, em.ID)
+		if batchOK[key] {
+			continue
+		}
+		if _, err := rpcRequest(ctx, accountID, emailSvc, "ClaimEmail",
+			proto.EncodeClaimEmailRequest(em.Box, em.ID), 12*time.Second); err == nil {
+			claimed++
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	dailyGiftMu.Lock()
+	emailDoneDate = todayKey()
+	dailyGiftMu.Unlock()
+	return claimed
+}
+
+// claimMonthCardGo 月卡礼包领取（对齐 Node monthcard.ts performDailyMonthCardGift）
+// MallService.GetMonthCardInfos → infos 中 can_claim && goods_id>0 → ClaimMonthCardReward(goods_id)
+// 返回成功领取数。
+func claimMonthCardGo(ctx context.Context, accountID string) int {
+	dailyGiftMu.Lock()
+	done := monthCardDoneDate == todayKey()
+	dailyGiftMu.Unlock()
+	if done {
+		return 0
+	}
+	rep, err := rpcRequest(ctx, accountID, monthCardSvc, "GetMonthCardInfos",
+		proto.EncodeGetMonthCardInfosRequest(), 12*time.Second)
+	if err != nil {
+		return 0
+	}
+	// GetMonthCardInfosReply{ infos=1(repeated MonthCardInfo) }
+	// MonthCardInfo{ goods_id=1, reward=2, can_claim=3 }
+	var goodsIDs []int64
+	for _, f := range readActFields(rep) {
+		if f.No != 1 || f.Wire != 2 {
+			continue
+		}
+		canClaim := actNum(readActFields(f.Bytes), 3)
+		gid := actNum(readActFields(f.Bytes), 1)
+		if canClaim != 0 && gid > 0 {
+			goodsIDs = append(goodsIDs, gid)
+		}
+	}
+	if len(goodsIDs) == 0 {
+		dailyGiftMu.Lock()
+		monthCardDoneDate = todayKey()
+		dailyGiftMu.Unlock()
+		return 0
+	}
+	claimed := 0
+	for _, gid := range goodsIDs {
+		if _, err := rpcRequest(ctx, accountID, monthCardSvc, "ClaimMonthCardReward",
+			proto.EncodeClaimMonthCardRewardRequest(gid), 12*time.Second); err == nil {
+			claimed++
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	dailyGiftMu.Lock()
+	monthCardDoneDate = todayKey()
+	dailyGiftMu.Unlock()
+	return claimed
+}
+
+// claimVipGiftGo QQ会员每日礼包（对齐 Node qqvip.ts performDailyVipGift）
+// RefreshVipInfo → GetQQVipRewardsStatus → reward_statuses 中 enabled && can_claim 的
+// reward_type → ClaimQQVipRewards(reward_types)。返回成功领取的档位数。
+func claimVipGiftGo(ctx context.Context, accountID string) int {
+	dailyGiftMu.Lock()
+	done := vipDoneDate == todayKey()
+	dailyGiftMu.Unlock()
+	if done {
+		return 0
+	}
+	if _, err := rpcRequest(ctx, accountID, vipSvc, "RefreshVipInfo",
+		proto.EncodeEmptyRequest(), 12*time.Second); err != nil {
+		return 0
+	}
+	rep, err := rpcRequest(ctx, accountID, vipSvc, "GetQQVipRewardsStatus",
+		proto.EncodeEmptyRequest(), 12*time.Second)
+	if err != nil {
+		return 0
+	}
+	// GetQQVipRewardsStatusReply{ reward_statuses=5(repeated QQVipRewardStatus) }
+	// QQVipRewardStatus{ enabled=1, reward_type=5, can_claim=6 }
+	var rewardTypes []int64
+	for _, f := range readActFields(rep) {
+		if f.No != 5 || f.Wire != 2 {
+			continue
+		}
+		fs := readActFields(f.Bytes)
+		enabled := actNum(fs, 1)
+		canClaim := actNum(fs, 6)
+		rt := actNum(fs, 5)
+		if enabled != 0 && canClaim != 0 && rt > 0 {
+			rewardTypes = append(rewardTypes, rt)
+		}
+	}
+	if len(rewardTypes) == 0 {
+		dailyGiftMu.Lock()
+		vipDoneDate = todayKey()
+		dailyGiftMu.Unlock()
+		return 0
+	}
+	if _, err := rpcRequest(ctx, accountID, vipSvc, "ClaimQQVipRewards",
+		proto.EncodeClaimQQVipRewardsRequest(rewardTypes), 12*time.Second); err != nil {
+		return 0
+	}
+	dailyGiftMu.Lock()
+	vipDoneDate = todayKey()
+	dailyGiftMu.Unlock()
+	return len(rewardTypes)
+}
+
+// monthCardDoneDate / emailDoneDate / vipDoneDate 每日领取状态（对齐 Node doneDateKey 内存态；跨天自动重置）
+var (
+	emailDoneDate     string
+	monthCardDoneDate string
+	vipDoneDate       string
+)

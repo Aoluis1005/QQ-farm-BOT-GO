@@ -289,6 +289,38 @@ async function claimTask(taskId) {
   loadTasks()
 }
 
+/* ---------------- 每日礼包（对齐 Node runDailyRoutines：邮件/分享/月卡/商城免费礼/会员） ---------------- */
+const giftState = ref({}); const giftBusy = ref(false); const giftMsg = ref('')
+const giftItems = [
+  { key: 'email',     icon: '📬', label: '邮箱奖励',    desc: '邮件中的奖励附件' },
+  { key: 'share',     icon: '🔗', label: '每日分享',    desc: '分享礼包' },
+  { key: 'monthcard', icon: '🗓️', label: '月卡礼包',    desc: '月卡每日领取' },
+  { key: 'mall',      icon: '🎁', label: '商城免费礼',  desc: '每日免费商品' },
+  { key: 'vip',       icon: '👑', label: 'QQ会员礼包', desc: '会员每日档位' },
+]
+async function loadGifts() {
+  if (!acc()) return
+  try { const { data } = await api.get('/api/task/daily-gifts'); giftState.value = (data && data.state) || {} } catch (e) { /* 静默 */ }
+}
+async function claimGifts() {
+  if (!acc()) return
+  if (giftBusy.value) return
+  giftBusy.value = true; giftMsg.value = '领取中…'
+  try {
+    const { data } = await api.post('/api/task/daily-gifts', { type: 'all' }).catch(e => e.response || { data: {} })
+    const r = (data && data.result) || {}
+    const parts = []
+    if (r.email > 0) parts.push('邮件 ' + r.email + ' 封')
+    if (r.share > 0) parts.push('分享 x' + r.share)
+    if (r.monthcard > 0) parts.push('月卡 x' + r.monthcard)
+    if (r.mall > 0) parts.push('免费礼 x' + r.mall)
+    if (r.vip > 0) parts.push('会员 x' + r.vip)
+    giftMsg.value = parts.length ? '已领取：' + parts.join('、') : '今日无可领取项'
+    await loadGifts()
+  } catch (e) { giftMsg.value = '领取失败' }
+  giftBusy.value = false
+}
+
 /* ---------------- 护主犬（对齐 legacy：d.claimable 顶层） ---------------- */
 const dogClaimable = ref('--'); const dogMsg = ref('')
 async function loadDog() {
@@ -308,7 +340,7 @@ async function onTab(c) {
   if (c === 'p-farm') await loadLands()
   else if (c === 'p-bag') await loadBag()
   else if (c === 'p-friends') { await loadFriends(); await loadBlacklist(); await loadVisitors() }
-  else if (c === 'p-daily') await loadTasks()
+  else if (c === 'p-daily') { await loadTasks(); await loadGifts() }
   else if (c === 'p-dog') await loadDog()
 }
 async function onFsub(s) {
@@ -566,6 +598,25 @@ onUnmounted(() => { clearInterval(landTimer) })
           </div>
         </div>
         <p v-if="!growthTasks.length" style="color:var(--muted);padding:6px 0">暂无任务</p>
+      </div>
+      <div style="border-radius:14px;background:var(--card-strong);padding:12px;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin:2px 0 8px">
+          <span class="f-label" style="margin:0">🎁 每日礼包</span>
+          <span style="flex:1"></span>
+          <button class="chip" :disabled="giftBusy" @click="claimGifts">{{ giftBusy ? '领取中…' : '一键领取' }}</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div v-for="g in giftItems" :key="g.key" style="border-radius:12px;background:var(--bg,rgba(128,128,128,.07));padding:10px">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12.5px">
+              <span>{{ g.icon }}</span><span style="font-weight:700">{{ g.label }}</span>
+              <span style="flex:1"></span>
+              <span v-if="giftState[g.key]" style="font-size:10.5px;color:var(--primary)">✓ 已处理</span>
+              <span v-else style="font-size:10.5px;color:var(--muted)">待领取</span>
+            </div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:3px">{{ g.desc }}</div>
+          </div>
+        </div>
+        <p v-if="giftMsg" style="font-size:11px;color:var(--primary);margin-top:8px;min-height:14px">{{ giftMsg }}</p>
       </div>
     </div>
 
