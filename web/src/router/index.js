@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAccountStore } from '@/stores/account'
 
 // 严格对齐 legacy-index.html 的真实页面结构：
 //   dock 6 主 tab：首页/个人/账号/活动/商城/更多
@@ -20,6 +21,16 @@ const routes = [
 const router = createRouter({
   history: createWebHistory('/'),
   routes,
+})
+
+// 鉴权守卫：未登录（本地无 token）且目标非 /login 时，重定向到登录/设置密码页。
+// 对齐 legacy initGate：status.hasPassword ? 登录 : 设置密码。避免未登录时渲染无导航栏的空壳首页。
+router.beforeEach((to) => {
+  const account = useAccountStore()
+  if (!account.adminLoggedIn && to.path !== '/login') {
+    return { path: '/login' }
+  }
+  return true
 })
 
 export default router
