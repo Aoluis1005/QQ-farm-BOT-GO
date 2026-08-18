@@ -1817,10 +1817,25 @@ func trySellOne(accountID string, c *gw.Client, it proto.SellItem) (int64, bool)
 	return gold, true
 }
 
-// ── 自动买化肥（对齐 Node farm-scheduler.js + mall.js checkAndBuyFertilizerBoth） ──
+// ── 自动买化肥 ──
 // 化肥容器：普通 1011 / 有机 1012（count 为秒，/3600 为小时）；商品：有机 1002 / 普通 1003（slot_type=1）
+// 购买策略：分批小额（每轮 ≤10 个、轮间 120ms）、点券余额预判与降级、容器已满识别、余额不足当天暂停。
+
+// buyPausedNoGoldDate 点券不足当天暂停（key=日期，次日自动恢复）
+var (
+	buyPausedMu      sync.Mutex
+	buyPausedNoGold  = map[string]string{} // accountID → 暂停日期（todayKey）
+)
 
 func doCheckAndBuyFertilizer(accountID string, c *gw.Client, cfg config.AccountConfig) {
+	// 点券不足当天暂停：不再反复打空炮
+	buyPausedMu.Lock()
+	pausedDate := buyPausedNoGold[accountID]
+	buyPausedMu.Unlock()
+	if pausedDate == todayKey() {
+		return
+	}
+
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
@@ -1837,10 +1852,13 @@ func doCheckAndBuyFertilizer(accountID string, c *gw.Client, cfg config.AccountC
 	}
 
 	bought := false
+	noGold := false
 	if cfg.Automation.FertilizerBuyOrganic && cfg.FertilizerBuyOrganicCount > 0 &&
 		cfg.FertilizerBuyOrganicThresholdHours > 0 && hoursOrganic < float64(cfg.FertilizerBuyOrganicThresholdHours) {
-		if buyMallFertilizer(c, 1002, int64(cfg.FertilizerBuyOrganicCount)) {
+		if n, ng := buyMallFertilizer(c, 1002, int64(cfg.FertilizerBuyOrganicCount), c.Coupon()); n > 0 {
 			bought = true
+		} else if ng {
+			noGold = true
 		}
 	}
 	if cfg.Automation.FertilizerBuyNormal && cfg.FertilizerBuyNormalCount > 0 &&
@@ -1848,32 +1866,92 @@ func doCheckAndBuyFertilizer(accountID string, c *gw.Client, cfg config.AccountC
 		if bought {
 			time.Sleep(time.Duration(1000+rand.Intn(2000)) * time.Millisecond) // 有机/普通间 1–3s
 		}
-		buyMallFertilizer(c, 1003, int64(cfg.FertilizerBuyNormalCount))
+		if n, ng := buyMallFertilizer(c, 1003, int64(cfg.FertilizerBuyNormalCount), c.Coupon()); n > 0 {
+			bought = true
+		} else if ng {
+			noGold = true
+		}
 	}
 	if bought {
 		appendOpLog(accountID, "farm", "自动购买化肥")
 	}
+	// 点券不足：当天暂停（次日 todayKey 变化自动恢复）
+	if noGold {
+		buyPausedMu.Lock()
+		buyPausedNoGold[accountID] = todayKey()
+		buyPausedMu.Unlock()
+		appendOpLog(accountID, "farm", "点券不足，自动购买化肥今日暂停")
+	}
 }
 
-func buyMallFertilizer(c *gw.Client, goodsID, count int64) bool {
+// buyMallFertilizer 分批购买化肥，返回成功购买数量与是否因余额不足失败。
+// 策略：单轮 ≤10 个（最多 100 轮、轮间 120ms）；用点券余额预判每轮可买量，
+// 余额不足降级为单买一次，仍失败则标记 noGold 并停止；容器已满（1003002）识别后停止。
+func buyMallFertilizer(c *gw.Client, goodsID, count int64, ticket int64) (int64, bool) {
 	rep, err := c.Request(context.Background(), "gamepb.mallpb.MallService", "GetMallListBySlotType",
 		proto.EncodeGetMallListBySlotTypeRequest(1), 12*time.Second)
 	if err != nil {
-		return false
+		return 0, false
 	}
-	found := false
-	for _, g := range proto.DecodeMallListBySlotTypeReply(rep.Body).GoodsList {
-		if g.GoodsID == goodsID {
-			found = true
+	var goods *proto.MallGoods
+	list := proto.DecodeMallListBySlotTypeReply(rep.Body)
+	for i := range list.GoodsList {
+		if list.GoodsList[i].GoodsID == goodsID {
+			goods = &list.GoodsList[i]
 			break
 		}
 	}
-	if !found {
-		return false
+	if goods == nil {
+		return 0, false
 	}
-	if _, err := c.Request(context.Background(), "gamepb.mallpb.MallService", "Purchase",
-		proto.EncodePurchaseRequest(goodsID, count), 12*time.Second); err != nil {
-		return false
+	singlePrice := proto.ParseMallPriceValue(goods.PriceBytes)
+
+	const perRound = int64(10)
+	const maxRounds = 100
+	total := int64(0)
+	round := perRound
+	for i := 0; i < maxRounds && total < count; i++ {
+		// 余额预判：点券足够时按可买量限购，不够则降级单买
+		if singlePrice > 0 && ticket > 0 {
+			if ticket < singlePrice {
+				return total, true
+			}
+			if maxBuy := ticket / singlePrice; maxBuy < round {
+				round = maxBuy
+				if round <= 0 {
+					round = 1
+				}
+			}
+		}
+		buy := round
+		if remain := count - total; buy > remain {
+			buy = remain
+		}
+		if _, err := c.Request(context.Background(), "gamepb.mallpb.MallService", "Purchase",
+			proto.EncodePurchaseRequest(goodsID, buy), 12*time.Second); err != nil {
+			// 容器已满：不再购买（1003002）
+			if proto.IsFertilizerContainerFullError(err.Error()) {
+				break
+			}
+			// 余额/点券不足：降级单买一次，仍失败则当天暂停
+			if strings.Contains(err.Error(), "code=1000019") || strings.Contains(err.Error(), "余额不足") ||
+				strings.Contains(err.Error(), "点券不足") {
+				if round > 1 {
+					round = 1
+					continue
+				}
+				return total, true
+			}
+			break
+		}
+		total += buy
+		if singlePrice > 0 && ticket > 0 {
+			ticket -= singlePrice * buy
+			if ticket < singlePrice {
+				break
+			}
+		}
+		time.Sleep(120 * time.Millisecond) // 轮间间隔，避免密集购买触发风控
 	}
-	return true
+	return total, false
 }
