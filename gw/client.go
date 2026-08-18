@@ -196,12 +196,19 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
+	// 大报文/慢接口统一放宽超时（消除大账号掉线：Agoni 452 好友 Bag/AllLands/GetSeasonInfo
+	// 响应常超 12-15s，被误判为连接死亡触发断连重连）。调用点仍传原值，此处集中提升。
+	if isSlowEndpoint(service, method) && timeout < 30*time.Second {
+		timeout = 30 * time.Second
+	}
 	ctx2, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// 槽位机制：限制单连接并发在途请求数，避免 ACE 轮询占满网关单槽位后
 	// 游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。对齐参考实现。
-	release, err := c.acquire(ctx2, method == "Heartbeat")
+	// ACE 反作弊上报与心跳同级：只占 totalSlots、绕过 normalSlots 排队，
+	// 避免大报文游戏请求(Bag/AllLands)慢响应时把 ACE 上报挤到队尾导致反作弊链路延迟。
+	release, err := c.acquire(ctx2, method == "Heartbeat" || service == "gamepb.acepb.AceService")
 	if err != nil {
 		return nil, err
 	}
@@ -729,6 +736,15 @@ func shouldCloseConnectionAfterTimeout(service, method string) bool {
 		return false
 	}
 	return service != "gamepb.acepb.AceService"
+}
+
+// isSlowEndpoint 大报文/慢接口：集中放宽超时（消除大账号掉线，见 Request）。
+// Bag(背包大报文)/AllLands(好友地块)/GetSeasonInfo(千星赛季) 对 452 好友大账号常超 12-15s。
+func isSlowEndpoint(service, method string) bool {
+	if method == "Bag" || method == "AllLands" || method == "GetSeasonInfo" {
+		return true
+	}
+	return false
 }
 
 // closeActiveConnection 立即关闭底层 WebSocket 连接，置 IsClosed 并 failPending，
