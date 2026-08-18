@@ -20,3 +20,6 @@ node_ace_run.js
 node_dbg.js
 unpack_wxapkg.py
 cmd/
+
+# 部署临时产物（构建注入 version.go 用）
+release/
