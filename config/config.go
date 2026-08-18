@@ -161,7 +161,7 @@ func DefaultAccountConfig() AccountConfig {
 		},
 		KnownFriendGIDs:              []int64{},
 		FriendBlacklist:              []int64{},
-		PlantBlacklist:               []int{},
+		PlantBlacklist:               []int{20002, 20003, 20059, 20065, 20064, 20060, 20061},
 		StealDelaySeconds:            1,
 		PlantOrderRandom:             true,
 		PlantDelaySeconds:            2,

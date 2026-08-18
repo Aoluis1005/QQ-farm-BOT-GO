@@ -58,8 +58,26 @@ type friendLandsAnalysis struct {
 	CanPutGoldenBug []int64
 }
 
+// isBlacklistedSeed 判断土地作物的种子ID是否在偷菜作物黑名单（对齐 Node analyzeFriendLands：
+// getPlantById(plantId).seed_id 在黑名单即跳过，不影响自己种植）。
+func isBlacklistedSeed(plantID int64, blacklist []int) bool {
+	if len(blacklist) == 0 {
+		return false
+	}
+	pe, ok := getPlantByID(plantID)
+	if !ok || pe.SeedID <= 0 {
+		return false
+	}
+	for _, s := range blacklist {
+		if s == pe.SeedID {
+			return true
+		}
+	}
+	return false
+}
+
 // analyzeFriendLands 分析好友所有地块，产出可操作分类。
-func analyzeFriendLands(lands []*proto.LandInfo, myGid int64) *friendLandsAnalysis {
+func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []int) *friendLandsAnalysis {
 	out := &friendLandsAnalysis{}
 	now := time.Now().Unix()
 	for _, land := range lands {
@@ -73,9 +91,9 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64) *friendLandsAnalys
 		}
 		phase := current.Phase
 
-		// 成熟 & 可偷
+		// 成熟 & 可偷（作物黑名单按 seedId 过滤，对齐 Node analyzeFriendLands）
 		if phase == proto.PhaseMature {
-			if p.Stealable {
+			if p.Stealable && !isBlacklistedSeed(p.ID, plantBlacklist) {
 				out.Stealable = append(out.Stealable, land.ID)
 			}
 			continue
@@ -358,7 +376,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "对方没有种植地块"}
 	}
 
-	analysis := analyzeFriendLands(lands, c.GID)
+	analysis := analyzeFriendLands(lands, c.GID, getPlantBlacklist(accountID))
 	var okCount int64
 
 	switch opType {
