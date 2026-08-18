@@ -1712,6 +1712,7 @@ var autoSellSkipItemIDs = map[int64]bool{41221: true}
 const sellBatchSize = 15
 
 func autoSellAfterHarvest(accountID string, c *gw.Client) {
+	prevGold := c.Gold() // 卖前余额（对齐 Node totalsBefore.gold，用于余额差值兜底）
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
@@ -1753,10 +1754,25 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 			time.Sleep(300 * time.Millisecond)
 		}
 	}
-	// 金币结算 = 仅累加出售响应解析的真实收益（对齐 Node totalGoldFromReply）。
-	// 移除「余额差值兜底」：玩家余额可达数十亿，卖后监测到的余额差值会把非卖果实的金币
-	// 流入（偷菜卖/活动/礼包/余额跳变）误计入 sell 收益，导致今日收益被放大成 100 亿级。
+	// 对齐 Node 金币结算 = max(出售响应解析值, 余额差值兜底)
+	// 等待余额状态刷新（对齐 Node 等待 getUserState().gold 更新，最多 3s）
+	afterGold := prevGold
+	waitStart := time.Now()
+	for time.Since(waitStart) < 3*time.Second {
+		if g := c.Gold(); g != prevGold {
+			afterGold = g
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	goldByState := int64(0)
+	if afterGold > prevGold {
+		goldByState = afterGold - prevGold
+	}
 	totalGold := parsedGold
+	if goldByState > totalGold {
+		totalGold = goldByState
+	}
 	if totalGold > 0 {
 		recordOperation(accountID, "sell", totalGold)
 	}
