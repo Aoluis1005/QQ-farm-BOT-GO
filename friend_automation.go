@@ -139,10 +139,6 @@ var (
 	firstFriendFetchMu   sync.Mutex
 	firstFriendFetchDone = map[string]bool{}
 
-	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求改为 60min）
-	lastFullDogInfoRefreshAt int64
-	dogInfoBootstrapReadyAt  int64
-
 	// expLimitCallback 经验上限跨日重置回调（对齐 Node ensureExpLimitCallback）
 	onExpLimitReachedFn func()
 	onExpLimitResetFn   func()
@@ -382,44 +378,13 @@ func isIgnorableBadFailureMessage(msg string) bool {
 
 // checkFriends 好友巡查主流程（对齐 Node friend-orchestrator.js checkFriends：
 // 偷 → 卖 → 帮 → 捣；护主犬信息随进入好友农场时刷新，见 doFriendOperation 内 cacheFriendDog）。
-// bootstrapFriendDogInfoCacheIfNeeded 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded）
-// 缓存为空或距上次全量刷新超 60min → 遍历好友进农场重建护主犬缓存；失败下轮重试
+// bootstrapFriendDogInfoCacheIfNeeded 护主犬缓存刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded）
+// 【2026-08-19】主动全量刷新已删除（对齐 Node 2026-08-15 决定）：周期遍历全部好友逐个
+// enterFriendFarm 查狗（452 好友串行 ~90 秒、~900 个 RPC）会压垮 WS 连接导致掉线。
+// 狗信息只靠日常偷菜/帮忙被动收集（doFriendOperation Enter 后 cacheFriendDog），
+// 手动刷新走面板按钮 /api/friends/fetch-dog-info。保留函数名避免调用点改动。
 func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends []*proto.GameFriend) {
-	now := time.Now().Unix()
-	// 首次启动延迟 2min（上号稳定后再拉，对齐 Node dogInfoBootstrapReadyAt）
-	if dogInfoBootstrapReadyAt == 0 {
-		dogInfoBootstrapReadyAt = now + 120
-		return
-	}
-	if now < dogInfoBootstrapReadyAt {
-		return
-	}
-	m, _ := readDogCache(accountID)
-	_ = m
-	// 【修复 2026-08-14】只按 60min 周期全量刷新护主犬缓存（对齐 Node 周期刷新意图：
-	// 发现新护主犬 / 清除换狗、删好友后的伪护主犬）。
-	// 原判断里 `!cacheEmpty` 在“该账号没有护主犬好友”时恒不满足 → 每轮 checkFriends 都全量
-	// 遍历所有好友进农场拉狗信息并疯狂写日志/发 RPC（本账号即因此疯狂刷『护主犬缓存全量刷新』）。
-	if now-lastFullDogInfoRefreshAt <= 3600 { // 60min（用户要求，Node 默认 30min）
-		return
-	}
-	lastFullDogInfoRefreshAt = now
-	appendOpLog(accountID, "friend", "护主犬缓存全量刷新开始")
-	for _, f := range friends {
-		if f == nil || f.GID <= 0 {
-			continue
-		}
-		_, rep, err := enterFriendFarm(c, f.GID, 2, "")
-		if err != nil {
-			// 进入失败：清理该好友缓存（对齐 Node 失败下轮重试/清除伪护主犬）
-			cacheFriendDog(f.GID, &proto.VisitEnterReply{})
-			continue
-		}
-		cacheFriendDog(f.GID, rep)
-		leaveFriendFarm(c, f.GID)
-		time.Sleep(randomIntervalMs(100, 200))
-	}
-	appendOpLog(accountID, "friend", "护主犬缓存全量刷新完成")
+	return
 }
 
 func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) int64 {
