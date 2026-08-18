@@ -308,17 +308,24 @@ func (c *Client) readLoop() {
 				ch <- msg
 			}
 		}
-		// Notify 推送：ItemNotify 物品变化 → 检测同气连枝礼包(101351)增量
-		if msg.Meta.MessageType == proto.MsgTypeNotify &&
-			strings.Contains(msg.Meta.MethodName, "ItemNotify") {
-			c.applyItemNotify(msg.Body)
-		}
-		// Notify 推送：LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push（对齐 Node landsChanged→onLandsChangedPush）
-		if msg.Meta.MessageType == proto.MsgTypeNotify &&
-			strings.Contains(msg.Meta.MethodName, "LandsNotify") {
-			host := proto.DecodeLandsNotifyHostGid(msg.Body)
-			if c.farmPushHook != nil && (host == 0 || host == c.GID) {
-				c.farmPushHook(c.accountID)
+		// Notify 推送：对齐权威 Node network.ts handleNotify——外层先解 EventMessage，
+		// 类型标识在 message_type、真正的业务通知体在 body（不能再用 Meta.MethodName 判断，
+		// 也不能直接拿 EventMessage 当 ItemNotify 解码）。
+		if msg.Meta.MessageType == proto.MsgTypeNotify {
+			typ, eventBody, okE := proto.DecodeEventMessage(msg.Body)
+			if !okE {
+				continue
+			}
+			// ItemNotify 物品变化 → 同气连枝礼包(101351)增量 + 经验/金币/点券/金豆豆
+			if strings.Contains(typ, "ItemNotify") {
+				c.applyItemNotify(eventBody)
+			}
+			// LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push
+			if strings.Contains(typ, "LandsNotify") {
+				host := proto.DecodeLandsNotifyHostGid(eventBody)
+				if c.farmPushHook != nil && (host == 0 || host == c.GID) {
+					c.farmPushHook(c.accountID)
+				}
 			}
 		}
 	}

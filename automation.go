@@ -1100,6 +1100,9 @@ func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfi
 		if g.LimitCount > 0 && g.BoughtNum >= g.LimitCount {
 			continue
 		}
+		if g.Price <= 0 {
+			continue // 对齐权威 Node findBestSeed：price<=0 不入候选
+		}
 		reqLvl := 0
 		for _, cd := range g.Conds {
 			if cd.Type == 1 { // MIN_LEVEL
@@ -1108,15 +1111,6 @@ func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfi
 		}
 		if reqLvl > 0 && int(level) < reqLvl {
 			continue
-		}
-		if pe, ok := getPlantByID(g.ItemID); ok && pe.Size != 1 {
-			continue // 仅 1x1 从商店买（2x2 走背包/优先）
-		}
-		if eventSeeds[g.ItemID] {
-			continue // 活动种子禁止商店购买（只走背包 event_plant，对齐 Node EVENT_SEEDS）
-		}
-		if isBuySeedBlocked(g.ItemID) {
-			continue // 历史上购买失败的种子（动态黑名单，活动种子自愈排除）
 		}
 		cc := seedCand{seedID: g.ItemID, goodsID: g.ID, price: g.Price, reqLvl: reqLvl}
 		cands = append(cands, cc)

@@ -1,5 +1,32 @@
 package proto
 
+// DecodeEventMessage 解码服务器推送封装（对齐权威 Node network.ts handleNotify：
+// game.proto EventMessage{ string message_type=1; bytes body=2 }）。网关 Notify 推送的
+// Message.body 是 EventMessage，类型标识在 message_type 字段、真正的业务通知（ItemNotify 等）
+// 在 body 字段。必须先解这一层再按 message_type 分发。
+func DecodeEventMessage(body []byte) (msgType string, eventBody []byte, ok bool) {
+	if len(body) == 0 {
+		return "", nil, false
+	}
+	r := NewReader(body)
+	r.EachField(func(field, wire int, r *Reader) bool {
+		switch field {
+		case 1:
+			if wire == WireLen {
+				msgType = r.ReadString()
+			}
+		case 2:
+			if wire == WireLen {
+				eventBody = r.ReadBytes()
+			}
+		default:
+			r.Skip(wire)
+		}
+		return true
+	})
+	return msgType, eventBody, len(body) > 0
+}
+
 // DecodeLandsNotifyHostGid 解码土地变化通知的 host_gid（plantpb.proto LandsNotify: lands=1, host_gid=2）
 // 仅取 host_gid 用于判断通知是否属于本账号农场；0 或等于自身 GID 即本账号。
 func DecodeLandsNotifyHostGid(body []byte) int64 {
