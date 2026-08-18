@@ -7,6 +7,20 @@
 
 QQ 农场微信小游戏协议自动化挂机 Bot（**Go 单文件二进制版**，免 Node 环境）。
 
+## 🚀 一键部署
+
+> 只需两步，无需手动配环境/素材，部署完即可使用（图片、背包名称全部正常）。
+
+```bash
+git clone https://github.com/Aoluis1005/QQ-farm-BOT-GO.git
+cd QQ-farm-BOT-GO
+sudo bash install.sh
+```
+
+`install.sh` 会自动完成：编译程序 → 安装到 `/opt/go-farm-bot`（带 `game-config` 图片素材）→ 注册并启动 systemd 服务 → 打印访问地址。
+
+部署完成后浏览器打开 **`http://<服务器IP>:3009`** 即可。后续重新部署/更新直接再跑一次 `sudo bash install.sh`。
+
 ## ✨ 功能特性
 
 ### 🌾 农场自动化
