@@ -159,8 +159,9 @@ func IsFertilizerContainerFullError(msg string) bool {
 }
 
 // DecodeSellReply 解析 SellReply，返回(出售物品总件数, 获得金币数)
-// 对齐 Node deriveGoldGainFromSellReply / getGoldFromItems：
-// SellReply sell_items=1 / get_items=2，金币 item id==1001 或 500001（两种形态都认）
+// 对齐 Node deriveGoldGainFromSellReply / getGoldFromItems：SellReply sell_items=1 / get_items=2，金币 item id==1 或 1001。
+// 注意：不认 500001——真实 Sell 响应 get_items 里的 500001 条目 count 是金币余额，
+// 权威 getGoldFromItems 只认 id==1||1001；认 500001 会把余额整额当成收益（导致收益显示 100 多亿）。
 func DecodeSellReply(buf []byte) (soldCount, gold int64) {
 	r := NewReader(buf)
 	r.EachField(func(field, wire int, r *Reader) bool {
@@ -186,8 +187,8 @@ func DecodeSellReply(buf []byte) (soldCount, gold int64) {
 		})
 		if field == 1 { // sell_items
 			soldCount += it.Count
-		} else if field == 2 { // get_items：金币 id==1001 或 500001（对齐 Node getGoldFromItems）
-			if it.ID == 1001 || it.ID == 500001 {
+		} else if field == 2 { // get_items：金币 id==1 或 1001（对齐 Node getGoldFromItems，不认 500001=余额）
+			if it.ID == 1001 || it.ID == 1 {
 				gold += it.Count
 			}
 		}

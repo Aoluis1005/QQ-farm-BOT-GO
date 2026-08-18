@@ -847,9 +847,9 @@ func handleBagSell(w http.ResponseWriter, r *http.Request) {
 // 前端分类 tab：fruit/seed/props(=props+fertilizer)/other。分类判定走 game_config.go（源于 Plant.json+ItemInfo.json）。
 func classifyBagCategory(id int64) (category, name string) {
 	switch id {
-	case 1001, 500001:
+	case 1001:
 		return "other", "金币"
-	case 1002, 500002:
+	case 1002:
 		return "other", "经验"
 	}
 	if isFruitItemID(id) {
