@@ -55,6 +55,8 @@ type Client struct {
 	timeoutCloseHook  func() // 超时断连（服务端抖动/瞬时限流）时由连接池注入：标记该断连为“超时型”，重连不计上限
 	accountID    string
 	giftHook     func(accountID string, delta int64)
+	// lastBagSync 最近一次从背包同步点券/金豆的时间（节流用，避免首页高并发拉 Bag 触发风控）
+	lastBagSync  time.Time
 	farmPushHook func(accountID string)
 	GID          int64
 	landsBytes   []byte // 预拉缓存：AllLands 原始 body
@@ -760,7 +762,15 @@ func (c *Client) FetchBagAssets(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	br := proto.DecodeBagReply(rep.Body)
+	c.ApplyBagAssets(proto.DecodeBagReply(rep.Body))
+	return nil
+}
+
+// ApplyBagAssets 从背包物品同步点券/金豆绝对持有量并记录同步时间（并发安全）。
+// 对齐权威 worker.ts：登录后拉背包按物品 ID 1002/1005 的 count 覆盖。
+func (c *Client) ApplyBagAssets(br *proto.BagReply) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, it := range br.Items {
 		if it.ID == proto.ItemIDCoupon {
 			c.coupon = it.Count
@@ -768,6 +778,24 @@ func (c *Client) FetchBagAssets(ctx context.Context) error {
 			c.goldBean = it.Count
 		}
 	}
+	c.lastBagSync = time.Now()
+}
+
+// EnsureBagAssets 节流式同步点券/金豆：距上次同步<15s 复用内存值，否则拉一次背包校准。
+// 供首页 /api/home/profile 等低频展示接口调用，避免 ItemNotify 变化量污染后无法恢复。
+func (c *Client) EnsureBagAssets(ctx context.Context) error {
+	c.mu.Lock()
+	last := c.lastBagSync
+	c.mu.Unlock()
+	if time.Since(last) < 15*time.Second {
+		return nil
+	}
+	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 10*time.Second)
+	if err != nil {
+		return err
+	}
+	c.ApplyBagAssets(proto.DecodeBagReply(rep.Body))
 	return nil
 }
 

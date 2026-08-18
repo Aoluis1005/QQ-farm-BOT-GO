@@ -62,6 +62,11 @@ func handleHomeProfile(w http.ResponseWriter, r *http.Request) {
 		if c.Level() != 0 {
 			data["level"] = c.Level()
 		}
+
+		// 节流同步点券/金豆（对齐权威 worker.ts 登录后拉包初始化；此处低频展示接口兜底恢复被 ItemNotify 污染的余额）
+		if err := c.EnsureBagAssets(r.Context()); err != nil {
+			// 拉包失败则用当前内存值，不影响响应
+		}
 		data["gold"] = formatGold(c.Gold())
 		data["exp"] = c.Exp()
 		data["coupons"] = c.Coupon()

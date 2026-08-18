@@ -598,6 +598,7 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	br := proto.DecodeBagReply(rep.Body)
+	c.ApplyBagAssets(br)
 
 	type bagOut struct {
 		ID              int64  `json:"id"`
@@ -678,6 +679,7 @@ func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	br := proto.DecodeBagReply(rep.Body)
+	c.ApplyBagAssets(br)
 
 	type bagSeedOut struct {
 		SeedID        int    `json:"seedId"`
