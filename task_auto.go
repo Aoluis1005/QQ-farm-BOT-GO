@@ -153,7 +153,9 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 }
 
 // performDailyShareGo 每日分享礼包（对齐 Node share.js performDailyShare）
-// 1) CheckCanShare（field1=can_share）→ 2) ReportShare{shared:true} → 3) ClaimShareReward{claimed:true}
+// 1) CheckCanShare（field1=can_share）→ 2) ReportShare{shared:true,field_4:42} → 3) ClaimShareReward{claimed:true}
+// 状态语义对齐 Node checkedDateKey：CheckCanShare 成功后无论后续成败都标记"今日已处理"，
+// 避免"奖励已领取但状态永远待领取"（ReportShare/ClaimShareReward 对已领用户会报错但仍算已检查）。
 func performDailyShareGo(ctx context.Context, accountID string) bool {
 	dailyGiftMu.Lock()
 	done := shareDoneDate == todayKey()
@@ -166,10 +168,13 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	if err != nil {
 		return false
 	}
-	if actNum(readActFields(checkBody), 1) == 0 { // can_share=false → 今日无可分享
+	// 只要 CheckCanShare 成功（无论 can_share 结果），今日即视为已检查（对齐 Node checkedDateKey）
+	defer func() {
 		dailyGiftMu.Lock()
 		shareDoneDate = todayKey()
 		dailyGiftMu.Unlock()
+	}()
+	if actNum(readActFields(checkBody), 1) == 0 { // can_share=false → 今日无可分享
 		return false
 	}
 	// 2) ReportShare {shared:true, field_4=42}（对齐参考实现：ReportShareRequest{field_1:1, field_4:42}）
@@ -186,9 +191,6 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	if _, err := rpcRequest(ctx, accountID, shareSvc, "ClaimShareReward", clB.Bytes(), 12*time.Second); err != nil {
 		return false
 	}
-	dailyGiftMu.Lock()
-	shareDoneDate = todayKey()
-	dailyGiftMu.Unlock()
 	return true
 }
 
@@ -326,14 +328,12 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		return 0
 	}
 	var claimable []emailItemInfo
-	queried := false // 至少一个 box 查询成功才算"已检查"（避免 RPC 失败误报无可领）
 	for _, box := range []int64{1, 2} {
 		rep, err := rpcRequest(ctx, accountID, emailSvc, "GetEmailList",
 			proto.EncodeGetEmailListRequest(box), 12*time.Second)
 		if err != nil {
 			continue
 		}
-		queried = true
 		// GetEmailListReply{ emails=1(repeated EmailItem) }
 		for _, f := range readActFields(rep) {
 			if f.No != 1 || f.Wire != 2 {
@@ -359,9 +359,6 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		emailDoneDate = todayKey()
 		dailyGiftMu.Unlock()
-		if queried {
-			appendOpLog(accountID, "task", "邮箱：今日无可领取邮件奖励")
-		}
 		return 0
 	}
 	// 批量领取（按 box 分组，对齐 Node byBox）
@@ -431,7 +428,6 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		monthCardDoneDate = todayKey()
 		dailyGiftMu.Unlock()
-		appendOpLog(accountID, "task", "月卡：当前没有月卡或今日无可领取月卡礼包")
 		return 0
 	}
 	claimed := 0
@@ -486,7 +482,6 @@ func claimVipGiftGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Lock()
 		vipDoneDate = todayKey()
 		dailyGiftMu.Unlock()
-		appendOpLog(accountID, "task", "会员：今日暂无可领取QQ会员礼包")
 		return 0
 	}
 	if _, err := rpcRequest(ctx, accountID, vipSvc, "ClaimQQVipRewards",
