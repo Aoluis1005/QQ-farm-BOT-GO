@@ -1,8 +1,8 @@
-# 减小构建上下文体积；web/dist 已入库需保留（go:embed 依赖）
+# 减小构建上下文体积
+# 注意：web/src 已放行（Dockerfile 前端阶段需要源码重建 dist）；web/node_modules 必须排除
 .git
 .gitignore
 web/node_modules
-web/src
 node_modules
 *.exe
 *.bak
