@@ -285,8 +285,7 @@ func releaseRecentHelp(accountID string, gid int64, landIDs []int64) {
 
 // doFriendFarming 对好友执行一次 Farming 帮忙。
 // 返回：>0 = 成功帮忙的地块数；0 = noop（无需帮忙/服务端 1001057）；-1 = 异常失败。
-func doFriendFarming(c *gw.Client, gid int64, ids []int64) int64 {
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+func doFriendFarming(c *gw.Client, accountID string, gid int64, ids []int64) int64 {	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	rep, err := c.Request(ctx, plantService, "Farming", proto.EncodeFriendFarmingRequest(ids, gid), 12*time.Second)
 	if err != nil {
@@ -301,7 +300,7 @@ func doFriendFarming(c *gw.Client, gid int64, ids []int64) int64 {
 	}
 	limits, landIDs := proto.DecodeFarmingReply(rep.Body)
 	if len(limits) > 0 {
-		updateOperationLimits(limits)
+		updateOperationLimits(accountID, limits)
 	}
 	return int64(len(landIDs))
 }
@@ -312,7 +311,7 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 		return 0
 	}
 	markRecentHelp(accountID, gid, target, "in_flight", recentHelpInflightTTL, snapshotKey)
-	ok := doFriendFarming(c, gid, target)
+	ok := doFriendFarming(c, accountID, gid, target)
 	if ok >= 0 {
 		// 批量正常返回：前 ok 块确认，其余未确认释放
 		idx := ok
@@ -332,7 +331,7 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 	var total int64
 	for _, id := range target {
 		markRecentHelp(accountID, gid, []int64{id}, "in_flight", recentHelpInflightTTL, snapshotKey)
-		once := doFriendFarming(c, gid, []int64{id})
+		once := doFriendFarming(c, accountID, gid, []int64{id})
 		switch {
 		case once > 0:
 			total += once
@@ -384,7 +383,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.Stealable) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可偷取土地"}
 		}
-		if err := execFriendOp(c, "Harvest", proto.EncodeHarvestRequest(analysis.Stealable, gid, true)); err != nil {
+		if err := execFriendOp(c, accountID, "Harvest", proto.EncodeHarvestRequest(analysis.Stealable, gid, true)); err != nil {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "Ta已经被偷的精光了QAQ"}
 		}
 		okCount = int64(len(analysis.Stealable))
@@ -398,7 +397,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.NeedWater) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可浇水土地"}
 		}
-		if err := execFriendOp(c, "WaterLand", proto.EncodeWaterLandRequest(analysis.NeedWater, gid)); err != nil {
+		if err := execFriendOp(c, accountID, "WaterLand", proto.EncodeWaterLandRequest(analysis.NeedWater, gid)); err != nil {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "浇水失败，来晚一步，可惜"}
 		}
 		okCount = int64(len(analysis.NeedWater))
@@ -409,7 +408,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.NeedWeed) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可除草土地"}
 		}
-		if err := execFriendOp(c, "WeedOut", proto.EncodeWeedOutRequest(analysis.NeedWeed, gid)); err != nil {
+		if err := execFriendOp(c, accountID, "WeedOut", proto.EncodeWeedOutRequest(analysis.NeedWeed, gid)); err != nil {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "除草失败，来晚一步，可惜"}
 		}
 		okCount = int64(len(analysis.NeedWeed))
@@ -420,7 +419,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.NeedBug) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可除虫土地"}
 		}
-		if err := execFriendOp(c, "Insecticide", proto.EncodeInsecticideRequest(analysis.NeedBug, gid)); err != nil {
+		if err := execFriendOp(c, accountID, "Insecticide", proto.EncodeInsecticideRequest(analysis.NeedBug, gid)); err != nil {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "除虫失败，来晚一步，可惜"}
 		}
 		okCount = int64(len(analysis.NeedBug))
@@ -434,7 +433,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, BugCount: 0, WeedCount: 0, Message: "没有可捣乱土地"}
 		}
 		if len(analysis.CanPutBug) > 0 {
-			if err := execFriendOp(c, "PutInsects", proto.EncodePutInsectsRequest(gid, analysis.CanPutBug)); err != nil {
+			if err := execFriendOp(c, accountID, "PutInsects", proto.EncodePutInsectsRequest(gid, analysis.CanPutBug)); err != nil {
 				failed = "放虫失败"
 			} else {
 				bugCount = int64(len(analysis.CanPutBug))
@@ -442,7 +441,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 			}
 		}
 		if len(analysis.CanPutWeed) > 0 {
-			if err := execFriendOp(c, "PutWeeds", proto.EncodePutWeedsRequest(gid, analysis.CanPutWeed)); err != nil {
+			if err := execFriendOp(c, accountID, "PutWeeds", proto.EncodePutWeedsRequest(gid, analysis.CanPutWeed)); err != nil {
 				if failed == "" {
 					failed = "放草失败"
 				} else {
@@ -465,7 +464,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		// 进农场后实时护主犬判定（对齐 Node __briefDogInfo：经验满/极速模式且非实时护主犬 → 本次不帮，
 		// 弥补 checkFriends 进入前缓存 getFriendDog 的滞后）
 		acfg := models.GetAccountConfig(accountID)
-		guardOnly := computeEffectiveTurbo(acfg) || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp())
+		guardOnly := computeEffectiveTurbo(acfg) || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp(accountID))
 		if guardOnly && enterReply.DogID != guardDogID {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "经验已满且非护主犬，跳过"}
 		}
@@ -495,7 +494,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.CanPutGoldenBug) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可放金虫土地"}
 		}
-		if err := execFriendOp(c, "PutSocialItem", proto.EncodePutSocialItemRequest(gid, analysis.CanPutGoldenBug, 301101, 2)); err != nil {
+		if err := execFriendOp(c, accountID, "PutSocialItem", proto.EncodePutSocialItemRequest(gid, analysis.CanPutGoldenBug, 301101, 2)); err != nil {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "放金虫失败"}
 		}
 		okCount = int64(len(analysis.CanPutGoldenBug))
@@ -540,12 +539,12 @@ func stealCropSummary(lands []*proto.LandInfo, stealable []int64) string {
 
 // execFriendOp 执行好友农场操作；成功后从 reply 解析 operation_limits 刷新每日限制缓存
 // （对齐 Node friend-operation-limits.js updateOperationLimits：偷=Harvest 在字段4，其余在字段2）
-func execFriendOp(c *gw.Client, method string, body []byte) error {
+func execFriendOp(c *gw.Client, accountID, method string, body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	rep, err := c.Request(ctx, plantService, method, body, 12*time.Second)
 	if err == nil && rep != nil {
-		updateOperationLimits(proto.DecodeOperationLimits(rep.Body))
+		updateOperationLimits(accountID, proto.DecodeOperationLimits(rep.Body))
 	}
 	return err
 }

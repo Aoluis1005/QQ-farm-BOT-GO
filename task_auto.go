@@ -103,17 +103,19 @@ func runDailyRoutinesGo(accountID string, c *gw.Client) {
 }
 
 // 每日礼包领取状态（对齐 Node mall.js/share.js 的 doneDateKey 内存态；跨天自动重置）
+// 注意：Node 每账号独立进程，doneDateKey 天然单账号；Go 多账号共享进程内存，
+// 必须按 accountID 分桶，否则账号 A 领过 → 账号 B 当天不领。
 var (
 	dailyGiftMu      sync.Mutex
-	freeGiftDoneDate string // 商城免费礼已领日期（todayKey）
-	shareDoneDate    string // 分享礼包已领日期
+	freeGiftDoneDate = map[string]string{} // accountID -> 已领日期（todayKey）
+	shareDoneDate    = map[string]string{} // accountID -> 已领日期
 )
 
 // buyFreeGiftsGo 商城免费礼（对齐 Node mall.js buyFreeGifts）
 // MallService.GetMallListBySlotType(slot=1) → goods_list 中 is_free 商品 → Purchase(goods_id, 1)
 func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 	dailyGiftMu.Lock()
-	done := freeGiftDoneDate == todayKey()
+	done := freeGiftDoneDate[accountID] == todayKey()
 	dailyGiftMu.Unlock()
 	if done {
 		return 0
@@ -147,7 +149,7 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 		time.Sleep(300 * time.Millisecond) // 对齐 Node 逐个购买间隔
 	}
 	dailyGiftMu.Lock()
-	freeGiftDoneDate = todayKey()
+	freeGiftDoneDate[accountID] = todayKey()
 	dailyGiftMu.Unlock()
 	return bought
 }
@@ -158,7 +160,7 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 // 避免"奖励已领取但状态永远待领取"（ReportShare/ClaimShareReward 对已领用户会报错但仍算已检查）。
 func performDailyShareGo(ctx context.Context, accountID string) bool {
 	dailyGiftMu.Lock()
-	done := shareDoneDate == todayKey()
+	done := shareDoneDate[accountID] == todayKey()
 	dailyGiftMu.Unlock()
 	if done {
 		return false
@@ -171,7 +173,7 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	// 只要 CheckCanShare 成功（无论 can_share 结果），今日即视为已检查（对齐 Node checkedDateKey）
 	defer func() {
 		dailyGiftMu.Lock()
-		shareDoneDate = todayKey()
+		shareDoneDate[accountID] = todayKey()
 		dailyGiftMu.Unlock()
 	}()
 	if actNum(readActFields(checkBody), 1) == 0 { // can_share=false → 今日无可分享
@@ -322,7 +324,7 @@ type emailItemInfo struct {
 // 返回成功领取的邮件数。
 func claimEmailsGo(ctx context.Context, accountID string) int {
 	dailyGiftMu.Lock()
-	done := emailDoneDate == todayKey()
+	done := emailDoneDate[accountID] == todayKey()
 	dailyGiftMu.Unlock()
 	if done {
 		return 0
@@ -357,7 +359,7 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 	}
 	if len(claimable) == 0 {
 		dailyGiftMu.Lock()
-		emailDoneDate = todayKey()
+		emailDoneDate[accountID] = todayKey()
 		dailyGiftMu.Unlock()
 		return 0
 	}
@@ -391,7 +393,7 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		time.Sleep(300 * time.Millisecond)
 	}
 	dailyGiftMu.Lock()
-	emailDoneDate = todayKey()
+	emailDoneDate[accountID] = todayKey()
 	dailyGiftMu.Unlock()
 	return claimed
 }
@@ -401,7 +403,7 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 // 返回成功领取数。
 func claimMonthCardGo(ctx context.Context, accountID string) int {
 	dailyGiftMu.Lock()
-	done := monthCardDoneDate == todayKey()
+	done := monthCardDoneDate[accountID] == todayKey()
 	dailyGiftMu.Unlock()
 	if done {
 		return 0
@@ -426,7 +428,7 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 	}
 	if len(goodsIDs) == 0 {
 		dailyGiftMu.Lock()
-		monthCardDoneDate = todayKey()
+		monthCardDoneDate[accountID] = todayKey()
 		dailyGiftMu.Unlock()
 		return 0
 	}
@@ -439,7 +441,7 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 		time.Sleep(300 * time.Millisecond)
 	}
 	dailyGiftMu.Lock()
-	monthCardDoneDate = todayKey()
+	monthCardDoneDate[accountID] = todayKey()
 	dailyGiftMu.Unlock()
 	return claimed
 }
@@ -449,7 +451,7 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 // reward_type → ClaimQQVipRewards(reward_types)。返回成功领取的档位数。
 func claimVipGiftGo(ctx context.Context, accountID string) int {
 	dailyGiftMu.Lock()
-	done := vipDoneDate == todayKey()
+	done := vipDoneDate[accountID] == todayKey()
 	dailyGiftMu.Unlock()
 	if done {
 		return 0
@@ -480,7 +482,7 @@ func claimVipGiftGo(ctx context.Context, accountID string) int {
 	}
 	if len(rewardTypes) == 0 {
 		dailyGiftMu.Lock()
-		vipDoneDate = todayKey()
+		vipDoneDate[accountID] = todayKey()
 		dailyGiftMu.Unlock()
 		return 0
 	}
@@ -489,14 +491,15 @@ func claimVipGiftGo(ctx context.Context, accountID string) int {
 		return 0
 	}
 	dailyGiftMu.Lock()
-	vipDoneDate = todayKey()
+	vipDoneDate[accountID] = todayKey()
 	dailyGiftMu.Unlock()
 	return len(rewardTypes)
 }
 
 // monthCardDoneDate / emailDoneDate / vipDoneDate 每日领取状态（对齐 Node doneDateKey 内存态；跨天自动重置）
+// 按 accountID 分桶（Node fork 进程天然单账号；Go 多账号共享内存必须显式隔离）
 var (
-	emailDoneDate     string
-	monthCardDoneDate string
-	vipDoneDate       string
+	emailDoneDate     = map[string]string{} // accountID -> 已领日期
+	monthCardDoneDate = map[string]string{} // accountID -> 已领日期
+	vipDoneDate       = map[string]string{} // accountID -> 已领日期
 )

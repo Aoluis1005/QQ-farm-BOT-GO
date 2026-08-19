@@ -194,11 +194,11 @@ func handleTaskDailyGifts(w http.ResponseWriter, r *http.Request) {
 
 	dailyGiftMu.Lock()
 	state := map[string]interface{}{
-		"mall":      freeGiftDoneDate == todayKey(),
-		"share":     shareDoneDate == todayKey(),
-		"email":     emailDoneDate == todayKey(),
-		"monthcard": monthCardDoneDate == todayKey(),
-		"vip":       vipDoneDate == todayKey(),
+		"mall":      freeGiftDoneDate[accountID] == todayKey(),
+		"share":     shareDoneDate[accountID] == todayKey(),
+		"email":     emailDoneDate[accountID] == todayKey(),
+		"monthcard": monthCardDoneDate[accountID] == todayKey(),
+		"vip":       vipDoneDate[accountID] == todayKey(),
 	}
 	dailyGiftMu.Unlock()
 
