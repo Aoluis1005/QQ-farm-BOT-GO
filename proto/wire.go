@@ -111,14 +111,18 @@ func (r *Reader) More() bool { return r.pos < len(r.buf) }
 
 func (r *Reader) error() error { return nil } // 简化：越界返回空
 
-// ReadVarint 读 varint
+// ReadVarint 读 varint（越界安全：pos 到缓冲区末尾即停，不再 panic）
+// 【2026-08-20 修复】原实现 r.buf[r.pos] 无边界检查：服务端推送损坏/未知字段导致
+// pos 越界后，下一次 ReadVarint 直接 panic 拖垮整个进程（DecodeItemNotify 实崩案例）。
 func (r *Reader) ReadVarint() uint64 {
 	var x uint64
 	var shift uint
-	for {
+	for r.pos < len(r.buf) {
 		b := r.buf[r.pos]
 		r.pos++
-		x |= uint64(b&0x7f) << shift
+		if shift < 64 {
+			x |= uint64(b&0x7f) << shift
+		}
 		if b&0x80 == 0 {
 			break
 		}
@@ -169,7 +173,8 @@ func (r *Reader) AppendRepeatedInt64(wire int, dst []int64) []int64 {
 	return dst
 }
 
-// Skip 跳过字段（按 wireType）
+// Skip 跳过字段（按 wireType）；任何 wire 类型都钳位 pos，防止越界
+// 【2026-08-20 修复】WireLen 分支原来 r.pos += n 无上限，n 为损坏长度时 pos 越界 → 后续读 panic。
 func (r *Reader) Skip(wire int) {
 	switch wire {
 	case WireVarint:
@@ -182,6 +187,9 @@ func (r *Reader) Skip(wire int) {
 	case WireI32:
 		r.pos += 4
 	default:
+		r.pos = len(r.buf)
+	}
+	if r.pos > len(r.buf) {
 		r.pos = len(r.buf)
 	}
 }

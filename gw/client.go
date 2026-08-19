@@ -331,25 +331,39 @@ func (c *Client) readLoop() {
 			if !okE {
 				continue
 			}
-			// ItemNotify 物品变化 → 同气连枝礼包(101351)增量 + 经验/金币/点券/金豆豆
-			if strings.Contains(typ, "ItemNotify") {
-				c.applyItemNotify(eventBody)
-			}
-			// BasicNotify 基础信息变化 → 用服务端绝对余额/经验/等级校准 c.gold/c.exp/c.level
-			// （对齐 Node network.ts BasicNotify：notify.basic.gold→userState.gold），
-			// 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值/autoSell 差值爆数）。
-			if strings.Contains(typ, "BasicNotify") {
-				c.applyBasicNotify(eventBody)
-			}
-			// LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push
-			if strings.Contains(typ, "LandsNotify") {
-				host := proto.DecodeLandsNotifyHostGid(eventBody)
-				if c.farmPushHook != nil && (host == 0 || host == c.GID) {
-					c.farmPushHook(c.accountID)
+			// 【2026-08-20】safeNotify 兜底：单条推送解析异常只丢弃该条，不拖垮整个进程
+			// （实测 DecodeItemNotify 曾因损坏字段 panic 致全账号断开）。
+			c.safeNotify(func() {
+				// ItemNotify 物品变化 → 同气连枝礼包(101351)增量 + 经验/金币/点券/金豆豆
+				if strings.Contains(typ, "ItemNotify") {
+					c.applyItemNotify(eventBody)
 				}
-			}
+				// BasicNotify 基础信息变化 → 用服务端绝对余额/经验/等级校准 c.gold/c.exp/c.level
+				// （对齐 Node network.ts BasicNotify：notify.basic.gold→userState.gold），
+				// 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值/autoSell 差值爆数）。
+				if strings.Contains(typ, "BasicNotify") {
+					c.applyBasicNotify(eventBody)
+				}
+				// LandsNotify 土地变化（被放虫/放草/偷菜等）→ 触发 farm_push
+				if strings.Contains(typ, "LandsNotify") {
+					host := proto.DecodeLandsNotifyHostGid(eventBody)
+					if c.farmPushHook != nil && (host == 0 || host == c.GID) {
+						c.farmPushHook(c.accountID)
+					}
+				}
+			})
 		}
 	}
+}
+
+// safeNotify 执行单条推送处理函数；panic 时记录并丢弃该条，保证 readLoop 与整个服务不退出。
+func (c *Client) safeNotify(fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[gw] 账号 %s 推送处理异常已捕获: %v\n", c.accountID, r)
+		}
+	}()
+	fn()
 }
 
 // applyItemNotify 处理物品变化推送：增量更新内存 + 同气礼包累计（对齐 Node network.js）
