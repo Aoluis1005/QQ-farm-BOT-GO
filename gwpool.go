@@ -161,8 +161,13 @@ func connect(acc *models.Account) (*gw.Client, error) {
 // 优先走内置 YYB（embeddedYybBaseURL + embed.GetApiToken()），未配置内置才回退 YYB_API_URL/YYB_API_KEY，
 // 与 account_api.go resolveYybCreds 完全一致；账号无 openid 时报错。
 func refreshCodeFromYyb(acc *models.Account) (string, error) {
-	// 第三方应用宝：优先用账号级 thirdparty 配置调第三方接口换 code（与内置 yyb 互不冲突）
-	if acc.Thirdparty != nil && acc.Thirdparty.APIBase != "" && acc.Thirdparty.APIToken != "" && acc.Thirdparty.OpenID != "" {
+	// 第三方应用宝：优先用账号级 thirdparty 配置调第三方接口换 code（与内置 yyb 互不冲突）。
+	// 注意：一旦账号标记为 thirdparty（Thirdparty != nil），配置不完整时**不**回退内置 YYB——
+	// 避免第三方账号误调内置接口（登录/重连路径一致）。
+	if acc.Thirdparty != nil {
+		if acc.Thirdparty.APIBase == "" || acc.Thirdparty.APIToken == "" || acc.Thirdparty.OpenID == "" {
+			return "", fmt.Errorf("第三方应用宝配置不完整（apiBase/apiToken/openid）")
+		}
 		return getCodeFromThirdpartyYyb(acc.Thirdparty.APIBase, acc.Thirdparty.APIToken, acc.Thirdparty.OpenID, false)
 	}
 	if acc.OpenID == "" {

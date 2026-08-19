@@ -44,17 +44,24 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 			} else {
 				accounts[i].Status = "offline"
 			}
+			// 脱敏：第三方应用宝的 apiToken 不外泄到前端（对齐 Node admin-account-routes.js:55-66）
+			if accounts[i].Thirdparty != nil && accounts[i].Thirdparty.APIToken != "" {
+				tp := *accounts[i].Thirdparty
+				tp.APIToken = "***"
+				accounts[i].Thirdparty = &tp
+			}
 		}
 		writeJSON(w, map[string]interface{}{"ok": true, "data": accounts})
 	case "POST":
 		var body struct {
-			Name     string `json:"name"`
-			Code     string `json:"code"`
-			Platform string `json:"platform"` // "qq" / "wx"
-			QQ       string `json:"qq"`
-			UIN      string `json:"uin"`
-			GID      string `json:"gid"`
-			OpenID   string `json:"openId"`
+			Name       string                     `json:"name"`
+			Code       string                     `json:"code"`
+			Platform   string                     `json:"platform"` // "qq" / "wx"
+			QQ         string                     `json:"qq"`
+			UIN        string                     `json:"uin"`
+			GID        string                     `json:"gid"`
+			OpenID     string                     `json:"openId"`
+			Thirdparty *models.ThirdpartyConfig   `json:"thirdparty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, 400, "invalid body")
@@ -77,6 +84,7 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 			UIN:      body.UIN,
 			GID:      body.GID,
 			OpenID:   body.OpenID,
+			Thirdparty: body.Thirdparty,
 			Status:   "offline",
 			CreatedAt: time.Now().Format(time.RFC3339),
 		}
@@ -363,7 +371,12 @@ func handleYybThirdpartyCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 调用第三方接口: POST {apiBase}/api/open/v1/farm/code
-	fullURL := strings.TrimRight(body.APIBase, "/") + "/api/open/v1/farm/code"
+	// 规范化 apiBase：去尾部斜杠与用户误带的路径后缀（对齐 Node normalizeApiBase）
+	base := strings.TrimRight(body.APIBase, "/")
+	base = stripSuffix(base, "/api/open/v1/farm/code")
+	base = stripSuffix(base, "/api/open/v1")
+	base = stripSuffix(base, "/api/open")
+	fullURL := base + "/api/open/v1/farm/code"
 	reqBody := map[string]interface{}{
 		"openid":       body.OpenID,
 		"forceRefresh": body.ForceRefresh,

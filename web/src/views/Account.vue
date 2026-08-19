@@ -232,7 +232,7 @@ async function addByThirdpartyYyb() {
       t3rdBusy.value = false
       return
     }
-    const newId = add.activeAccountId || (add.data && add.data.accounts && add.data.accounts.at(-1) && add.data.accounts.at(-1).id)
+    const newId = add.activeAccountId || (Array.isArray(add.data) && add.data.length && add.data[add.data.length - 1].id)
     // 3. 把第三方专属重连配置同步到账号级 AutoReconnect（即使勾选不勾都写，留档可追踪）
     if (newId) {
       try {
