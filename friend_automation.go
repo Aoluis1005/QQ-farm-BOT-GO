@@ -142,7 +142,8 @@ var (
 	firstFriendFetchDone = map[string]bool{}
 
 	// expLimitCallback 经验上限跨日重置回调（对齐 Node ensureExpLimitCallback）
-	onExpLimitReachedFn func()
+	// reached 回调带 accountID（Go 多账号共享进程，必须按触发账号持久化，不能写死默认账号）
+	onExpLimitReachedFn func(accountID string)
 	onExpLimitResetFn   func()
 )
 
@@ -199,7 +200,8 @@ func checkOpLimitsDailyReset() {
 }
 
 // setOnExpLimitReachedCallback 注册经验上限回调（对齐 Node setOnExpLimitReachedCallback）
-func setOnExpLimitReachedCallback(fn func()) {
+// fn 接收触发账号的 accountID（Go 多账号共享进程，持久化必须按账号）
+func setOnExpLimitReachedCallback(fn func(accountID string)) {
 	onExpLimitReachedFn = fn
 }
 
@@ -301,7 +303,7 @@ func autoDisableHelpByExpLimit(accountID string) {
 	appendOpLog(accountID, "friend", "今日帮助经验已达上限，自动停止普通帮忙，仅帮助护主犬好友")
 	// 持久化经验上限状态（对齐 Node onExpLimitReachedCallback → applyConfigSnapshot）
 	if onExpLimitReachedFn != nil {
-		onExpLimitReachedFn()
+		onExpLimitReachedFn(accountID)
 	}
 }
 
@@ -722,8 +724,9 @@ func autoAcceptFriendApply(c *gw.Client, accountID string, cfg config.AccountCon
 // initExpLimitPersistence 注册经验上限持久化回调（对齐 Node ensureExpLimitCallback：
 // 跨日重置清掉 persistent friendHelpExpExhausted，经验满时持久化应用 configSnapshot）
 func initExpLimitPersistence() {
-	setOnExpLimitReachedCallback(func() {
-		accID := models.GetDefaultAccountID()
+	// reached：只持久化【触发上限的那个账号】（Go 多账号共享进程，不能写死默认账号，
+	// 否则账号 A 经验满会把 B 的持久化标志也置 true，重启后 B 被误恢复为"经验已满"）
+	setOnExpLimitReachedCallback(func(accID string) {
 		if accID == "" {
 			return
 		}
@@ -731,13 +734,14 @@ func initExpLimitPersistence() {
 		cfg.FriendHelpExpExhausted = true
 		_ = models.SetAccountConfig(accID, cfg)
 	})
+	// reset：跨日重置需要清掉【所有账号】的持久化标志（对齐 Node 每进程重置自己的）
 	setOnExpLimitResetCallback(func() {
-		accID := models.GetDefaultAccountID()
-		if accID == "" {
-			return
+		for _, acc := range models.GetAccounts() {
+			cfg := models.GetAccountConfig(acc.ID)
+			if cfg.FriendHelpExpExhausted {
+				cfg.FriendHelpExpExhausted = false
+				_ = models.SetAccountConfig(acc.ID, cfg)
+			}
 		}
-		cfg := models.GetAccountConfig(accID)
-		cfg.FriendHelpExpExhausted = false
-		_ = models.SetAccountConfig(accID, cfg)
 	})
 }
