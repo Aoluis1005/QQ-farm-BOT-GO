@@ -594,7 +594,9 @@ body{
   .nav-btn.active{ background:var(--primary-soft); color:var(--primary); font-weight:700; box-shadow:inset 0 0 0 1px var(--primary); }
   .nav-btn .di{ font-size:18px; }
   .dock{ display:none; }
-  .app{ max-width:1180px; margin-left:230px; margin-right:auto; }
+  /* 【2026-08-20 issue#2 修复】宽屏(>1410px)时在侧栏右侧区域居中，
+     避免 4K 下 .app 贴左上角；≤1410px 时 max() 为 0 保持原左对齐行为 */
+  .app{ max-width:1180px; margin-left:calc(230px + max(0px,(100vw - 1410px)/2)); margin-right:auto; }
   .app > section{ max-width:780px; margin:0 auto; }
 }
 

@@ -53,7 +53,10 @@ func appendOpLog(accountID, action, detail string) {
 		return
 	}
 	defer f.Close()
-	fmt.Fprintf(f, "[%s] %s %s\n", time.Now().Format("01-02 15:04:05"), action, detail)
+	// 【2026-08-20 issue#2 修复】操作日志固定用北京时间(UTC+8)：
+	// time.Now() 是进程本地时区，PVE/LXC/容器默认 UTC 会显示成比北京时间慢 8 小时。
+	t := time.Now().UTC().Add(8 * time.Hour)
+	fmt.Fprintf(f, "[%s] %s %s\n", t.Format("01-02 15:04:05"), action, detail)
 }
 
 // readOpLogs 读取最近 N 条操作日志
