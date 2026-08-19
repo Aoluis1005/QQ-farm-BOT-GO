@@ -188,6 +188,70 @@ function logout() {
   router.push('/login')
 }
 
+/* ---------- 第三方应用宝登录（与内置 YYB 互不冲突） ---------- */
+const t3rdApiBase = ref(''); const t3rdApiToken = ref(''); const t3rdOpenid = ref(''); const t3rdName = ref('')
+const t3rdAuto = ref(true); const t3rdDelay = ref(5); const t3rdMax = ref(3)
+const t3rdBusy = ref(false); const t3rdErr = ref('')
+async function addByThirdpartyYyb() {
+  t3rdErr.value = ''
+  if (!t3rdApiBase.value.trim() || !t3rdOpenid.value.trim() || !t3rdApiToken.value.trim()) {
+    t3rdErr.value = '请填写接口地址、APITOKEN、OPENID'
+    return
+  }
+  t3rdBusy.value = true
+  try {
+    // 1. 向第三方接口换登录 code
+    const tc = (await api.post('/api/yyb/thirdparty-code', {
+      apiBase: t3rdApiBase.value.trim(),
+      apiToken: t3rdApiToken.value.trim(),
+      openid: t3rdOpenid.value.trim(),
+    })).data
+    if (!(tc?.ok && tc?.data?.code)) {
+      t3rdErr.value = tc?.error || '获取登录 code 失败'
+      t3rdBusy.value = false
+      return
+    }
+    const code = tc.data.code
+    const openid = (tc.data.openid || t3rdOpenid.value).trim()
+    const name = t3rdName.value.trim() || `第三方应用宝${openid.slice(-4)}`
+
+    // 2. 添加账号（thirdparty 字段一并持久化，重连由 refreshCodeFromYyb 第三方分支负责）
+    const add = (await api.post('/api/accounts', {
+      name, code, platform: 'wx', openId: openid,
+      thirdparty: {
+        apiBase: t3rdApiBase.value.trim(),
+        apiToken: t3rdApiToken.value.trim(),
+        openid,
+        autoReconnect: t3rdAuto.value === true,
+        reconnectDelayMin: Math.max(1, Number(t3rdDelay.value) || 5),
+        reconnectMaxAttempts: Math.max(1, Number(t3rdMax.value) || 3),
+      },
+    })).data
+    if (!add?.ok) {
+      t3rdErr.value = '添加账号失败: ' + (add?.error || '未知')
+      t3rdBusy.value = false
+      return
+    }
+    const newId = add.activeAccountId || (add.data && add.data.accounts && add.data.accounts.at(-1) && add.data.accounts.at(-1).id)
+    // 3. 把第三方专属重连配置同步到账号级 AutoReconnect（即使勾选不勾都写，留档可追踪）
+    if (newId) {
+      try {
+        await api.post(`/api/reconnect/config?accountId=${encodeURIComponent(newId)}`, {
+          enabled: t3rdAuto.value === true,
+          reconnectDelayMin: Math.max(1, Number(t3rdDelay.value) || 5),
+          reconnectMaxAttempts: Math.max(1, Number(t3rdMax.value) || 3),
+        })
+      } catch (_) { /* rc 配置失败不影响账号添加 */ }
+    }
+    app.success('第三方应用宝登录成功')
+    sheet.value = ''
+    t3rdApiBase.value = ''; t3rdApiToken.value = ''; t3rdOpenid.value = ''; t3rdName.value = ''
+    location.reload()
+  } catch (e) {
+    t3rdErr.value = e.response?.data?.error || e.message || '第三方登录失败'
+  } finally { t3rdBusy.value = false }
+}
+
 onMounted(() => loadAccounts())
 onUnmounted(() => stopQr())
 </script>
@@ -210,7 +274,7 @@ onUnmounted(() => stopQr())
     <div class="menu">
       <button class="sub-item" @click="sheet='add'"><span class="mi">🔑</span>手动添加 code<span class="arr">›</span></button>
       <button class="sub-item" @click="sheet='qr'; loadRc(); startQrLogin()"><span class="mi">📱</span>扫码登录<span class="arr">›</span></button>
-      <button class="sub-item" @click="app.error('「第三方登录」请在源码中配置 YYB 服务后接入')"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
+      <button class="sub-item" @click="sheet='thirdparty'; t3rdErr=''"><span class="mi">🔗</span>第三方登录<span class="arr">›</span></button>
     </div>
 
     <button class="logout" @click="logout">退出登录</button>
@@ -299,6 +363,48 @@ onUnmounted(() => stopQr())
 
     <button class="close" v-if="!qrBusy" style="margin-top:4px" @click="startQrLogin">重新获取二维码</button>
     <button class="close" style="margin-top:8px" @click="sheet=''; stopQr()">关闭</button>
+  </div>
+
+  <!-- 第三方应用宝登录 sheet（与内置 YYB 互不冲突；自带账号级独立重连配置） -->
+  <div v-if="sheet==='thirdparty'" class="sheet-mask show" @click="sheet=''"></div>
+  <div v-if="sheet==='thirdparty'" class="sheet show">
+    <div class="handle"></div>
+    <h3>🔗 第三方应用宝登录</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
+      填入第三方 <b>YYB 接口地址、APITOKEN、OPENID</b> 即可获取登录 code 并添加账号。被踢/异地登录后将按下方设置自动重连（与内置 YYB 互不影响）。
+    </p>
+    <input v-model="t3rdApiBase" class="field" placeholder="接口地址，例如 http://211.154.25.123:28999" style="margin-top:12px">
+    <input v-model="t3rdApiToken" class="field" placeholder="第三方接口 APITOKEN" style="margin-top:8px" type="password" autocomplete="off">
+    <input v-model="t3rdOpenid" class="field" placeholder="第三方账号 openid" style="margin-top:8px">
+    <input v-model="t3rdName" class="field" placeholder="账号备注（可选，留空则用 openid 后四位）" style="margin-top:8px">
+
+    <div class="rc-panel" style="margin-top:14px">
+      <div class="rc-head">📡 离线自动重连<small>账号级独立配置，与内置 YYB 不冲突</small></div>
+      <div class="rc-row">
+        <span>启用离线自动重连</span>
+        <div class="switch" :class="{ on: t3rdAuto }" @click="t3rdAuto = !t3rdAuto"></div>
+      </div>
+      <div class="rc-grid">
+        <div class="rc-col">
+          <label class="rc-label">离线几分钟后重连</label>
+          <div class="sec-field">
+            <input type="number" v-model.number="t3rdDelay" class="field" min="1">
+            <span class="unit">分钟</span>
+          </div>
+        </div>
+        <div class="rc-col">
+          <label class="rc-label">失败几次后停止</label>
+          <div class="sec-field">
+            <input type="number" v-model.number="t3rdMax" class="field" min="1">
+            <span class="unit">次</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p v-if="t3rdErr" style="font-size:12px;color:var(--danger,#e5484d);margin-top:10px">{{ t3rdErr }}</p>
+
+    <button class="close" :disabled="t3rdBusy" style="margin-top:16px" @click="addByThirdpartyYyb">{{ t3rdBusy ? '添加并登录中…' : '添加并登录' }}</button>
   </div>
 </template>
 

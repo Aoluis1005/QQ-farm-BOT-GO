@@ -25,20 +25,32 @@ var (
 )
 
 // Account 账号数据结构（对标 Node store.js addOrUpdateAccount）
+// ThirdpartyConfig 第三方应用宝配置（与内置 YYB 互不冲突；可选 independent 重连参数）。
+// 持久化：apiToken 是敏感字段，GET 列表时由前端处理层或在线 API 路由脱敏。
+type ThirdpartyConfig struct {
+	APIBase            string `json:"apiBase"`
+	APIToken           string `json:"apiToken"`
+	OpenID             string `json:"openid"`
+	AutoReconnect      *bool  `json:"autoReconnect,omitempty"`      // nil=回退全局；true/false 覆盖
+	ReconnectDelayMin  *int   `json:"reconnectDelayMin,omitempty"`  // nil=回退全局
+	ReconnectMaxAttempts *int `json:"reconnectMaxAttempts,omitempty"` // nil=回退全局
+}
+
 type Account struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Username  string `json:"username"`
-	Code      string `json:"code"`
-	Platform  string `json:"platform"` // "qq" / "wx"
-	QQ        string `json:"qq"`
-	UIN       string `json:"uin"`
-	GID       string `json:"gid"`
-	OpenID    string `json:"openId"`
-	Avatar    string `json:"avatar"`
-	Status    string `json:"status"` // "online" / "offline"
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Username   string            `json:"username"`
+	Code       string            `json:"code"`
+	Platform   string            `json:"platform"` // "qq" / "wx"
+	QQ         string            `json:"qq"`
+	UIN        string            `json:"uin"`
+	GID        string            `json:"gid"`
+	OpenID     string            `json:"openId"`
+	Avatar     string            `json:"avatar"`
+	Status     string            `json:"status"` // "online" / "offline"
+	Thirdparty *ThirdpartyConfig `json:"thirdparty,omitempty"` // 第三方应用宝配置（可选）
+	CreatedAt  string            `json:"createdAt"`
+	UpdatedAt  string            `json:"updatedAt"`
 }
 
 // InitStore 初始化数据目录与全局配置
