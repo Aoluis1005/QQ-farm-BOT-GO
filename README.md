@@ -22,6 +22,27 @@ sudo bash install.sh
 
 > 💡 `install.sh` 每次都会**自动重新构建前端**（检测并自动安装 Node → `npm ci` + `vite build`）后再编译后端，保证页面主题/样式始终完整。请勿删除或替换 `web/dist`，也不要手动放置旧版可执行文件——否则可能导致页面白屏、无任何 UI 样式。
 
+### 🐳 Docker 部署（可选，与 install.sh 互不影响）
+
+仓库自带 `Dockerfile` + `docker-compose.yml`，适合没有 systemd 的环境（LXC 容器 / 群晖 / 其他主机）：
+
+```bash
+# 方式一：docker compose（推荐）
+docker compose up -d --build
+
+# 方式二：纯 docker（可选指定版本号，默认 dev）
+docker build --build-arg VERSION=$(git rev-parse --short HEAD) -t go-farm-bot .
+docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
+  -v qq-farm-bot-data:/root/.qq-farm-bot go-farm-bot
+```
+
+- 管理页面：`http://<服务器IP>:3009`
+- **数据持久化**：账号/配置/日志全部在容器卷 `qq-farm-bot-data`（挂载到 `/root/.qq-farm-bot`），重建容器不丢数据
+- **前端内嵌**：`web/dist` 已随镜像打进二进制，无需额外静态服务器
+- **资源目录**：`game-config`（素材配置）与 `yyb-resource`（YYB 扫码）已随镜像复制，无需手动放置
+- 升级：`docker compose up -d --build` 重新构建即可；想换版本号先 `FARM_VERSION=<hash> docker compose build`
+- 时区无关：日志固定输出北京时间（UTC+8）
+
 ## ✨ 功能特性
 
 ### 🌾 农场自动化

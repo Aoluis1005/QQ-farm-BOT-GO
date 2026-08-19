@@ -1,0 +1,14 @@
+# 减小构建上下文体积；web/dist 已入库需保留（go:embed 依赖）
+.git
+.gitignore
+web/node_modules
+web/src
+node_modules
+*.exe
+*.bak
+*.log
+Dockerfile
+docker-compose.yml
+.dockerignore
+release
+tools

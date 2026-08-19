@@ -1,0 +1,23 @@
+# QQ Farm Bot Go - Docker Compose 一键启动
+# 用法：
+#   docker compose up -d --build
+#   （可选指定版本号：FARM_VERSION=<git短哈希> docker compose build）
+# 访问：http://<服务器IP>:3009
+services:
+  go-farm-bot:
+    build:
+      context: .
+      args:
+        VERSION: ${FARM_VERSION:-dev}
+    image: go-farm-bot:latest
+    container_name: go-farm-bot
+    restart: unless-stopped
+    ports:
+      - "3009:3009"
+    environment:
+      - ADMIN_PORT=3009
+    volumes:
+      - qq-farm-bot-data:/root/.qq-farm-bot
+
+volumes:
+  qq-farm-bot-data:
