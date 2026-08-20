@@ -1184,7 +1184,8 @@ func bestByRanking(cands []seedCand, candMap map[int64]seedCand, sortBy string, 
 		}
 		return cc.seedID, cc.goodsID, cc.price, nil
 	}
-	return 0, 0, 0, errNoSeed
+	// 排行榜全部未命中时回退到商店可买的最高等级种子（未命中候选仍在候选列表里，总能选出）
+	return bestByLevel(cands)
 }
 
 // pickBagSeed 背包优先：返回背包中可用的种子（count>0 且 1x1），按 BagSeedPriority 排序
@@ -1209,10 +1210,8 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
-		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，不进 bag_priority，对齐 Node）
-		if eventSeeds[it.ID] || isBuySeedBlocked(it.ID) {
-			continue
-		}
+		// 背包已有种子全部参与种植（含活动种子），不再排除活动种子/黑名单；
+		// 事件种子商店买不到，应只在其不在背包时走商店排除。
 		// 背包物品是种子，须按 seed_id 查 Plant.json（对齐 Node getPlantBySeedId）；
 		// 误用 getPlantByID(plant.id) 会在 plant.id != seed_id 时漏掉该种子。
 		pe, ok := seedToPlantMap[int(it.ID)]
@@ -1318,10 +1317,7 @@ func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
-		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，对齐 Node bag_priority 不种活动种子）
-		if eventSeeds[it.ID] || isBuySeedBlocked(it.ID) {
-			continue
-		}
+		// 背包已有种子全部参与种植（含活动种子），不再排除活动种子/黑名单
 		pe, ok := seedToPlantMap[int(it.ID)]
 		if !ok || pe.Size != size {
 			continue
@@ -1375,17 +1371,23 @@ func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountCon
 			continue
 		}
 		planted := 0
+		// 背包等级锁定种子（reqLvl>当前等级）尝试失败不应阻断第二策略补种
+		levelLocked := int64(s.reqLvl) > c.Level()
 		for m := range remainingSet {
 			if planted >= int(maxCount) {
 				break
 			}
 			realSeed, e := ensureSeedOwned(c, s.seedID, 0, 0, 1)
 			if e != nil || realSeed <= 0 {
-				fallbackAllowed = false
+				if !levelLocked {
+					fallbackAllowed = false
+				}
 				break
 			}
 			if e2 := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{m})); e2 != nil {
-				fallbackAllowed = false
+				if !levelLocked {
+					fallbackAllowed = false
+				}
 				break
 			}
 			delete(remainingSet, m)
@@ -1395,7 +1397,8 @@ func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountCon
 			time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
 		}
 		// 实际种植数少于请求数 → 部分失败，避免误购商城（对齐 Node partial_bag_failure）
-		if planted < int(maxCount) && len(remainingSet) > 0 {
+		// 等级锁定种子整批无法种植（planted==0）时不阻断 fallback
+		if planted < int(maxCount) && len(remainingSet) > 0 && (!levelLocked || planted > 0) {
 			fallbackAllowed = false
 		}
 	}
@@ -1823,8 +1826,8 @@ func trySellOne(accountID string, c *gw.Client, it proto.SellItem) (int64, bool)
 
 // buyPausedNoGoldDate 点券不足当天暂停（key=日期，次日自动恢复）
 var (
-	buyPausedMu      sync.Mutex
-	buyPausedNoGold  = map[string]string{} // accountID → 暂停日期（todayKey）
+	buyPausedMu     sync.Mutex
+	buyPausedNoGold = map[string]string{} // accountID → 暂停日期（todayKey）
 )
 
 func doCheckAndBuyFertilizer(accountID string, c *gw.Client, cfg config.AccountConfig) {

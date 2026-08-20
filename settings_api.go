@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/Aoluis1005/go-farm-bot/config"
+	"github.com/Aoluis1005/go-farm-bot/gw"
 	"github.com/Aoluis1005/go-farm-bot/models"
+	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
 // ============================================================
@@ -56,13 +61,13 @@ func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 // POST /api/settings/save  全量保存账号配置（除 automation；automation 走 /api/automation）
 // ── 设置合法性钳制（对齐 Node models/store.js:474-481 / 581-644） ──
 var allowedPlantingStrategies = map[string]bool{
-	"preferred":        true,
-	"level":            true,
-	"max_exp":          true,
-	"max_fert_exp":     true,
-	"max_profit":       true,
-	"max_fert_profit":  true,
-	"bag_priority":     true,
+	"preferred":       true,
+	"level":           true,
+	"max_exp":         true,
+	"max_fert_exp":    true,
+	"max_profit":      true,
+	"max_fert_profit": true,
+	"bag_priority":    true,
 }
 
 // clampPlantDelaySeconds 对齐 Node: Math.max(0, Math.min(60, Number(x) || 2))
@@ -142,8 +147,8 @@ func handleDefaultPlan(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetUserDefaultPlan()})
 	case http.MethodPut:
 		var body struct {
-			Enabled *bool                 `json:"enabled"`
-			Config  config.AccountConfig  `json:"config"`
+			Enabled *bool                `json:"enabled"`
+			Config  config.AccountConfig `json:"config"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, 400, "bad json: "+err.Error())
@@ -219,31 +224,94 @@ func handleDefaultPlanReset(w http.ResponseWriter, r *http.Request) {
 // seedOut 种子列表条目（对齐 Node getAvailableSeeds 的商店回退分支：
 // {seedId, goodsId:0, name, price:null, requiredLevel, locked:false, soldOut:false, unknownMeta:true}）
 type seedOut struct {
-	SeedID       int    `json:"seedId"`
-	GoodsID      int    `json:"goodsId"`
-	Name         string `json:"name"`
-	Price        *int   `json:"price"`
-	RequiredLevel int   `json:"requiredLevel"`
-	Locked       bool   `json:"locked"`
-	SoldOut      bool   `json:"soldOut"`
-	UnknownMeta  bool   `json:"unknownMeta"`
+	SeedID        int    `json:"seedId"`
+	GoodsID       int    `json:"goodsId"`
+	Name          string `json:"name"`
+	Price         *int   `json:"price"`
+	RequiredLevel int    `json:"requiredLevel"`
+	Locked        bool   `json:"locked"`
+	SoldOut       bool   `json:"soldOut"`
+	UnknownMeta   bool   `json:"unknownMeta"`
 }
 
-// GET /api/seeds  本地种子列表（商店不可用时 Node 回退到 getAllSeeds；Go 直接走本地 Plant/ItemInfo）
+// GET /api/seeds  选种预览种子列表
+// 主分支：有账号且在线时按账号实时拉商店可买种子（含 locked/soldOut 状态；活动种子商店不卖，天然不出现）；
+// 回退分支：无账号/商店失败时回退本地全量种子（保留活动种子排除，避免优先下拉展示买不到的种子）。
 func handleSeeds(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, 405, "method not allowed")
 		return
 	}
-	// 收集所有种子：ItemInfo type==5 的种子条目 + Plant.json 的 seed_id 兜底
+	var out []seedOut
+	if id := reqAccountID(r); id != "" {
+		if c, err := clientPool.Get(id); err == nil {
+			if list, ok := buildShopSeedList(c); ok {
+				out = list
+			}
+		}
+	}
+	if len(out) == 0 {
+		out = buildLocalSeedList()
+	}
+	// 按等级升序
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].RequiredLevel != out[j].RequiredLevel {
+			return out[i].RequiredLevel < out[j].RequiredLevel
+		}
+		return out[i].SeedID < out[j].SeedID
+	})
+	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
+}
+
+// buildShopSeedList 按账号从商店构建可买种子列表（商店主分支）
+func buildShopSeedList(c *gw.Client) ([]seedOut, bool) {
+	rep, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "ShopInfo",
+		proto.EncodeShopInfoRequest(2), 15*time.Second)
+	if err != nil {
+		return nil, false
+	}
+	level := c.Level()
+	out := make([]seedOut, 0, 32)
+	for _, g := range proto.DecodeShopInfoReply(rep.Body).GoodsList {
+		if g.ItemID <= 0 {
+			continue
+		}
+		reqLvl := 0
+		for _, cd := range g.Conds {
+			if cd.Type == 1 {
+				reqLvl = int(cd.Param)
+			}
+		}
+		price := int(g.Price)
+		name := "种子" + strconv.Itoa(int(g.ItemID))
+		if it, ok := itemInfoMap[int(g.ItemID)]; ok && it.Name != "" {
+			name = it.Name
+		} else if p, ok := seedToPlantMap[int(g.ItemID)]; ok && p.Name != "" {
+			name = p.Name
+		}
+		out = append(out, seedOut{
+			SeedID:        int(g.ItemID),
+			GoodsID:       int(g.ID),
+			Name:          name,
+			Price:         &price,
+			RequiredLevel: reqLvl,
+			Locked:        !g.Unlocked || int(level) < reqLvl,
+			SoldOut:       g.LimitCount > 0 && g.BoughtNum >= g.LimitCount,
+			UnknownMeta:   false,
+		})
+	}
+	return out, len(out) > 0
+}
+
+// buildLocalSeedList 本地全量种子列表（商店失败回退 getAllSeeds）
+// 保留活动种子/黑名单排除，避免优先种子下拉展示商店买不到的种子。
+func buildLocalSeedList() []seedOut {
 	seedIDs := map[int]bool{}
-	// 1) ItemInfo type==5
 	for id, it := range itemInfoMap {
 		if it.Type == 5 && it.ID > 0 {
 			seedIDs[id] = true
 		}
 	}
-	// 2) Plant.json seed_id
 	for seedID := range seedToPlantMap {
 		if seedID > 0 {
 			seedIDs[seedID] = true
@@ -251,7 +319,7 @@ func handleSeeds(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]seedOut, 0, len(seedIDs))
 	for id := range seedIDs {
-		// 排除活动种子+动态黑名单（活动种子走 event_plant 特殊模式，不应作为优先种子选项）
+		// 排除活动种子+动态黑名单（不应作为优先种子选项）
 		if eventSeeds[int64(id)] || isBuySeedBlocked(int64(id)) {
 			continue
 		}
@@ -273,12 +341,5 @@ func handleSeeds(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, item)
 	}
-	// 按等级降序排序（高等级在前），同等级按 SeedID 升序；"优先种植种子"下拉/分析页都用这个顺序
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].RequiredLevel != out[j].RequiredLevel {
-			return out[i].RequiredLevel > out[j].RequiredLevel
-		}
-		return out[i].SeedID < out[j].SeedID
-	})
-	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
+	return out
 }
