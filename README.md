@@ -1,8 +1,8 @@
 > ⭐ **开源不易，请动动小手给个 [Star](https://github.com/Aoluis1005/QQ-farm-BOT-GO) 吧！**
 
-# ⚠️ 测试版 QQ 农场 Bot（Go）
+# 🎉 QQ 农场 Bot（Go）v1.0.1
 
-> **本版本为测试版，可能存在 Bug**——遇到问题请 [提 Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues)，我会尽快修复。
+> **正式版 v1.0.1**——遇到问题请 [提 Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues)，我会尽快修复。
 >
 > ✅ 已支持最新**七夕活动「鹊桥寄情」**：灵露喷洒、筑建鹊桥、档位奖励、**送香囊**均已可用。
 
@@ -162,7 +162,7 @@ sudo systemctl enable --now go-farm-bot
 ## ⚠️ 免责声明
 - 本仓库**不含**任何逆向工具、解包产物或敏感凭据（openid / 加密材料），请勿提交此类文件
 - 仅用于学习与个人自动化研究，请遵守游戏用户协议
-- 测试版随时可能有 Bug，请以 [Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues) 反馈
+- 如有问题请以 [Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues) 反馈
 - 本项目完全免费 · 开源共享 · 拒绝一切收费
 
 ## 📝 相关项目
