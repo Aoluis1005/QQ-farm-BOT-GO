@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Aoluis1005/go-farm-bot/config"
 	"github.com/Aoluis1005/go-farm-bot/models"
 )
 
@@ -289,7 +290,8 @@ func getPlantBlacklist(accountID string) []int {
 	cfg := models.GetAccountConfig(accountID)
 	out := cfg.PlantBlacklist
 	if out == nil {
-		out = []int{}
+		// 未设置（null）时回退默认黑名单，避免“看得到默认但实际零黑名单”的坑
+		return config.DefaultAccountConfig().PlantBlacklist
 	}
 	return out
 }
