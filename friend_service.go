@@ -136,11 +136,15 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []i
 
 func containsInt64(a []int64, v int64) bool {
 	for _, x := range a {
-		if x == v {
-			return true
+		if x == v {			return true
 		}
 	}
 	return false
+}
+
+// isBadLimitErr 判断是否为捣乱次数达上限（服务端错误码 1001046）
+func isBadLimitErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "1001046")
 }
 
 // currentPhase 取当前生长阶段（begin_time<=now 的最大值），对齐 Node getCurrentPhase(…, false)
@@ -443,6 +447,13 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 					break
 				}
 				if err := execFriendOp(c, accountID, method, enc(gid, []int64{landID})); err != nil {
+					if isBadLimitErr(err) {
+						// 服务端返回 1001046 表示捣乱共享额度已达上限：当日停用，不再尝试
+						if markBadOperationLimitReached(accountID) {
+							appendOpLog(accountID, "friend", "捣乱共享额度已达上限(1001046)，停止捣乱")
+						}
+						break
+					}
 					// 单块失败不中断，继续下一块（逐块确认，避免整批因一块失败被吞）
 					if failed == "" {
 						failed = op + "失败"

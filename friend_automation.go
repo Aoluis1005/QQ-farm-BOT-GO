@@ -19,6 +19,22 @@ import (
 // 极速务农(turbo)开启时：每轮最多处理的护主犬数量（用户指定 15，剩余下一轮继续）
 const turboHelpRoundLimit = 15
 
+// logBadCandidates 定期输出可捣乱好友候选数（诊断用；每 60s 至多一条，无目标不打印）
+var (
+	badCandLogMu sync.Mutex
+	badCandLogAt = map[string]time.Time{}
+)
+
+func logBadCandidates(accountID string, n int) {
+	badCandLogMu.Lock()
+	last := badCandLogAt[accountID]
+	badCandLogAt[accountID] = time.Now()
+	badCandLogMu.Unlock()
+	if n > 0 && (last.IsZero() || time.Since(last) >= 60*time.Second) {
+		appendOpLog(accountID, "friend", fmt.Sprintf("找到 %d 个可捣乱好友", n))
+	}
+}
+
 // ============================================================
 // 好友自动巡查引擎（对齐 Node core/worker.js unifiedScheduler：
 // runStealTick 25–30s 偷菜 / runHelpTick 30–35s 帮忙+捣乱 / friend-orchestrator.js checkFriends）。
@@ -107,10 +123,6 @@ func rotateTargets(targets []ft, limit int) []ft {
 	turboRoundIndex = (start + limit) % n
 	return chunk
 }
-
-// badDailyLimit 每日放虫/草次数上限（对齐 Node friend-operation-limits.js BAD_DAILY_LIMIT=100，
-// 作为服务端未回传 day_times_lt 时的兜底）
-const badDailyLimit = 100
 
 // badFailLimit 捣乱连续失败暂停阈值（对齐 Node BAD_FAILURE_LIMIT）
 const badFailLimit = 3
@@ -268,7 +280,7 @@ func updateOperationLimits(accountID string, limits []proto.OperationLimit) {
 		// 捣乱共享额度(10003)已达当日上限 → 捣乱当日彻底停用
 		if l.ID == opBadShared && l.DayTimesLimit > 0 && l.DayTimes >= l.DayTimesLimit {
 			if markBadOperationLimitReached(accountID) {
-				appendOpLog(accountID, "friend", "捣乱当日次数已达上限，停止捣乱")
+				appendOpLog(accountID, "friend", fmt.Sprintf("捣乱当日次数已达上限(10003: %d/%d)，停止捣乱", l.DayTimes, l.DayTimesLimit))
 			}
 		}
 	}
@@ -357,18 +369,24 @@ func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
 // getBadRemainingTimes 今日放虫/草剩余次数（上限 - max(服务端已用, 本地托底)）
 // 放虫/放草都消耗捣乱共享额度（10003），不是 10005/10006；读错会导致服务端消耗永远读不到、达上限不停。
 func getBadRemainingTimes(accountID string) int64 {
-	checkOpLimitsDailyReset() // 跨 UTC+8 0点清空旧缓存+归零本地计数，保证次日重新按当天额度计算
-	used := getOperationDayTimes(accountID, opBadShared)
-	badDailyMu.Lock()
-	local := int64(badDailyCnt[accountID])
-	badDailyMu.Unlock()
-	if local > used {
-		used = local
+	checkOpLimitsDailyReset() // 跨 UTC+8 0点清空旧缓存，保证次日重新按当天额度计算
+	if isBadOperationLimitReached(accountID) {
+		return 0
 	}
-	rem := badDailyLimit - used
+	opLimitsMu.Lock()
+	st, ok := opLimits[accountID][opBadShared]
+	opLimitsMu.Unlock()
+	if !ok || st.DayTimesLimit <= 0 {
+		// 服务端未上报或未设上限：视为无限制（可捣乱）
+		return 999
+	}
+	rem := st.DayTimesLimit - st.DayTimes
 	if rem <= 0 {
-		// 兜底：次数用尽即停用，彻底不再尝试（首次标记时由 updateOperationLimits 打提示，此处不重复）
-		markBadOperationLimitReached(accountID)
+		// 达上限：标记当日停用，并打印服务端真实额度便于核实
+		if markBadOperationLimitReached(accountID) {
+			appendOpLog(accountID, "friend", fmt.Sprintf("捣乱当日次数已达上限(10003: %d/%d)，停止捣乱", st.DayTimes, st.DayTimesLimit))
+		}
+		return 0
 	}
 	return rem
 }
@@ -609,6 +627,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	if len(badTargets) > 20 {
 		badTargets = badTargets[:20]
 	}
+	logBadCandidates(accountID, len(badTargets))
 
 	// 1. 偷菜（对齐 Node 执行 steal → visitFriendForSteal）
 	if !onlyHelp {
