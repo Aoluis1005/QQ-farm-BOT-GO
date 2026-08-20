@@ -135,9 +135,12 @@ const (
 	opHelpWater = 10001
 	opHelpWeed  = 10002
 	opSteal     = 10004
-	// 捣乱共享额度（10003）：放虫/放草都消耗该 op，达上限即停
-	opBadShared = 10003
+	opBadBug    = 10005 // 给好友放虫
+	opBadWeed   = 10006 // 给好友放草
 )
+
+// badDailyLimit 每日放虫/放草次数上限（对齐 Node friend-operation-limits.js BAD_DAILY_LIMIT=100）
+const badDailyLimit = 100
 
 // ===== 服务端 operation_limits 缓存（对齐 Node friend-operation-limits.js operationLimits Map） =====
 // 注意：Node 每账号独立进程（fork），模块级全局即单账号；Go 多账号共享进程内存，
@@ -277,12 +280,6 @@ func updateOperationLimits(accountID string, limits []proto.OperationLimit) {
 			DayExpTimes:      l.DayExpTimes,
 			DayExpTimesLimit: l.DayExpTimesLimit,
 		}
-		// 捣乱共享额度(10003)已达当日上限 → 捣乱当日彻底停用
-		if l.ID == opBadShared && l.DayTimesLimit > 0 && l.DayTimes >= l.DayTimesLimit {
-			if markBadOperationLimitReached(accountID) {
-				appendOpLog(accountID, "friend", fmt.Sprintf("捣乱当日次数已达上限(10003: %d/%d)，停止捣乱", l.DayTimes, l.DayTimesLimit))
-			}
-		}
 	}
 }
 
@@ -366,25 +363,34 @@ func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
 	}
 }
 
-// getBadRemainingTimes 今日放虫/草剩余次数（上限 - max(服务端已用, 本地托底)）
-// 放虫/放草都消耗捣乱共享额度（10003），不是 10005/10006；读错会导致服务端消耗永远读不到、达上限不停。
+// getBadRemainingTimes 今日放虫/草剩余次数（上限 - min(服务端放虫+放草次数, 本地成功计数)）
+// 对齐 Node getBadRemainingTimes()=max(0, BAD_DAILY_LIMIT - getBadOperationUsedCount())，
+// getBadOperationUsedCount = dayTimes(10005)+dayTimes(10006)，与本地成功计数取大值。
 func getBadRemainingTimes(accountID string) int64 {
 	checkOpLimitsDailyReset() // 跨 UTC+8 0点清空旧缓存，保证次日重新按当天额度计算
 	if isBadOperationLimitReached(accountID) {
 		return 0
 	}
 	opLimitsMu.Lock()
-	st, ok := opLimits[accountID][opBadShared]
-	opLimitsMu.Unlock()
-	if !ok || st.DayTimesLimit <= 0 {
-		// 服务端未上报或未设上限：视为无限制（可捣乱）
-		return 999
+	bug := int64(0)
+	if st, ok := opLimits[accountID][opBadBug]; ok {
+		bug = st.DayTimes
 	}
-	rem := st.DayTimesLimit - st.DayTimes
+	weed := int64(0)
+	if st, ok := opLimits[accountID][opBadWeed]; ok {
+		weed = st.DayTimes
+	}
+	opLimitsMu.Unlock()
+	used := bug + weed
+	badDailyMu.Lock()
+	if local := int64(badDailyCnt[accountID]); local > used {
+		used = local
+	}
+	badDailyMu.Unlock()
+	rem := int64(badDailyLimit) - used
 	if rem <= 0 {
-		// 达上限：标记当日停用，并打印服务端真实额度便于核实
 		if markBadOperationLimitReached(accountID) {
-			appendOpLog(accountID, "friend", fmt.Sprintf("捣乱当日次数已达上限(10003: %d/%d)，停止捣乱", st.DayTimes, st.DayTimesLimit))
+			appendOpLog(accountID, "friend", fmt.Sprintf("捣乱次数已达当日上限(放虫%d+放草%d=100)，停止捣乱", bug, weed))
 		}
 		return 0
 	}

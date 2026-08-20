@@ -142,11 +142,6 @@ func containsInt64(a []int64, v int64) bool {
 	return false
 }
 
-// isBadLimitErr 判断是否为捣乱次数达上限（服务端错误码 1001046）
-func isBadLimitErr(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "1001046")
-}
-
 // currentPhase 取当前生长阶段（begin_time<=now 的最大值），对齐 Node getCurrentPhase(…, false)
 func currentPhase(phases []*proto.PlantPhaseInfo, now int64) *proto.PlantPhaseInfo {
 	var cur *proto.PlantPhaseInfo
@@ -437,23 +432,16 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, BugCount: 0, WeedCount: 0, Message: "没有可捣乱土地"}
 		}
 		// 逐块放草/放虫（游戏客户端每块地发一次 PutWeeds/PutInsects 请求，不整批打包）
-		// 每块前查剩余捣乱次数（10003 共享额度），用尽即停，不再继续刷。
+		// 每块前查剩余捣乱次数,用尽即停，不再继续刷。
 		putBad := func(method string, enc func(gid int64, lands []int64) []byte, lands []int64, op string) int64 {
 			n := int64(0)
 			for i, landID := range lands {
-				// 每块前查剩余捣乱次数（共享额度 10003），用尽即停并标记当日停用
+				// 每块前查剩余捣乱次数，用尽即停并标记当日停用
 				if getBadRemainingTimes(accountID) <= 0 {
 					markBadOperationLimitReached(accountID)
 					break
 				}
 				if err := execFriendOp(c, accountID, method, enc(gid, []int64{landID})); err != nil {
-					if isBadLimitErr(err) {
-						// 服务端返回 1001046 表示捣乱共享额度已达上限：当日停用，不再尝试
-						if markBadOperationLimitReached(accountID) {
-							appendOpLog(accountID, "friend", "捣乱共享额度已达上限(1001046)，停止捣乱")
-						}
-						break
-					}
 					// 单块失败不中断，继续下一块（逐块确认，避免整批因一块失败被吞）
 					if failed == "" {
 						failed = op + "失败"
