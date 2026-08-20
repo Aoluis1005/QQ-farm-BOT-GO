@@ -484,6 +484,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, BugCount: bugCount, WeedCount: weedCount,
 				Message: "捣乱失败或今日次数已用完"}
 		}
+		appendOpLog(accountID, "friend", fmt.Sprintf("捣乱 %s 放虫%d块/放草%d块", displayName, bugCount, weedCount))
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: total, BugCount: bugCount, WeedCount: weedCount,
 			Message: fmt.Sprintf("捣乱完成 虫%d/草%d", bugCount, weedCount)}
 
