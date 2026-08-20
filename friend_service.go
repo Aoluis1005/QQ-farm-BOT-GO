@@ -432,25 +432,37 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		if len(analysis.CanPutBug) == 0 && len(analysis.CanPutWeed) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, BugCount: 0, WeedCount: 0, Message: "没有可捣乱土地"}
 		}
-		if len(analysis.CanPutBug) > 0 {
-			if err := execFriendOp(c, accountID, "PutInsects", proto.EncodePutInsectsRequest(gid, analysis.CanPutBug)); err != nil {
-				failed = "放虫失败"
-			} else {
-				bugCount = int64(len(analysis.CanPutBug))
-				recordOperation(accountID, "bug", bugCount)
-			}
-		}
-		if len(analysis.CanPutWeed) > 0 {
-			if err := execFriendOp(c, accountID, "PutWeeds", proto.EncodePutWeedsRequest(gid, analysis.CanPutWeed)); err != nil {
-				if failed == "" {
-					failed = "放草失败"
-				} else {
-					failed += "/放草失败"
+		// 逐块放草/放虫（游戏客户端每块地发一次 PutWeeds/PutInsects 请求，不整批打包）
+		// 每块前查剩余捣乱次数（10003 共享额度），用尽即停，不再继续刷。
+		putBad := func(method string, enc func(gid int64, lands []int64) []byte, lands []int64, op string) int64 {
+			n := int64(0)
+			for _, landID := range lands {
+				if getBadRemainingTimes(accountID) <= 0 {
+					if failed == "" {
+						failed = op + "失败"
+					}
+					break
 				}
-			} else {
-				weedCount = int64(len(analysis.CanPutWeed))
-				recordOperation(accountID, "weed", weedCount)
+				if err := execFriendOp(c, accountID, method, enc(gid, []int64{landID})); err != nil {
+					if failed == "" {
+						failed = op + "失败"
+					} else {
+						failed += "/" + op + "失败"
+					}
+					break
+				}
+				n++
 			}
+			return n
+		}
+		weedCount = putBad("PutWeeds", proto.EncodePutWeedsRequest, analysis.CanPutWeed, "放草")
+		if weedCount > 0 {
+			recordOperation(accountID, "weed", weedCount)
+		}
+		// 放草已消耗共享额度，放虫前再查剩余
+		bugCount = putBad("PutInsects", proto.EncodePutInsectsRequest, analysis.CanPutBug, "放虫")
+		if bugCount > 0 {
+			recordOperation(accountID, "bug", bugCount)
 		}
 		total := bugCount + weedCount
 		if total <= 0 {

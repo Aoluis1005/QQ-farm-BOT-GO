@@ -120,12 +120,11 @@ const badPauseDuration = 12 * time.Hour
 
 // 好友操作类型 ID（对齐 Node friend-operation-limits.js OP_NAMES）
 const (
-	opHelpWater  = 10001
-	opHelpWeed   = 10002
-	opHelpInsect = 10003
-	opSteal      = 10004
-	opPutBug     = 10005
-	opPutWeed    = 10006
+	opHelpWater = 10001
+	opHelpWeed  = 10002
+	opSteal     = 10004
+	// 捣乱共享额度（10003）：放虫/放草都消耗该 op，达上限即停
+	opBadShared = 10003
 )
 
 // ===== 服务端 operation_limits 缓存（对齐 Node friend-operation-limits.js operationLimits Map） =====
@@ -316,9 +315,11 @@ func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
 	}
 }
 
-// getBadRemainingTimes 今日放虫/草剩余次数（对齐 Node getBadRemainingTimes：BAD_DAILY_LIMIT - max(服务端,本地)）
+// getBadRemainingTimes 今日放虫/草剩余次数（上限 - max(服务端已用, 本地托底)）
+// 放虫/放草都消耗捣乱共享额度（10003），不是 10005/10006；读错会导致服务端消耗永远读不到、达上限不停。
 func getBadRemainingTimes(accountID string) int64 {
-	used := getOperationDayTimes(accountID, opPutBug) + getOperationDayTimes(accountID, opPutWeed)
+	checkOpLimitsDailyReset() // 跨 UTC+8 0点清空旧缓存+归零本地计数，保证次日重新按当天额度计算
+	used := getOperationDayTimes(accountID, opBadShared)
 	badDailyMu.Lock()
 	local := int64(badDailyCnt[accountID])
 	badDailyMu.Unlock()
