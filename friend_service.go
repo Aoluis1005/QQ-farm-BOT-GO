@@ -142,6 +142,11 @@ func containsInt64(a []int64, v int64) bool {
 	return false
 }
 
+// isBadLimitErr 是否放虫/放草次数已达上限（服务端错误码 1001046）
+func isBadLimitErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "1001046")
+}
+
 // currentPhase 取当前生长阶段（begin_time<=now 的最大值），对齐 Node getCurrentPhase(…, false)
 func currentPhase(phases []*proto.PlantPhaseInfo, now int64) *proto.PlantPhaseInfo {
 	var cur *proto.PlantPhaseInfo
@@ -442,6 +447,13 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 					break
 				}
 				if err := execFriendOp(c, accountID, method, enc(gid, []int64{landID})); err != nil {
+					if isBadLimitErr(err) {
+						// 服务端返回 1001046 表示放虫/放草当日次数已达上限：标记当日停用，不再尝试
+						if markBadOperationLimitReached(accountID) {
+							appendOpLog(accountID, "friend", "捣乱次数已达上限(1001046)，停止捣乱")
+						}
+						break
+					}
 					// 单块失败不中断，继续下一块（逐块确认，避免整批因一块失败被吞）
 					if failed == "" {
 						failed = op + "失败"
