@@ -578,8 +578,8 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	expLimitEnabled := cfg.Automation.FriendHelpExpLimit
 	helpExpReached := expLimitEnabled && !getCanGetHelpExp(accountID)
 	for _, f := range friends {
-		if f == nil || f.GID <= 0 {
-			continue
+		if f == nil || f.GID <= 0 || f.GID == c.GID {
+			continue // 排除无效项与账号自身（对齐 Node checkFriends 内 gid===userState.gid continue）
 		}
 		skSteal, skHelp := isBlacklisted(f.GID)
 		p := f.Plant
