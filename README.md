@@ -1,47 +1,12 @@
+> ⭐ **开源不易，请动动小手给个 [Star](https://github.com/Aoluis1005/QQ-farm-BOT-GO) 吧！**
+
 # ⚠️ 测试版 QQ 农场 Bot（Go）
 
 > **本版本为测试版，可能存在 Bug**——遇到问题请 [提 Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues)，我会尽快修复。
 >
-> ✅ 支持最新**七夕活动「鹊桥寄情」**：灵露喷洒、筑建鹊桥、档位奖励、**送香囊**均已可用
+> ✅ 已支持最新**七夕活动「鹊桥寄情」**：灵露喷洒、筑建鹊桥、档位奖励、**送香囊**均已可用。
 
-QQ 农场微信小游戏协议自动化挂机 Bot（**Go 单文件二进制版**，免 Node 环境）。
-
-## 🚀 一键部署
-
-> 只需两步，无需手动配环境/素材，部署完即可使用（图片、背包名称全部正常）。
-
-```bash
-git clone https://github.com/Aoluis1005/QQ-farm-BOT-GO.git
-cd QQ-farm-BOT-GO
-sudo bash install.sh
-```
-
-`install.sh` 会自动完成：编译程序 → 安装到 `/opt/go-farm-bot`（带 `game-config` 图片素材）→ 注册并启动 systemd 服务 → 打印访问地址。
-
-部署完成后浏览器打开 **`http://<服务器IP>:3009`** 即可。后续重新部署/更新直接再跑一次 `sudo bash install.sh`。
-
-> 💡 `install.sh` 每次都会**自动重新构建前端**（检测并自动安装 Node → `npm ci` + `vite build`）后再编译后端，保证页面主题/样式始终完整。请勿删除或替换 `web/dist`，也不要手动放置旧版可执行文件——否则可能导致页面白屏、无任何 UI 样式。
-
-### 🐳 Docker 部署（可选，与 install.sh 互不影响）
-
-仓库自带 `Dockerfile` + `docker-compose.yml`，适合没有 systemd 的环境（LXC 容器 / 群晖 / 其他主机）：
-
-```bash
-# 方式一：docker compose（推荐）
-docker compose up -d --build
-
-# 方式二：纯 docker（可选指定版本号，默认 dev）
-docker build --build-arg VERSION=$(git rev-parse --short HEAD) -t go-farm-bot .
-docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
-  -v qq-farm-bot-data:/root/.qq-farm-bot go-farm-bot
-```
-
-- 管理页面：`http://<服务器IP>:3009`
-- **数据持久化**：账号/配置/日志全部在容器卷 `qq-farm-bot-data`（挂载到 `/root/.qq-farm-bot`），重建容器不丢数据
-- **前端内嵌**：`web/dist` 已随镜像打进二进制，无需额外静态服务器
-- **资源目录**：`game-config`（素材配置）与 `yyb-resource`（YYB 扫码）已随镜像复制，无需手动放置
-- 升级：`docker compose up -d --build` 重新构建即可；想换版本号先 `FARM_VERSION=<hash> docker compose build`
-- 时区无关：日志固定输出北京时间（UTC+8）
+QQ 农场微信小游戏协议自动化挂机 Bot——**Go 单文件二进制版**，免 Node 环境，开箱即用。
 
 ## ✨ 功能特性
 
@@ -65,7 +30,7 @@ docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
 - 图鉴一键购 + 点券奖励自动领取
 - **商城免费礼包** + **每日分享礼包**自动领取
 - 神秘商人自动购买（点券 / 金豆豆 / 金币）
-- 自动接好友申请（P2 规划中）
+- 自动接好友申请（规划中）
 
 ### 🎋 七夕「鹊桥寄情」
 | 功能 | 状态 |
@@ -73,7 +38,7 @@ docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
 | 灵露喷洒（自动触发鹊羽效果，收获鹊羽） | ✅ 可用 |
 | 筑建鹊桥（3 档奖励：香囊 / 礼包 / 铭牌） | ✅ 可用 |
 | 档位已领标记（前端正确显示可筑档） | ✅ 可用 |
-| 送香囊（GiftQixiSachet：activity_id=1802, cmd=26, params{friend_gid,count}） | ✅ 可用 |
+| 送香囊（activity_id=1802, cmd=26, params{friend_gid,count}） | ✅ 可用 |
 
 ### 🔧 系统能力
 - Web 管理面板（首页 / 好友 / 商城 / 活动 / 分析 / 每日任务 / 设置）
@@ -82,38 +47,64 @@ docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
 - 操作日志（面板实时查看）
 - 今日收益统计（金币 / 经验 / 操作次数）
 
-## 🛠️ 技术栈
+## 🚀 部署
 
-- **语言**：Go（单文件二进制，`CGO_ENABLED=0` 交叉编译）
-- **协议**：QQ 农场微信小游戏网关（WebSocket + Protobuf）
-- **前端**：Vue3 + Vite（`//go:embed` 打入二进制）
-- **部署**：systemd / Docker / 裸跑均可
+### 一键部署（推荐）
+只需两步，无需手动配环境/素材，部署完即可使用（图片、背包名称全部正常）。
+
+```bash
+git clone https://github.com/Aoluis1005/QQ-farm-BOT-GO.git
+cd QQ-farm-BOT-GO
+sudo bash install.sh
+```
+
+`install.sh` 会自动完成：编译程序 → 安装到 `/opt/go-farm-bot`（带 `game-config` 图片素材）→ 注册并启动 systemd 服务 → 打印访问地址。
+
+部署完成后浏览器打开 **`http://<服务器IP>:3009`** 即可。后续重新部署/更新直接再跑一次 `sudo bash install.sh`。
+
+> 💡 `install.sh` 每次都会**自动重新构建前端**（检测并自动安装 Node → `npm ci` + `vite build`）后再编译后端，保证页面主题/样式始终完整。请勿删除或替换 `web/dist`，也不要手动放置旧版可执行文件——否则可能导致页面白屏、无任何 UI 样式。
+
+### Docker 部署（可选）
+仓库自带 `Dockerfile` + `docker-compose.yml`，适合没有 systemd 的环境（LXC 容器 / 群晖 / 其他主机），与 install.sh 互不影响：
+
+```bash
+# 方式一：docker compose（推荐）
+docker compose up -d --build
+
+# 方式二：纯 docker（可选指定版本号，默认 dev）
+docker build --build-arg VERSION=$(git rev-parse --short HEAD) -t go-farm-bot .
+docker run -d --name go-farm-bot -p 3009:3009 -e ADMIN_PORT=3009 \
+  -v qq-farm-bot-data:/root/.qq-farm-bot go-farm-bot
+```
+
+- 管理页面：`http://<服务器IP>:3009`
+- **数据持久化**：账号/配置/日志全部在容器卷 `qq-farm-bot-data`（挂载到 `/root/.qq-farm-bot`），重建容器不丢数据
+- **前端内嵌**：`web/dist` 已随镜像打进二进制，无需额外静态服务器
+- **资源目录**：`game-config`（素材配置）与 `yyb-resource`（YYB 扫码）已随镜像复制，无需手动放置
+- 升级：`docker compose up -d --build` 重新构建即可；想换版本号先 `FARM_VERSION=<hash> docker compose build`
+- 时区无关：日志固定输出北京时间（UTC+8）
 
 ## 📦 快速开始
 
 ### 编译
-
 ```bash
 # Go 1.20+
 CGO_ENABLED=0 go build -o go-farm-bot .
 ```
 
 ### 运行
-
 ```bash
 ./go-farm-bot
 # 默认监听 :3009
 ```
 
 ### 首次配置
-
 1. 浏览器打开 `http://<服务器IP>:3009`
 2. 进入管理面板 → **设置** → 设置管理密码（`/api/admin/setup`）
 3. 添加账号 → 微信扫码 / 授权登录（YYB 渠道 = wx 平台）
 4. 打开自动化开关，Bot 即开始挂机
 
-### systemd 部署（推荐）
-
+### systemd 部署（推荐，裸机）
 ```ini
 # /etc/systemd/system/go-farm-bot.service
 [Unit]
@@ -129,13 +120,11 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 ```
-
 ```bash
 sudo systemctl enable --now go-farm-bot
 ```
 
 ## 📁 项目结构
-
 ```
 .
 ├── main.go            # 入口 + 路由注册
@@ -151,7 +140,6 @@ sudo systemctl enable --now go-farm-bot
 ```
 
 ## ⚙️ 配置说明
-
 - **账号配置**：管理面板逐账号设置（自动化开关 / 种植策略 / 偷菜黑名单 / 间隔）
 - **自动化开关**：农场 / 好友 / 每日任务 / 化肥 / 神秘商人 / 卖果实 独立控制
 - **种植策略**：`bag_priority`（背包优先）/ `level` / `max_exp` / `max_fert_exp` / `max_profit` / `max_fert_profit` / `preferred`
@@ -172,12 +160,14 @@ sudo systemctl enable --now go-farm-bot
 管理面板「日志」页实时查看；systemd 部署可用 `journalctl -u go-farm-bot -f`。
 
 ## ⚠️ 免责声明
-
 - 本仓库**不含**任何逆向工具、解包产物或敏感凭据（openid / 加密材料），请勿提交此类文件
 - 仅用于学习与个人自动化研究，请遵守游戏用户协议
 - 测试版随时可能有 Bug，请以 [Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues) 反馈
 - 本项目完全免费 · 开源共享 · 拒绝一切收费
 
 ## 📝 相关项目
-
 - [Node 版（原版）](https://github.com/Aoluis1005/qq-farm-bot) —— 本项目的协议参考与功能对照
+
+---
+
+> ⭐ 如果这个项目对你有帮助，欢迎 [Star](https://github.com/Aoluis1005/QQ-farm-BOT-GO) 支持，也欢迎提 Issue / PR 一起完善！
