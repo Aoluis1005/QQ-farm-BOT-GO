@@ -34,6 +34,9 @@ func EncodeGetGameFriendsRequest(gids []int64) []byte {
 // EncodeGetAllRequest {}（GetAll 空请求）
 func EncodeGetAllRequest() []byte { return nil }
 
+// EncodeSyncAllRequest 初始化好友服务（QQ 平台，open_ids 为空）
+func EncodeSyncAllRequest() []byte { return nil }
+
 // FriendPlant 好友农场摘要（friendpb.Plant）
 type FriendPlant struct {
 	DryTimeSec    int64
@@ -78,14 +81,14 @@ func (p *FriendPlant) decode(buf []byte) {
 
 // GameFriend 好友信息（friendpb.GameFriend）
 type GameFriend struct {
-	GID      int64
-	OpenID   string
-	Name     string
+	GID       int64
+	OpenID    string
+	Name      string
 	AvatarURL string
-	Remark   string
-	Level    int64
-	Gold     int64
-	Plant    *FriendPlant
+	Remark    string
+	Level     int64
+	Gold      int64
+	Plant     *FriendPlant
 }
 
 func (f *GameFriend) decode(buf []byte) {
@@ -193,7 +196,7 @@ func (a *FriendApplication) decode(buf []byte) {
 // GetApplicationsReply 好友申请列表响应
 // GetApplicationsReply: applications=1(repeated), block_applications=2
 type GetApplicationsReply struct {
-	Applications     []*FriendApplication
+	Applications      []*FriendApplication
 	BlockApplications bool
 }
 

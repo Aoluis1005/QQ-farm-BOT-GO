@@ -136,7 +136,8 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []i
 
 func containsInt64(a []int64, v int64) bool {
 	for _, x := range a {
-		if x == v {			return true
+		if x == v {
+			return true
 		}
 	}
 	return false
@@ -289,7 +290,8 @@ func releaseRecentHelp(accountID string, gid int64, landIDs []int64) {
 
 // doFriendFarming 对好友执行一次 Farming 帮忙。
 // 返回：>0 = 成功帮忙的地块数；0 = noop（无需帮忙/服务端 1001057）；-1 = 异常失败。
-func doFriendFarming(c *gw.Client, accountID string, gid int64, ids []int64) int64 {	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+func doFriendFarming(c *gw.Client, accountID string, gid int64, ids []int64) int64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	rep, err := c.Request(ctx, plantService, "Farming", proto.EncodeFriendFarmingRequest(ids, gid), 12*time.Second)
 	if err != nil {
@@ -639,34 +641,43 @@ func getFriendBasic(c *gw.Client, gid int64) *proto.VisitBasic {
 // 好友列表拉取（对齐 Node friend-api.js）：wx 用 GetAll；qq 用 GetGameFriends(已知GID) 回退 GetAll。
 // ============================================================
 
-// fetchAllFriends 拉取所有好友（对齐 Node getAllFriends）
-// QQ 平台：GetGameFriends(已知GID) → 失败回退 GetAll
-// 首次调用且有已知 GID 时，额外调用 VisitorList RPC 合并结果作为初始好友列表（去重）。
+// fetchAllFriends 拉取所有好友。
+// 微信：GetAll 直连。
+// QQ：先按已知 GID 走 GetGameFriends（新接口），为空则 SyncAll 初始化好友服务，再回退 GetAll。
 func fetchAllFriends(c *gw.Client, platform string, knownGids []int64) ([]*proto.GameFriend, error) {
-	if platform == "qq" && len(knownGids) > 0 {
-		// 对齐 Node fetchQqFriendsByKnownGids：按 35 一批分批请求 GetGameFriends，批次间随机延时 100-200ms
-		const qqFriendListBatchSize = 35
-		var all []*proto.GameFriend
-		for i := 0; i < len(knownGids); i += qqFriendListBatchSize {
-			end := i + qqFriendListBatchSize
-			if end > len(knownGids) {
-				end = len(knownGids)
+	if platform == "qq" {
+		if len(knownGids) > 0 {
+			const qqFriendListBatchSize = 35
+			var all []*proto.GameFriend
+			for i := 0; i < len(knownGids); i += qqFriendListBatchSize {
+				end := i + qqFriendListBatchSize
+				if end > len(knownGids) {
+					end = len(knownGids)
+				}
+				batch := knownGids[i:end]
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				msg, err := c.Request(ctx, "gamepb.friendpb.FriendService", "GetGameFriends",
+					proto.EncodeGetGameFriendsRequest(batch), 15*time.Second)
+				cancel()
+				if err == nil {
+					all = append(all, proto.DecodeGetGameFriendsReply(msg.Body).Friends...)
+				}
+				time.Sleep(time.Duration(100+rand.Intn(100)) * time.Millisecond)
 			}
-			batch := knownGids[i:end]
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			msg, err := c.Request(ctx, "gamepb.friendpb.FriendService", "GetGameFriends",
-				proto.EncodeGetGameFriendsRequest(batch), 15*time.Second)
-			cancel()
-			if err == nil {
-				all = append(all, proto.DecodeGetGameFriendsReply(msg.Body).Friends...)
+			if len(all) > 0 {
+				return all, nil
 			}
-			// 批次间随机延时 100-200ms（对齐 Node randomDelay(100,200)）
-			time.Sleep(time.Duration(100+rand.Intn(100)) * time.Millisecond)
 		}
-		if len(all) > 0 {
-			return all, nil
+		// QQ 必须先 SyncAll 初始化好友服务，否则 GetAll 被网关以 1000020 拒绝
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		msg, err := c.Request(ctx, "gamepb.friendpb.FriendService", "SyncAll",
+			proto.EncodeSyncAllRequest(), 15*time.Second)
+		cancel()
+		if err == nil {
+			if fs := proto.DecodeGetAllReply(msg.Body).Friends; len(fs) > 0 {
+				return fs, nil
+			}
 		}
-		// 全批失败回退 GetAll
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
