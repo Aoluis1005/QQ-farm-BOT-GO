@@ -153,12 +153,40 @@ type opLimitState struct {
 	DayExpTimesLimit int64
 }
 
-// badDaily 本地兜底计数（对齐 Node localBadOperationCount）：服务端未回传时用作放虫草已用次数
+// badDaily 本地兜底计数：服务端未回传时用作放虫草已用次数
 var (
 	badDailyMu  sync.Mutex
-	badDailyCnt = map[string]int{}
-	badDailyKey string
+	badDailyCnt = map[string]int{} // accountID -> 本地当日已用捣乱次数(兜底)
+	badDailyKey string             // UTC+8 日期，跨日重置
 )
+
+// badOperationLimitReached 捣乱当日停用标志：达上限后整个捣乱彻底跳过，不再尝试，跨 0 点重置
+var (
+	badOpLimitMu             sync.Mutex
+	badOperationLimitReached = map[string]bool{}
+)
+
+// badPausedNotified 已暂停提示标志（避免暂停期间每轮刷"已暂停"日志；恢复时清除）
+var (
+	badPausedMu       sync.Mutex
+	badPausedNotified = map[string]bool{}
+)
+
+func markBadPausedNotified(accountID string) bool {
+	badPausedMu.Lock()
+	defer badPausedMu.Unlock()
+	if badPausedNotified[accountID] {
+		return false
+	}
+	badPausedNotified[accountID] = true
+	return true
+}
+
+func clearBadPausedNotified(accountID string) {
+	badPausedMu.Lock()
+	delete(badPausedNotified, accountID)
+	badPausedMu.Unlock()
+}
 
 // ===== 防并发（对齐 Node isCheckingFriends） =====
 var (
@@ -194,6 +222,11 @@ func checkOpLimitsDailyReset() {
 	if key != badDailyKey {
 		badDailyKey = key
 		badDailyCnt = map[string]int{}
+		badDailyMu.Unlock()
+		badOpLimitMu.Lock()
+		badOperationLimitReached = map[string]bool{}
+		badOpLimitMu.Unlock()
+		return
 	}
 	badDailyMu.Unlock()
 }
@@ -231,6 +264,12 @@ func updateOperationLimits(accountID string, limits []proto.OperationLimit) {
 			DayTimesLimit:    l.DayTimesLimit,
 			DayExpTimes:      l.DayExpTimes,
 			DayExpTimesLimit: l.DayExpTimesLimit,
+		}
+		// 捣乱共享额度(10003)已达当日上限 → 捣乱当日彻底停用
+		if l.ID == opBadShared && l.DayTimesLimit > 0 && l.DayTimes >= l.DayTimesLimit {
+			if markBadOperationLimitReached(accountID) {
+				appendOpLog(accountID, "friend", "捣乱当日次数已达上限，停止捣乱")
+			}
 		}
 	}
 }
@@ -326,7 +365,12 @@ func getBadRemainingTimes(accountID string) int64 {
 	if local > used {
 		used = local
 	}
-	return badDailyLimit - used
+	rem := badDailyLimit - used
+	if rem <= 0 {
+		// 兜底：次数用尽即停用，彻底不再尝试（首次标记时由 updateOperationLimits 打提示，此处不重复）
+		markBadOperationLimitReached(accountID)
+	}
+	return rem
 }
 
 func incBadDaily(accountID string) {
@@ -336,6 +380,25 @@ func incBadDaily(accountID string) {
 	badDailyCnt[accountID]++
 }
 
+// markBadOperationLimitReached 标记捣乱当日停用；返回 true 表示本次为首次触发（调用方可打一条提示）
+func markBadOperationLimitReached(accountID string) bool {
+	badOpLimitMu.Lock()
+	if badOperationLimitReached[accountID] {
+		badOpLimitMu.Unlock()
+		return false
+	}
+	badOperationLimitReached[accountID] = true
+	badOpLimitMu.Unlock()
+	return true
+}
+
+// isBadOperationLimitReached 捣乱当日是否已停用
+func isBadOperationLimitReached(accountID string) bool {
+	badOpLimitMu.Lock()
+	defer badOpLimitMu.Unlock()
+	return badOperationLimitReached[accountID]
+}
+
 // ===== 捣乱连续失败暂停（对齐 Node recordBadFailure + pauseFriendBadUntilTomorrow） =====
 
 func isBadPaused(accountID string) bool {
@@ -343,14 +406,16 @@ func isBadPaused(accountID string) bool {
 	defer badFailMu.Unlock()
 	until, ok := badPausedUntil[accountID]
 	if !ok || until.IsZero() {
+		clearBadPausedNotified(accountID)
 		return false
 	}
 	if time.Now().Before(until) {
 		return true
 	}
-	// 暂停到期：清除该账号状态（对齐 Node pauseFriendBadUntilTomorrow 次日恢复）
+	// 暂停到期：清除该账号状态，恢复后允许再次提示
 	delete(badPausedUntil, accountID)
 	delete(badFailCount, accountID)
+	clearBadPausedNotified(accountID)
 	return false
 }
 
@@ -611,14 +676,16 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	// 3. 捣乱（受每日上限约束，对齐 Node BAD_DAILY_LIMIT）
-	if !onlySteal && cfg.Automation.FriendBad && !computeEffectiveTurbo(cfg) {
+	// 3. 捣乱：达当日上限则整块跳过（彻底停止，不再尝试，跨0点重置）；未达限才执行
+	if !onlySteal && cfg.Automation.FriendBad && !computeEffectiveTurbo(cfg) && !isBadOperationLimitReached(accountID) {
 		if isBadPaused(accountID) {
-			appendOpLog(accountID, "friend", "捣乱已暂停，等待恢复")
+			// 已暂停：只提示一次，暂停期间静默
+			if markBadPausedNotified(accountID) {
+				appendOpLog(accountID, "friend", "捣乱已暂停，等待恢复")
+			}
 		} else {
 			for _, t := range badTargets {
 				if getBadRemainingTimes(accountID) <= 0 {
-					appendOpLog(accountID, "friend", "今日捣乱次数已达上限")
 					break
 				}
 				res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "bad")
