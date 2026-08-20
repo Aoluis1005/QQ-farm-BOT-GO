@@ -436,22 +436,26 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		// 每块前查剩余捣乱次数（10003 共享额度），用尽即停，不再继续刷。
 		putBad := func(method string, enc func(gid int64, lands []int64) []byte, lands []int64, op string) int64 {
 			n := int64(0)
-			for _, landID := range lands {
+			for i, landID := range lands {
+				// 每块前查剩余捣乱次数（共享额度 10003），用尽即停并标记当日停用
 				if getBadRemainingTimes(accountID) <= 0 {
-					if failed == "" {
-						failed = op + "失败"
-					}
+					markBadOperationLimitReached(accountID)
 					break
 				}
 				if err := execFriendOp(c, accountID, method, enc(gid, []int64{landID})); err != nil {
+					// 单块失败不中断，继续下一块（逐块确认，避免整批因一块失败被吞）
 					if failed == "" {
 						failed = op + "失败"
 					} else {
 						failed += "/" + op + "失败"
 					}
-					break
+				} else {
+					n++
 				}
-				n++
+				// 块间延迟，避免高频连续请求被服务端断开连接（每个 land 发一次请求）
+				if i < len(lands)-1 && !isBadOperationLimitReached(accountID) {
+					time.Sleep(randomIntervalMs(80, 160))
+				}
 			}
 			return n
 		}
