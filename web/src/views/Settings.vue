@@ -9,6 +9,10 @@ const router = useRouter()
 const curVer = ref('加载中…')
 const verInput = ref('')
 const saving = ref(false)
+const notifyOn = ref(false)
+const notifyNick = ref('')
+const notifyCooldown = ref(10)
+const savingNotify = ref(false)
 
 async function load() {
   try {
@@ -16,6 +20,9 @@ async function load() {
     if (data?.ok && data.data) {
       curVer.value = data.data.clientVersion || '-'
       verInput.value = data.data.clientVersion || ''
+      notifyOn.value = !!data.data.offlineNotifyEnabled
+      notifyNick.value = data.data.offlineNotifyNick || ''
+      notifyCooldown.value = data.data.offlineNotifyCooldownMin || 10
     }
   } catch (e) {}
 }
@@ -29,6 +36,20 @@ async function save() {
     if (data?.ok) { curVer.value = v; app.success('已保存并热更新') }
     else app.error(data?.error || '保存失败')
   } catch (e) { app.error(e.response?.data?.error || '保存失败') } finally { saving.value = false }
+}
+async function saveNotify() {
+  const nick = notifyNick.value.trim()
+  if (notifyOn.value && !nick) { app.error('请先填写 MeoW 昵称'); return }
+  savingNotify.value = true
+  try {
+    const { data } = await api.post('/api/admin/system-config', {
+      offlineNotifyEnabled: notifyOn.value,
+      offlineNotifyNick: nick,
+      offlineNotifyCooldownMin: Number(notifyCooldown.value) || 10,
+    })
+    if (data?.ok) app.success('离线通知设置已保存')
+    else app.error(data?.error || '保存失败')
+  } catch (e) { app.error(e.response?.data?.error || '保存失败') } finally { savingNotify.value = false }
 }
 
 onMounted(load)
@@ -50,6 +71,23 @@ onMounted(load)
         </div>
         <input v-model="verInput" class="field" type="text" placeholder="1.13.2.10_20260723" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
         <button :disabled="saving" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;" @click="save">{{ saving ? '保存中…' : '保存客户端版本' }}</button>
+      </div>
+
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:12px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">离线通知（MeoW）</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6;">
+          账号掉线或自动重连成功时，通过 MeoW 推送到手机 App。同一账号在限流分钟内只推第一条掉线提醒，恢复提醒不受限流。
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:13px;">启用离线通知</span>
+          <div class="switch" :class="{ on: notifyOn }" @click="notifyOn = !notifyOn" style="flex:none;"></div>
+        </div>
+        <input v-model="notifyNick" class="field" type="text" placeholder="MeoW 昵称，如 JohnDoe" :disabled="!notifyOn" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <input v-model.number="notifyCooldown" class="field" type="number" min="1" placeholder="10" :disabled="!notifyOn" style="width:120px;box-sizing:border-box;flex-shrink:0;">
+          <span style="font-size:12px;color:var(--muted);">限流（分钟）</span>
+        </div>
+        <button :disabled="savingNotify" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;" @click="saveNotify">{{ savingNotify ? '保存中…' : '保存离线通知' }}</button>
       </div>
     </div>
   </div>

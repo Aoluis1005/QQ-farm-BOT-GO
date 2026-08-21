@@ -244,19 +244,26 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	case "POST":
 		var body struct {
-			ClientVersion string `json:"clientVersion"`
+			ClientVersion          string `json:"clientVersion"`
+			OfflineNotifyEnabled   *bool  `json:"offlineNotifyEnabled"`
+			OfflineNotifyNick      string `json:"offlineNotifyNick"`
+			OfflineNotifyCooldownMin int  `json:"offlineNotifyCooldownMin"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, 400, "参数错误")
 			return
 		}
-		cv := strings.TrimSpace(body.ClientVersion)
-		if cv == "" {
-			writeError(w, 400, "客户端版本号不能为空")
-			return
-		}
 		sc := models.GetSystemConfig()
-		sc.ClientVersion = cv
+		if cv := strings.TrimSpace(body.ClientVersion); cv != "" {
+			sc.ClientVersion = cv
+		}
+		if body.OfflineNotifyEnabled != nil {
+			sc.OfflineNotifyEnabled = *body.OfflineNotifyEnabled
+		}
+		sc.OfflineNotifyNick = body.OfflineNotifyNick
+		if body.OfflineNotifyCooldownMin > 0 {
+			sc.OfflineNotifyCooldownMin = body.OfflineNotifyCooldownMin
+		}
 		if err := models.SetSystemConfig(sc); err != nil {
 			writeError(w, 500, "保存失败: "+err.Error())
 			return

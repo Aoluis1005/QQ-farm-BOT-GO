@@ -202,6 +202,10 @@ type SystemConfig struct {
 	ClientVersion string `json:"clientVersion"`
 	Platform     string `json:"platform"`
 	OS           string `json:"os"`
+	// 离线通知（MeoW）：账号掉线/自动重连成功时推送手机
+	OfflineNotifyEnabled   bool   `json:"offlineNotifyEnabled"`
+	OfflineNotifyNick      string `json:"offlineNotifyNick"`
+	OfflineNotifyCooldownMin int  `json:"offlineNotifyCooldownMin"`
 }
 
 // CaptureConfig 抓包服务配置
@@ -276,6 +280,9 @@ func DefaultSystemConfig() SystemConfig {
 		ClientVersion: "1.13.2.10_20260723",
 		Platform:     "qq",
 		OS:           "iOS",
+		OfflineNotifyEnabled: false,
+		OfflineNotifyNick:    "",
+		OfflineNotifyCooldownMin: 10,
 	}
 }
 

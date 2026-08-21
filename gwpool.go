@@ -91,6 +91,7 @@ func (p *ClientPool) store(accountID string, c *gw.Client) {
 func (p *ClientPool) onKick(accountID string) {
 	// 被踢下线日志
 	appendOpLog(accountID, "掉线", "账号在别处登录被踢下线（自动重连中）")
+	notifyOffline(accountID, "账号在别处登录被踢下线")
 	p.mu.Lock()
 	if until, ok := p.kickBackoffUntil[accountID]; ok && time.Now().Before(until) {
 		p.mu.Unlock()
@@ -134,10 +135,12 @@ func connect(acc *models.Account) (*gw.Client, error) {
 		clientPool.transientClose[acc.ID] = true
 		clientPool.mu.Unlock()
 		appendOpLog(acc.ID, "掉线", "游戏请求超时，连接断开（自动重连中）")
+		notifyOffline(acc.ID, "游戏请求超时，连接断开")
 	})
 	// 连接异常断开（读错误/心跳失败）回调：写前端可见掉线日志
 	c.SetDisconnectHook(func(reason string) {
 		appendOpLog(acc.ID, "掉线", reason+"（自动重连中）")
+		notifyOffline(acc.ID, reason)
 	})
 	c.Prime() // 登录后立即预拉首页数据缓存
 	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine
@@ -154,6 +157,7 @@ func connect(acc *models.Account) (*gw.Client, error) {
 	}()
 	appendOpLog(acc.ID, "系统", fmt.Sprintf("登录成功: %s (Lv%d)", c.UserName(), c.Level()))
 	appendOpLog(acc.ID, "系统", "网关已连接，开始心跳与数据预拉取")
+	notifyRecovered(acc.ID) // 自动重连成功后推恢复通知（首次连接不推）
 	return c, nil
 }
 
