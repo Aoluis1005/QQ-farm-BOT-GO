@@ -1,7 +1,6 @@
 package proto
 
-// gamepb.mysteryshoppb 神秘商人编解码（对齐 Node core/src/proto/mysteryshoppb.proto）
-//
+// gamepb.mysteryshoppb 神秘商人编解码
 //	service MysteryShopService
 //	GetActiveNPCRequest {}
 //	GetActiveNPCReply { bool active=1; MysteryShopNPC npc=2; int64 start_time=3; int64 end_time=4; }
@@ -12,7 +11,7 @@ package proto
 //	RewardInfo { int32 item_id=1; int32 count=2; }
 //	AbandonRequest {} / AbandonReply {}
 
-// MysteryNPC 神秘商人商品（对齐 Node MysteryShopNPC）
+// MysteryNPC 神秘商人商品
 type MysteryNPC struct {
 	NpcID         int64
 	ItemID        int64
@@ -25,7 +24,7 @@ type MysteryNPC struct {
 	OriginalPrice int64
 }
 
-// GetActiveNPCReply 对齐 Node GetActiveNPCReply
+// GetActiveNPCReply 
 type GetActiveNPCReply struct {
 	Active    bool
 	NPC       *MysteryNPC
@@ -90,20 +89,20 @@ func DecodeGetActiveNPCReply(buf []byte) *GetActiveNPCReply {
 	return rep
 }
 
-// EncodeMysteryBuyRequest 对齐 Node BuyRequest{npc_id=1}
+// EncodeMysteryBuyRequest 
 func EncodeMysteryBuyRequest(npcID int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, npcID)
 	return b.Bytes()
 }
 
-// MysteryReward 购买奖励（对齐 Node RewardInfo{item_id=1,count=2}）
+// MysteryReward 购买奖励
 type MysteryReward struct {
 	ItemID int64
 	Count  int64
 }
 
-// MysteryBuyReply 对齐 Node BuyReply{reward=1,npc=2}
+// MysteryBuyReply ,npc=2}
 type MysteryBuyReply struct {
 	Reward *MysteryReward
 	NPC    *MysteryNPC
@@ -141,7 +140,7 @@ func DecodeMysteryBuyReply(buf []byte) *MysteryBuyReply {
 	return rep
 }
 
-// EncodeMysteryAbandonRequest 空请求（对齐 Node AbandonRequest{}）
+// EncodeMysteryAbandonRequest 空请求
 func EncodeMysteryAbandonRequest() []byte { return []byte{} }
 
 // DecodeMysteryAbandonReply AbandonReply{}（空，成功即无错误）

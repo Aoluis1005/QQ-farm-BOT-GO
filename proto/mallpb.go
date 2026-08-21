@@ -1,17 +1,15 @@
 package proto
 
-// gamepb.mallpb 道具商城编解码（对齐 Node core/src/proto/mallpb.proto）
-//
+// gamepb.mallpb 道具商城编解码
 //	GetMallListBySlotTypeRequest { int32 slot_type=1 }
 //	GetMallListBySlotTypeResponse { repeated bytes goods_list=1; int64 timestamp=2 }
 //	MallGoods { int32 goods_id=1; string name=2; int32 type=3; bytes item_ids=4;
 //	            bytes price=5; bool is_free=6; bytes limit=7; bool is_limited=8; string discount=10; }
 //	PurchaseRequest { int32 goods_id=1; int32 count=2; }
 //	PurchaseResponse { int32 goods_id=1; int32 count=2; bytes reward_info=3; bytes result=5; }
-//
 // 注意：goods_list 是 repeated bytes（每个元素是一个序列化的 MallGoods）；price/limit/item_ids 也是 bytes。
 
-// MallGoods 道具商城商品（对齐 Node MallGoods）
+// MallGoods 道具商城商品
 type MallGoods struct {
 	GoodsID     int64
 	Name        string
@@ -28,7 +26,7 @@ type MallListReply struct {
 	GoodsList []MallGoods
 }
 
-// EncodeGetMallListBySlotTypeRequest 对齐 GetMallListBySlotTypeRequest{slot_type, sub_slot_type}
+// EncodeGetMallListBySlotTypeRequest , sub_slot_type}
 // 注意：客户端必须显式发送 sub_slot_type（含 0）——liyangpengs mallpb.proto 注释
 // "The client always sends sub_slot_type, including zero"；只发 slot_type 会导致服务端
 // 返回错误的商品子集（实测商城只有 3 个商品且无免费礼）。
@@ -86,7 +84,7 @@ func decodeMallGoods(buf []byte) MallGoods {
 	return g
 }
 
-// ParseMallPriceValue 解析 price bytes 中 field1 的 varint 值（对齐 Node parseMallPriceValue）
+// ParseMallPriceValue 解析 price bytes 中 field1 的 varint 值
 func ParseMallPriceValue(buf []byte) int64 {
 	if len(buf) == 0 {
 		return 0
@@ -104,7 +102,7 @@ func ParseMallPriceValue(buf []byte) int64 {
 	return v
 }
 
-// ParseMallLimitInfo 解析 limit bytes：field1=limitCount, field2=boughtNum（对齐 Node parseMallLimitInfo）
+// ParseMallLimitInfo 解析 limit bytes：field1=limitCount, field2=boughtNum
 func ParseMallLimitInfo(buf []byte) (limitCount, boughtNum int64) {
 	if len(buf) == 0 {
 		return 0, 0
@@ -124,7 +122,7 @@ func ParseMallLimitInfo(buf []byte) (limitCount, boughtNum int64) {
 	return
 }
 
-// EncodePurchaseRequest 对齐 Node PurchaseRequest{goods_id=1,count=2}（均 int32）
+// EncodePurchaseRequest ,count=2}（均 int32）
 func EncodePurchaseRequest(goodsID, count int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, goodsID)
@@ -156,8 +154,7 @@ func DecodePurchaseReply(buf []byte) *PurchaseReply {
 	return rep
 }
 
-// --- 月卡（对齐 Node core/src/proto/mallpb.proto 月卡部分） ---
-//
+// --- 月卡 ---
 //	GetMonthCardInfosRequest {}
 //	MonthCardInfo { int32 goods_id=1; corepb.Item reward=2; bool can_claim=3 }
 //	GetMonthCardInfosReply { repeated MonthCardInfo infos=1 }

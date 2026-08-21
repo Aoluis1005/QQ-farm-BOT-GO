@@ -1,7 +1,7 @@
 package proto
 
 // gamepb.careerpb 生涯统计编解码
-// 对齐 Node core/src/services/career-api.js 的原始 protobuf 解码 (decodeCareerReplyRaw)
+// (decodeCareerReplyRaw)
 // CareerInfoGetReply 真实结构：
 //   field 1  = repeated CareerStatItem  (f1=fruit_id, f2=count)
 //   field 2  = varint stats_total   总收获数
@@ -15,7 +15,7 @@ package proto
 //   field 13 = varint achieved_levels
 //   field 15 = string openid
 
-// EncodeCareerInfoGetRequest 生涯统计请求（空 body，对齐 Node CareerInfoGetRequest.create({})）
+// EncodeCareerInfoGetRequest 生涯统计请求（空 body，({})）
 func EncodeCareerInfoGetRequest() []byte {
 	return []byte{}
 }
@@ -116,7 +116,7 @@ func decodeCareerStatItem(buf []byte) *CareerStatItem {
 		}
 		return true
 	})
-	if it.FruitID <= 0 { // 对齐 Node：无 fruit_id 不入列
+	if it.FruitID <= 0 { // 无 fruit_id 不入列
 		return nil
 	}
 	return it
@@ -148,7 +148,7 @@ func decodeCareerLevelStat(buf []byte) *CareerLevelStat {
 	return it
 }
 
-// printableString 对齐 Node isPrintable：仅接受可打印 ASCII（1~255 字节）
+// printableString 仅接受可打印 ASCII（1~255 字节）
 func printableString(b []byte) string {
 	if len(b) == 0 || len(b) >= 256 {
 		return ""

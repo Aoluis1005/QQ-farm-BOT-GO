@@ -1,7 +1,6 @@
 package proto
 
-// gamepb.acepb ACE 反作弊上报编解码（对齐 Node core/src/proto/acepb.proto）
-//
+// gamepb.acepb ACE 反作弊上报编解码
 //	message AntiDataRequest { bytes data = 1; }
 //	message AntiDataReply   { bytes data = 1; }
 

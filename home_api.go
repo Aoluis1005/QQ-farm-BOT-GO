@@ -26,7 +26,7 @@ func handleHomeProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	acc := models.GetAccountByID(accountID)
-	// 初始不填任何假数据（对齐 Node：未连接时返回真实账号状态 + connected:false）
+	// 初始不填任何假数据
 	data := map[string]interface{}{
 		"connected":   false,
 		"name":        "",
@@ -63,7 +63,7 @@ func handleHomeProfile(w http.ResponseWriter, r *http.Request) {
 			data["level"] = c.Level()
 		}
 
-		// 节流同步点券/金豆（对齐权威 worker.ts 登录后拉包初始化；此处低频展示接口兜底恢复被 ItemNotify 污染的余额）
+		// 节流同步点券/金豆
 		if err := c.EnsureBagAssets(r.Context()); err != nil {
 			// 拉包失败则用当前内存值，不影响响应
 		}
@@ -102,7 +102,7 @@ func handleHomeIncome(w http.ResponseWriter, r *http.Request) {
 		updateStats(accountID, c.Gold(), c.Exp())
 	}
 	income := getTodayIncome(accountID)
-	// 同气礼盒：Node 语义 = ItemNotify 推送(帮忙好友获得) → stats.TongQiGift 今日累计（跨天清零），
+	// 同气礼盒：Node 语义 = ItemNotify 推送(帮忙好友获得) → stats.TongQiGift 今日累计（跨天清零）
 	// 非背包存量（income 卡片全是"今日"口径）。触发可靠性见 gw/client.go applyItemNotify + recordGift 日志。
 	writeJSON(w, map[string]interface{}{"ok": true, "data": income})
 }
@@ -179,8 +179,8 @@ func handleHomePatrol(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DELETE /api/logs  清空操作日志（对齐 Node clearLogs：真正删除该账号日志文件，
-// 否则前端清空后刷新页面又会从文件读回来）
+// DELETE /api/logs  清空操作日志（真正删除该账号日志文件，
+// 否则前端清空后刷新页面又会从文件读回来
 func handleLogsDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeError(w, 405, "method not allowed")
@@ -243,7 +243,7 @@ func formatGold(v int64) string {
 }
 
 // parseLogLine 解析日志行 "[date time] action detail" → 前端展示对象
-// 字段对齐 Node status.ts normalizeLogEntry 消费的 /api/logs 条目：
+// 字段
 // time/tag/msg/meta{event}（Node Dashboard.vue 渲染 [时间] [tag徽章] [event徽章] msg）
 func parseLogLine(ln string) map[string]interface{} {
 	i := strings.Index(ln, "] ")
@@ -262,7 +262,7 @@ func parseLogLine(ln string) map[string]interface{} {
 		"time": t, // "01-02 15:04:05"，前端取空格后部分显示
 		"tag":  actionTagFor(action),
 		"msg":  detail,
-		"meta": map[string]interface{}{"event": action}, // 对齐 Node meta.event 徽章
+		"meta": map[string]interface{}{"event": action}, // 
 	}
 }
 

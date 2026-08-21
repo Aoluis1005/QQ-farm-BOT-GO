@@ -15,13 +15,11 @@ import (
 )
 
 // 活动中心 API：
-//
 //	GET /api/activity/list   ActivityService.List + 按时间窗过滤
 //	GET /api/activity/group  ActivityService.GetGroup 递归树 + 商店商品
 //	GET /api/activity/season SeasonService.GetSeasonInfo（千星游记）
 //	GET /api/activity/solar  SolarTermsService.GetSolarTerms（节令小礼）
-//
-// 对齐 Node core/src/services/activity.js。禁止并发（游戏内容相关，均顺序单发）。
+// 禁止并发（游戏内容相关，均顺序单发）。
 
 const (
 	actSvc   = "gamepb.activitypb.ActivityService"
@@ -115,7 +113,7 @@ func handleActivityList(w http.ResponseWriter, r *http.Request) {
 		scope = "ongoing"
 	}
 	var out []*outItem
-	// 组根（id%100==0）自身常为哨兵时间（-62135596800），真实时间在其子活动上。
+	// 组根（id%100==0）自身常为哨兵时间（-62135596800）真实时间在其子活动上。
 	// 因此先收集：当前在期(on)的子活动，再据此判定组根是否 ongoing。
 	onChild := map[int64]bool{}
 	for _, it := range items {
@@ -192,7 +190,7 @@ func handleActivityGroup(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", "id required")
 		return
 	}
-	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）。对齐 Node sendMsgAsync 默认 20s；结果短缓存避免每次重拉大树
+	// GetGroup 支持 uid（可空；实测空串即可返回完整分组）。结果短缓存避免每次重拉大树
 	b := proto.NewBuilder()
 	b.FieldInt64(1, id)
 	b.FieldString(2, q.Get("uid"))
@@ -423,7 +421,7 @@ const (
 	actExchangeCmd   = 1          // 兑换命令（HELU_EXCHANGE_CMD）
 )
 
-// starSandBalance 查询账号背包中星砂(1023)数量（对齐 Node getHeluBalance）
+// starSandBalance 查询账号背包中星砂(1023)数量
 func starSandBalance(ctx context.Context, accountID string) int64 {
 	c, err := clientPool.Get(accountID)
 	if err != nil {
@@ -572,13 +570,12 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 }
 
 // ===== 青梅酿万金（青酿换万金）：领种子 + 酿酒出售 =====
-// 对齐 Node core/src/services/activity.js 青梅段常量与流程。
 //  领种子：Operate cmd=4  qingmei_claim_params{type:2}
 //  酿酒   ：Operate cmd=14(预览 qingmei_wine_start) / 15(精酿 qingmei_wine_brew{}) / 16(出售 qingmei_wine_sell{multiple})
 const (
 	qingmeiSeedItemID    = 21221 // 青梅种子
 	qingmeiFruitItemID   = 41221 // 青梅（酿制材料）
-	// 青梅活动固定 ID（对齐 Node: QINGMEI_ACTIVITY_ID/SEED_CLAIM/WINE）
+	// 青梅活动固定 ID
 	qingmeiRootActivityID  = 2026081200
 	qingmeiClaimActivityID = 2026081201
 	qingmeiWineActivityID  = 2026081202
@@ -606,7 +603,7 @@ type qingmeiMat struct {
 	Count int64 `json:"count"`
 }
 
-// qingmeiMaterialItems 读取背包青梅(41221)材料（对齐 Node getQingmeiWineMaterialItems：需 uid>0 且 count>0，按 uid 排序）
+// qingmeiMaterialItems 读取背包青梅(41221)材料
 func qingmeiMaterialItems(ctx context.Context, accountID string) []qingmeiMat {
 	c, err := clientPool.Get(accountID)
 	if err != nil {
@@ -627,7 +624,7 @@ func qingmeiMaterialItems(ctx context.Context, accountID string) []qingmeiMat {
 	return mats
 }
 
-// qingmeiBagCount 对齐 Node getBagItemCount：直接求和背包中所有 41221 的 count（不过滤 uid），
+// qingmeiBagCount 直接求和背包中所有 41221 的 count（不过滤 uid）
 // 用于 handleQingmei 的 material.item_count 显示。酿制操作仍用 qingmeiMaterialItems（需 uid>0）。
 func qingmeiBagCount(ctx context.Context, accountID string) int64 {
 	c, err := clientPool.Get(accountID)
@@ -649,7 +646,7 @@ func qingmeiBagCount(ctx context.Context, accountID string) int64 {
 }
 
 // qingmeiActIDs 定位青梅活动结点。
-// 对齐 Node：claim/wine 直接用写死的活动 ID（Node normalizeQingmeiActivity 用固定 ID，
+// claim/wine 直接用写死的活动 ID（Node normalizeQingmeiActivity 用固定 ID，
 // 找不到才回退常量，从不靠类型推断）。青梅回包 GetGroupReply 只有 group 树、无顶层 activities，
 // 且 claim 结点(2026081201)不在 group 子树里，因此动态按类型发现必然失败——必须用固定 ID。
 func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wineID int64, root *ActivityNode, err error) {
@@ -657,7 +654,7 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	claimID = qingmeiClaimActivityID
 	wineID = qingmeiWineActivityID
 
-	// 确认根活动存在（按标题匹配，不过滤日期——对齐 Node 不门控）
+	// 确认根活动存在（按标题匹配，不过滤日期——）
 	body, e := rpcRequest(ctx, accountID, actSvc, "List", []byte{}, 15*time.Second)
 	if e != nil {
 		return rootID, claimID, wineID, nil, e
@@ -691,7 +688,7 @@ func qingmeiActIDs(ctx context.Context, accountID string) (rootID, claimID, wine
 	return rootID, claimID, wineID, root, nil
 }
 
-// qingmeiOperate 组装青梅 Operate 请求（id/cmd + 可选扩展字段），返回原始回包 body
+// qingmeiOperate 组装青梅 Operate 请求（id/cmd + 可选扩展字段）返回原始回包 body
 func qingmeiOperate(ctx context.Context, accountID string, actID, cmd int64, extField int, extBody []byte) ([]byte, error) {
 	b := proto.NewBuilder()
 	b.FieldInt64(1, actID)
@@ -745,7 +742,7 @@ func handleQingmei(w http.ResponseWriter, r *http.Request) {
 		}
 		walk(root)
 	}
-	// 对齐 Node getBagItemCount：显示数量直接求和所有 41221（不过滤 uid）；
+	// 显示数量直接求和所有 41221（不过滤 uid）；
 	// 酿制操作仍用 qingmeiMaterialItems（需 uid>0 作为实例 ID）。
 	total := qingmeiBagCount(ctx, accountID)
 	claimed := claimStatus == 3 || qingmeiClaimedToday(accountID)
@@ -809,7 +806,7 @@ func handleQingmeiClaim(w http.ResponseWriter, r *http.Request) {
 	body, err := qingmeiOperate(ctx, accountID, claimID, cmd, qingmeiClaimParamF, sub.Bytes())
 	if err != nil {
 		es := actErrMsg(err)
-		// 今日已领过：标记并返回成功语义（对齐 Node isAlreadyClaimedError → markQingmeiClaimedToday）
+		// 今日已领过：标记并返回成功语义
 		if strings.Contains(es, "已领取") {
 			qingmeiMarkClaimed(accountID)
 			writeJSONMap(w, "ok", true, "account", accountID, "claimed_count", int64(0), "already_claimed", true, "reward_item_id", qingmeiSeedItemID)
@@ -860,7 +857,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", "青梅不足，无法酿制")
 		return
 	}
-	// 组装 qingmei_wine_start 材料（items=1 -> corepb.Item{id=实例uid, count}，对齐 Node map id:item.uid）
+	// 组装 qingmei_wine_start 材料（items=1 -> corepb.Item{id=实例uid, count}，item.uid）
 	startSub := proto.NewBuilder()
 	for _, m := range mats {
 		it := proto.NewBuilder()
@@ -878,7 +875,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 	}
 	time.Sleep(qingmeiStepDelay)
 
-	// 精酿多次（对齐 Node brewSteps=3，每次间 delay）
+	// 精酿多次
 	type brewRes struct {
 		WineType int64 `json:"wine_type"`
 		Cost     int64 `json:"cost"`
@@ -924,7 +921,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 	}
 	finalBrew := brews[len(brews)-1]
 
-	// 分享翻倍（对齐 Node brewAndSellQingmeiWine：精酿结果可翻倍才做分享上报，成功则 multiple=2 出售）
+	// 分享翻倍
 	shared := false
 	if finalBrew.CanDouble {
 		// 1) CheckCanShare：判断当前是否可分享
@@ -946,7 +943,7 @@ func handleQingmeiWine(w http.ResponseWriter, r *http.Request) {
 			writeJSONMap(w, "ok", false, "error", "青梅酿分享上报失败: "+actErrMsg(rErr))
 			return
 		}
-		// 仅当返回体显式 success=false 才算失败（对齐 Node success !== false）
+		// 仅当返回体显式 success=false 才算失败
 		for _, f := range readActFields(reportBody) {
 			if f.No == 1 && f.Wire == 0 && f.Varint == 0 {
 				writeJSONMap(w, "ok", false, "error", "青梅酿分享上报失败")
@@ -1036,7 +1033,7 @@ func actCacheDel(key string) {
 }
 
 // ===== 青梅每日领种子内存标记 =====
-// 对齐 Node activity.js qingmeiClaimedDateByAccount：服务端 status 领后不变(0)，无法据活动树判断当日是否已领。
+// 服务端 status 领后不变(0)，无法据活动树判断当日是否已领。
 // 这里用内存记录「账号今日已领」，重启丢失（与 Node 一致，可接受）。
 var (
 	qingmeiClaimedMu   sync.Mutex
@@ -1141,7 +1138,7 @@ func handleDebugPlantRPC(w http.ResponseWriter, r *http.Request) {
 			b.FieldInt64(2, hostGid)
 		}
 		if itemID > 0 {
-			// Feriliize 布局：item 放 field2（fertilizer_id），host 不占 field2 时
+			// Feriliize 布局：item 放 field2（fertilizer_id）host 不占 field2 时
 			if layout == "fertilize" {
 				// 重建：land_ids=1, fertilizer_id=2
 				b = proto.NewBuilder()
@@ -1250,7 +1247,7 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	// 每档回填已领状态（flag=2 已领），并计算下一可筑档
+	// 每档回填已领状态（flag=2 已领）并计算下一可筑档
 	nextConsume := int64(0)
 	nextIndex := -1
 	claimedAll := true
@@ -1286,7 +1283,7 @@ func handleQiXiStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseQiXiTierFlags 从 GetGroup 响应提取 1801 节点 field112 各档 flag（2=已领/1=未领）。
-// 导航对齐 ParseActivityGroup（线上已验证）：rpcRequest 返回的 body 已是响应体(信封 field2)，
+// 导航（线上已验证）：rpcRequest 返回的 body 已是响应体(信封 field2)，
 // 响应体.field1 = root node(1800)，root.field2 每个直接是子节点(1801/1802)，
 // 节点.field1(info).field1 = id，节点.field112(配置).field2 repeated = tiers{1:档号, 4:flag}
 func parseQiXiTierFlags(body []byte) map[int64]int64 {
@@ -1394,7 +1391,7 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 		if len(want) > 0 && !want[l.ID] {
 			continue
 		}
-		// 合种地块（LandSize>1+SlaveLandIDs）：master+slaves 一起喷洒（对齐抓包合种喷洒 land_ids 多地块）
+		// 合种地块（LandSize>1+SlaveLandIDs）：master+slaves 一起喷洒
 		if l.LandSize > 1 && len(l.SlaveLandIDs) > 0 {
 			selected = append(selected, l.ID)
 			selected = append(selected, l.SlaveLandIDs...)
@@ -1406,7 +1403,7 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "data": map[string]interface{}{"sprayed": []int64{}, "sprayCount": 0, "featherGain": 0, "errors": []string{}, "msg": "无可喷洒地块（无作物或未指定）"}})
 		return
 	}
-	// 逐块喷洒：每块一次 Use，消耗 1 瓶灵露（301103），活动规则恒得 1 根鹊羽（1024）
+	// 逐块喷洒：每块一次 Use，消耗 1 瓶灵露（301103）活动规则恒得 1 根鹊羽（1024）
 	// 布局：{field1=corepb.Item{item_id=1,count=2,uid=6}, field2=land_ids}
 	// （Use 响应 field1 回显 corepb.Item 格式，推断请求 item 也是 corepb.Item 子消息）
 	luUID := int64(0)
@@ -1433,14 +1430,14 @@ func handleQiXiSpray(w http.ResponseWriter, r *http.Request) {
 	for _, landID := range selected {
 		sub := proto.NewBuilder()
 		sub.FieldInt64Always(1, req.HostGID)
-		// field2 = LEN 包裹的 land_id（varint 字节），对齐抓包 `12 01 09`/`12 01 05`
+		// field2 = LEN 包裹的 land_id（varint 字节）
 		sub.FieldBytes(2, appendVarintBytes(landID))
 		ub := proto.NewBuilder()
 		ub.FieldMessage(1, item.Bytes())
 		ub.FieldMessage(2, sub.Bytes())
 		sprayHex := fmt.Sprintf("%X", ub.Bytes())
 		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
-			// 1001065 = 该地块今天已喷过（每块地限 1 次），跳过继续下一块
+			// 1001065 = 该地块今天已喷过（每块地限 1 次）跳过继续下一块
 			if strings.Contains(e2.Error(), "1001065") {
 				continue
 			}
@@ -1503,7 +1500,7 @@ func handleQiXiBridge(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ===== 鹊桥寄情：赠送鹊羽香囊（流程对齐喷洒：先 Enter 好友农场再 Operate；cmd=26 待真机验证）=====
+// ===== 鹊桥寄情：赠送鹊羽香囊（流程先 Enter 好友农场再 Operate；cmd=26 待真机验证）=====
 // POST /api/activity/qixi/gift  body: {"accountId":"...","hostGid":123}
 // 玩法（tips 第 6 条）：活动期间可将鹊羽香囊赠送给好友。
 func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
@@ -1527,7 +1524,7 @@ func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", err.Error())
 		return
 	}
-	// 先 Enter 好友农场（对齐抓包喷洒帧序列：Enter → 操作）
+	// 先 Enter 好友农场
 	if _, _, err := enterFriendFarm(c, req.HostGID, 2, ""); err != nil {
 		writeJSONMap(w, "ok", false, "error", "Enter:"+err.Error())
 		return
@@ -1535,7 +1532,7 @@ func handleQiXiGift(w http.ResponseWriter, r *http.Request) {
 	defer leaveFriendFarm(c, req.HostGID)
 	// 送香囊协议（liyangpengs activitypb.proto GiftQixiSachetRequest 实锤 2026-08-18）：
 	//   { activity_id=2026081802, operate_type=26, params(124)={ friend_gid=1, count=2 } }
-	// 注意：送香囊是独立的 1802 节点（QIXI_GIFT_ACTIVITY_ID），不是筑桥的 1801；
+	// 注意：送香囊是独立的 1802 节点（QIXI_GIFT_ACTIVITY_ID）不是筑桥的 1801；
 	// 之前用 1801+field125 穷举全失败正是这个原因。
 	b := proto.NewBuilder()
 	b.FieldInt64(1, 2026081802) // giftActivityId（送香囊节点）

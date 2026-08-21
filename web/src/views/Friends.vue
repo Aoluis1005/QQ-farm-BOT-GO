@@ -167,7 +167,7 @@ async function autoAcceptFriend() {
     app.error('检查申请失败：' + (e.response?.data?.error || e.message))
   }
 }
-// 手动添加"已知好友 GID"（对齐 Node knownFriendGids：好友列表拉不到时填 GID 让 bot 抓取/巡查）
+// 手动添加"已知好友 GID"
 const knownOpen = ref(false)
 const knownGidInput = ref('')
 const knownGids = ref([])

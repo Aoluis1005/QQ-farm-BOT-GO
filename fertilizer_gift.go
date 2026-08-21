@@ -13,22 +13,20 @@ import (
 )
 
 // ============================================================
-// 自动填充化肥（对齐 Node services/warehouse.js autoOpenFertilizerGiftPacks，
-// 由 core/worker.js 的 fertilizer_gift 开关触发）
-//
+// 自动填充化肥
+// 由 core/worker.js 的 fertilizer_gift 开关触发
 // 逻辑：拉背包 → 收集化肥类道具(100003~100012 或 interaction_type=fertilizer/fertilizerpro)
 //   → 读容器剩余小时(普通1011/有机1012，count 为秒/3600)
 //   → 对每种化肥按"单件小时"自适应调整使用量(不超过容器上限 990h)
 //   → BatchUse 批量使用 → 更新容器小时 → 记日志
-//
-// 注意：Node 无"每日防重"跳过（fertilizerGiftDoneDateKey 仅用于前端状态展示），
+// 注意：Node 无"每日防重"跳过（fertilizerGiftDoneDateKey 仅用于前端状态展示）
 // 靠容器满 990h 后 count 算出 <=0 自然停止，故每次巡田都会尝试。
 // ============================================================
 
-// 化肥容器上限（小时），对齐 Node FERTILIZER_CONTAINER_LIMIT_HOURS = 990
+// 化肥容器上限（小时）
 const fertilizerContainerLimitHours = 990
 
-// 普通化肥每小时提供时间（按物品 ID），对齐 Node NORMAL_FERTILIZER_ITEM_HOURS
+// 普通化肥每小时提供时间（按物品 ID）
 var normalFertilizerItemHours = map[int]float64{
 	79873: 1, // 1h
 	80514: 4, // 4h
@@ -36,7 +34,7 @@ var normalFertilizerItemHours = map[int]float64{
 	80132: 12, // 12h
 }
 
-// 有机化肥每小时提供时间（按物品 ID），对齐 Node ORGANIC_FERTILIZER_ITEM_HOURS
+// 有机化肥每小时提供时间（按物品 ID）
 var organicFertilizerItemHours = map[int]float64{
 	80011: 1, // 1h
 	80012: 4, // 4h
@@ -54,7 +52,7 @@ type fertilizerContainerHours struct {
 	organic float64
 }
 
-// collectFertilizerUsePayload 对齐 Node collectFertilizerUsePayload：
+// collectFertilizerUsePayload 
 // 从背包物品中收集化肥类物品的使用负载（id → 累计 count，去重合并）
 func collectFertilizerUsePayload(items []proto.BagItem) []fertilizerPayload {
 	seen := map[int64]int64{}
@@ -78,8 +76,8 @@ func collectFertilizerUsePayload(items []proto.BagItem) []fertilizerPayload {
 	return out
 }
 
-// getContainerHoursFromBagItems 对齐 Node getContainerHoursFromBagItems：
-// 从背包物品读取化肥容器剩余时间（秒 → 小时），普通 1011 / 有机 1012
+// getContainerHoursFromBagItems 
+// 从背包物品读取化肥容器剩余时间（秒 → 小时）普通 1011 / 有机 1012
 func getContainerHoursFromBagItems(items []proto.BagItem) fertilizerContainerHours {
 	var h fertilizerContainerHours
 	for _, it := range items {
@@ -96,7 +94,7 @@ func getContainerHoursFromBagItems(items []proto.BagItem) fertilizerContainerHou
 	return h
 }
 
-// getFertilizerItemTypeAndHours 对齐 Node getFertilizerItemTypeAndHours：
+// getFertilizerItemTypeAndHours 
 // 返回化肥类型（normal/organic/other）与单件提供小时
 func getFertilizerItemTypeAndHours(itemID int64) (string, float64) {
 	if h, ok := normalFertilizerItemHours[int(itemID)]; ok {
@@ -116,8 +114,8 @@ func getFertilizerItemTypeAndHours(itemID int64) (string, float64) {
 	return "other", 0
 }
 
-// runFertilizerGiftOnce 对齐 Node autoOpenFertilizerGiftPacks：
-// 自动使用背包中的化肥类道具填充容器（容器满则自然跳过），返回本次使用数量。
+// runFertilizerGiftOnce 
+// 自动使用背包中的化肥类道具填充容器（容器满则自然跳过）返回本次使用数量。
 func runFertilizerGiftOnce(accountID string, c *gw.Client) int64 {
 	ctx := context.Background()
 	rep, err := c.Request(ctx, "gamepb.itempb.ItemService", "Bag",
@@ -166,7 +164,7 @@ func runFertilizerGiftOnce(accountID string, c *gw.Client) int64 {
 			label = fmt.Sprintf("物品#%d", itemID)
 		}
 
-		// BatchUse 批量使用（对齐 Node batchUseItems），失败视为 0
+		// BatchUse 批量使用，失败视为 0
 		used := int64(0)
 		req := proto.EncodeBatchUseRequest([]proto.SellItem{{ID: itemID, Count: count, UID: 0}})
 		if _, err := c.Request(ctx, "gamepb.itempb.ItemService", "BatchUse", req, 12*time.Second); err != nil {

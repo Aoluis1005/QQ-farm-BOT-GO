@@ -23,7 +23,7 @@ import (
 // iOS Safari UA（wx+iOS 唯一可握手的 UA）
 const defaultUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-// maxQueued 单个连接等待槽位的在途请求上限（对齐参考实现）
+// maxQueued 单个连接等待槽位的在途请求上限
 const maxQueued = int64(500)
 
 // Config 网关配置
@@ -45,13 +45,13 @@ type Client struct {
 	mu           sync.Mutex
 	writeMu      sync.Mutex // 序列化 WebSocket 写：避免并发 goroutine（自动化 + 前端 HTTP handler + 心跳）同写一条连接导致帧交错损坏（nhooyr.io/websocket 不支持并发写）
 	pending      map[int64]chan *proto.Message
-	// 请求槽位机制（对齐参考实现）：限制单连接并发在途请求数，避免 ACE 轮询占满网关
+	// 请求槽位机制：限制单连接并发在途请求数，避免 ACE 轮询占满网关
 	// 单槽位后游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。
 	normalSlots chan struct{} // 普通请求(非心跳)并发上限 = 8
 	totalSlots  chan struct{} // 全部请求(含心跳/ACE)并发上限 = 10
 	queued      atomic.Int64
 	active      atomic.Int64
-	kickHook          func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连（对齐 Node kickout→reconnect）
+	kickHook          func() // 被踢（账号在别处登录等致命码）时由连接池注入：关闭连接并触发应用宝离线重连
 	timeoutCloseHook  func() // 超时断连（服务端抖动/瞬时限流）时由连接池注入：标记该断连为“超时型”，重连不计上限
 	disconnectHook    func(reason string) // 连接异常断开（读错误/心跳连续失败）时由连接池注入：写前端可见的掉线日志
 	accountID    string
@@ -71,7 +71,7 @@ type Client struct {
 	coupon       int64
 	goldBean     int64
 	avatar       string // 玩家头像 URL（登录后或首次获取生涯统计时缓存）
-	openID       string // 登录用户 openId（ACE 反作弊身份绑定，对齐 Node bindUser）
+	openID       string // 登录用户 openId（ACE 反作弊身份绑定）
 
 	ace *ace.Runtime
 
@@ -123,7 +123,7 @@ func (c *Client) Connect(ctx context.Context, code string) error {
 	if err := c.ace.Init(ctx); err != nil {
 		return fmt.Errorf("ace init: %w", err)
 	}
-	// 注意：ACE 初始化凭据(firstToken)不在此预生成。对齐 Node network.js：登录请求用
+	// 注意：ACE 初始化凭据(firstToken)不在此预生成。登录请求用
 	// 随机 gatewayToken（initialGamePackInfo 此时为空），bindUser(openId) 之后才
 	// getEncryptedInitInfo 生成“带用户”令牌供后续请求使用。故登录请求将走 c.authToken
 	// （随机），与 Node createGatewayToken() 行为逐字节一致；绑定后的 firstToken 仅用于登录后首请求(Prime)。
@@ -154,7 +154,7 @@ func (c *Client) Connect(ctx context.Context, code string) error {
 	}
 	// ACE 反作弊身份绑定：登录拿到 openId 后必须先 BindUser 再重新生成初始化凭据，
 	// 否则后续请求携带的 ACE 令牌为"无用户"状态，反作弊上报身份残缺 → 风控封号。
-	// 对齐 Node network.js: bindUser(openId) → getEncryptedInitInfo() → startHeartbeat/startAce。
+	//  bindUser(openId) → getEncryptedInitInfo → startHeartbeat/startAce。
 	if c.openID != "" {
 		if berr := c.ace.BindUser(c.openID); berr != nil {
 			log.Printf("[gw] 账号 %s ACE BindUser 失败: %v", c.openID, berr)
@@ -205,7 +205,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	defer cancel()
 
 	// 槽位机制：限制单连接并发在途请求数，避免 ACE 轮询占满网关单槽位后
-	// 游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。对齐参考实现。
+	// 游戏请求(AllLands/Bag)被饿死 → 后台“在线但无数据/卡死”。。
 	// ACE 反作弊上报与心跳同级：只占 totalSlots、绕过 normalSlots 排队，
 	// 避免大报文游戏请求(Bag/AllLands)慢响应时把 ACE 上报挤到队尾导致反作弊链路延迟。
 	release, err := c.acquire(ctx2, method == "Heartbeat" || service == "gamepb.acepb.AceService")
@@ -243,7 +243,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 		encBody = eb
 	}
 	// auth_token: 首次(登录)用 ACE 初始化凭据，之后用随机 token。
-	// firstToken 读写加 mu 锁，修复并发首批请求重复消费首令牌的竞态（对齐参考实现 takeToken 用 connMu 保护）。
+	// firstToken 读写加 mu 锁，修复并发首批请求重复消费首令牌的竞态。
 	c.mu.Lock()
 	token := c.authToken
 	if c.firstToken != "" {
@@ -267,7 +267,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 	select {
 	case msg := <-ch:
 		if msg.Meta != nil && msg.Meta.ErrorCode != 0 {
-			// 账号在别处登录等致命码：触发连接池重连（对齐 Node kickout 事件），并关闭当前连接。
+			// 账号在别处登录等致命码：触发连接池重连，并关闭当前连接。
 			if isKickCode(msg.Meta.ErrorCode) && c.kickHook != nil {
 				log.Printf("[gw] 账号被踢下线 code=%d %s，触发应用宝重连", msg.Meta.ErrorCode, msg.Meta.ErrorMessage)
 				go c.kickHook()
@@ -278,7 +278,7 @@ func (c *Client) Request(ctx context.Context, service, method string, body []byt
 		return msg, nil
 	case <-ctx2.Done():
 		c.removePending(seq)
-		// 非 ACE/非心跳的请求超时 → 关闭连接触发重连（对齐参考实现）：
+		// 非 ACE/非心跳的请求超时 → 关闭连接触发重连：
 		// 死连接不应长期留在缓存里伪装“在线”骗前端，应被真正断开并重建。
 		if errors.Is(ctx2.Err(), context.DeadlineExceeded) && shouldCloseConnectionAfterTimeout(service, method) {
 			log.Printf("[gw] 账号 %s 请求 %s.%s 超时，关闭连接触发重连", c.accountID, service, method)
@@ -323,7 +323,7 @@ func (c *Client) readLoop() {
 				ch <- msg
 			}
 		}
-		// Notify 推送：对齐权威 Node network.ts handleNotify——外层先解 EventMessage，
+		// Notify 推送：，
 		// 类型标识在 message_type、真正的业务通知体在 body（不能再用 Meta.MethodName 判断，
 		// 也不能直接拿 EventMessage 当 ItemNotify 解码）。
 		if msg.Meta.MessageType == proto.MsgTypeNotify {
@@ -339,7 +339,6 @@ func (c *Client) readLoop() {
 					c.applyItemNotify(eventBody)
 				}
 				// BasicNotify 基础信息变化 → 用服务端绝对余额/经验/等级校准 c.gold/c.exp/c.level
-				// （对齐 Node network.ts BasicNotify：notify.basic.gold→userState.gold），
 				// 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值/autoSell 差值爆数）。
 				if strings.Contains(typ, "BasicNotify") {
 					c.applyBasicNotify(eventBody)
@@ -366,7 +365,7 @@ func (c *Client) safeNotify(fn func()) {
 	fn()
 }
 
-// applyItemNotify 处理物品变化推送：增量更新内存 + 同气礼包累计（对齐 Node network.js）
+// applyItemNotify 处理物品变化推送：增量更新内存 + 同气礼包累计
 func (c *Client) applyItemNotify(body []byte) {
 	items := proto.DecodeItemNotify(body)
 	if len(items) == 0 {
@@ -415,7 +414,7 @@ func (c *Client) applyItemNotify(body []byte) {
 }
 
 // applyBasicNotify 基础信息变化通知：用服务端绝对余额/经验/等级校准内存缓存。
-// 对齐权威 Node network.ts handleNotify BasicNotify：notify.basic.gold → userState.gold 等，
+// notify.basic.gold → userState.gold 等，
 // 避免 ItemNotify 把变化量当余额覆盖后、真实余额无法恢复（首页金币错值 / autoSell 差值爆数）。
 func (c *Client) applyBasicNotify(body []byte) {
 	bi := proto.DecodeBasicNotify(body)
@@ -498,7 +497,7 @@ func IsBanError(err error) bool {
 	return false
 }
 
-// prime 登录成功后预拉首页所需数据缓存（对齐 Node 常驻预载）
+// prime 登录成功后预拉首页所需数据缓存
 func (c *Client) Prime() {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
@@ -541,7 +540,7 @@ func (c *Client) CareerCached(ttl time.Duration) ([]byte, bool) {
 	return nil, false
 }
 
-// StartHeartbeat 启动心跳。对齐 Node：心跳连续 miss 达阈值（约 5 次无响应）判定断线，
+// StartHeartbeat 启动心跳。心跳连续 miss 达阈值（约 5 次无响应）判定断线，
 // 触发 Close()（power-close the closed channel），交由自动重连接管；容忍瞬时抖动。
 func (c *Client) StartHeartbeat(ctx context.Context) {
 	iv := time.Duration(c.cfg.HeartbeatMillis) * time.Millisecond
@@ -580,7 +579,7 @@ func (c *Client) StartHeartbeat(ctx context.Context) {
 }
 
 // HeartbeatOnce 发送一次游戏网络心跳，交由账号串行执行线（automationLoop）驱动。
-// 对齐 Node network.startHeartbeat：不再存在独立心跳 goroutine，消除对 TSDK 的并发访问。
+// 不再存在独立心跳 goroutine，消除对 TSDK 的并发访问。
 func (c *Client) HeartbeatOnce() bool {
 	if c.IsClosed() {
 		return false
@@ -592,7 +591,7 @@ func (c *Client) HeartbeatOnce() bool {
 	return err == nil
 }
 
-// SetClientVersion 更新客户端版本号（热更新：保存系统配置后秒级生效，无需重连；对齐 Node config_sync）
+// SetClientVersion 更新客户端版本号（热更新：保存系统配置后秒级生效，无需重连）
 func (c *Client) SetClientVersion(v string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -614,7 +613,7 @@ func (c *Client) Done() <-chan struct{} {
 	return c.closed
 }
 
-// ---- ACE TSDK 运行时透传（供 AceService 调度调用，对齐 Node tsdk-runtime.js） ----
+// ---- ACE TSDK 运行时透传（供 AceService 调度调用） ----
 
 // ACEProcessReceivedData 处理下行数据队列
 func (c *Client) ACEProcessReceivedData() error {
@@ -681,7 +680,7 @@ func (c *Client) Close() {
 		if c.conn != nil {
 			c.conn.Close(websocket.StatusNormalClosure, "")
 		}
-		// 连接关闭时让所有在途请求立即失败，避免前端/自动化各自苦等满 15s 超时（对齐参考实现 failPending）
+		// 连接关闭时让所有在途请求立即失败，避免前端/自动化各自苦等满 15s 超时
 		c.failPending(errors.New("gateway connection closed"))
 		close(c.closed)
 	})
@@ -739,13 +738,13 @@ func (c *Client) acquire(ctx context.Context, heartbeat bool) (func(), error) {
 
 // shouldCloseConnectionAfterTimeout 判断某请求超时后是否应关闭整条连接触发重连。
 // 心跳与 ACE 上报失败不应关连接（心跳失败由心跳循环独立判定；ACE 上报失败不应反噬游戏请求通道），
-// 其余游戏请求超时则关连接重建，避免死连接长期伪装“在线”。对齐参考实现。
+// 其余游戏请求超时则关连接重建，避免死连接长期伪装“在线”。。
 func shouldCloseConnectionAfterTimeout(service, method string) bool {
 	if method == "Heartbeat" {
 		return false
 	}
 	// 离开好友农场是收尾/清理请求,超时直接忽略,不反噬整条连接触发重连。
-	// 对齐 Node friend-api.js:768 `// Ignore leave errors`。
+	// 768 `// Ignore leave errors`。
 	if method == "Leave" {
 		return false
 	}
@@ -764,7 +763,7 @@ func isSlowEndpoint(service, method string) bool {
 }
 
 // closeActiveConnection 立即关闭底层 WebSocket 连接，置 IsClosed 并 failPending，
-// 使连接池下次 Get() 走重连流程（对齐参考实现 closeActiveConnection + disconnect）。
+// 使连接池下次 Get 走重连流程。
 func (c *Client) closeActiveConnection() {
 	c.Close()
 }
@@ -813,7 +812,7 @@ func (c *Client) FetchBagAssets(ctx context.Context) error {
 }
 
 // ApplyBagAssets 从背包物品同步点券/金豆绝对持有量并记录同步时间（并发安全）。
-// 对齐权威 worker.ts：登录后拉背包按物品 ID 1002/1005 的 count 覆盖。
+// 登录后拉背包按物品 ID 1002/1005 的 count 覆盖。
 func (c *Client) ApplyBagAssets(br *proto.BagReply) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

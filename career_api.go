@@ -10,7 +10,7 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
-// careerService 生涯统计服务（对齐 Node career-api.js）
+// careerService 生涯统计服务
 const careerService = "gamepb.careerpb.CareerService"
 
 func registerCareerAPI(mux *http.ServeMux) {
@@ -29,8 +29,8 @@ func handleCareer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 对齐 Node：用缩短短超时，避免与前端 axios 超时撞车。
-	// 生涯数据稳定，TTL 内读缓存避免重复请求（对齐 LandsCached 模式）。
+	// 用缩短短超时，避免与前端 axios 超时撞车。
+	// 生涯数据稳定，TTL 内读缓存避免重复请求。
 	body, ok := c.CareerCached(10 * time.Second)
 	if !ok {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -83,7 +83,6 @@ func handleCareer(w http.ResponseWriter, r *http.Request) {
 }
 
 // decorateCareerItems 把 CareerStatItem 装饰成前端结构（fruit_id -> name/image/rarity/level）并按 count 倒序
-// 对齐 Node decorateStatItem
 func decorateCareerItems(raw []*proto.CareerStatItem) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(raw))
 	for _, it := range raw {
@@ -116,7 +115,7 @@ func decorateCareerItems(raw []*proto.CareerStatItem) []map[string]interface{} {
 	return out
 }
 
-// decorateCareerLevelStats 把 CareerLevelStat 装饰成前端结构（对齐 Node decorateLevelStat）
+// decorateCareerLevelStats 把 CareerLevelStat 装饰成前端结构
 func decorateCareerLevelStats(raw []*proto.CareerLevelStat) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(raw))
 	for _, it := range raw {

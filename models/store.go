@@ -206,7 +206,7 @@ func SetIntervals(accountID string, key string, minVal, maxVal int) error {
 	return saveGlobalConfig()
 }
 
-// SetFriendBlacklist 设置好友拉黑列表（对齐 Node store.js setFriendBlacklist），
+// SetFriendBlacklist 设置好友拉黑列表，
 // 纯 gid 列表；返回是否包含（用于前端黑名单明细）。
 func SetFriendBlacklist(accountID string, gids []int64) error {
 	mu.Lock()
@@ -231,7 +231,7 @@ func SetFriendBlacklist(accountID string, gids []int64) error {
 	return saveGlobalConfig()
 }
 
-// SetKnownFriendGids 设置已知好友 GID 列表（对齐 Node store.js setKnownFriendGids），
+// SetKnownFriendGids 设置已知好友 GID 列表，
 // 用于 QQ 平台 GetGameFriends 批量拉取；去重排序后写回。
 func SetKnownFriendGids(accountID string, gids []int64) error {
 	mu.Lock()
@@ -375,8 +375,8 @@ func AddOrUpdateAccount(acc Account) ([]Account, error) {
 			return result, nil
 		}
 	}
-	// 新建账号：若默认方案存在且「新账号自动应用」开启，则套用默认方案（对齐 Node
-	// addOrUpdateAccount：created && plan.enabled !== false → setAccountConfigSnapshot）
+	// 新建账号：若默认方案存在且「新账号自动应用」开启，则套用默认方案
+	// addOrUpdateAccount：created && plan.enabled !== false → setAccountConfigSnapshot
 	accounts = append(accounts, acc)
 	if planCfg, ok := globalConfig.UserDefaultAccountPlans[defaultPlanKey]; ok && globalConfig.DefaultPlanEnabled {
 		globalConfig.AccountConfigs[acc.ID] = planCfg
@@ -489,9 +489,9 @@ func GetDefaultAccountID() string {
 	return ""
 }
 
-// ==================== 账号全量配置 + 默认方案（对齐 Node store.js） ====================
+// ==================== 账号全量配置 + 默认方案 ====================
 
-// SetAccountConfig 全量保存账号配置（含 automation/intervals/strategy 等，对齐 Node setAccountConfigSnapshot）
+// SetAccountConfig 全量保存账号配置（含 automation/intervals/strategy 等）
 func SetAccountConfig(accountID string, cfg config.AccountConfig) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -499,8 +499,8 @@ func SetAccountConfig(accountID string, cfg config.AccountConfig) error {
 	return saveGlobalConfig()
 }
 
-// UserDefaultPlan 默认方案（对齐 Node getUserDefaultAccountPlan 返回 {exists, enabled, config, updatedAt}）。
-// Go 为单用户面板，固定存 key "default"（对齐 Node 按 username 存的语义）。
+// UserDefaultPlan 默认方案。
+// Go 为单用户面板，固定存 key "default"。
 type UserDefaultPlan struct {
 	Exists    bool                 `json:"exists"`
 	Enabled   bool                 `json:"enabled"`
@@ -531,7 +531,7 @@ func GetUserDefaultPlan() UserDefaultPlan {
 	}
 }
 
-// SetUserDefaultPlan 保存默认方案（对齐 Node setUserDefaultAccountPlan）
+// SetUserDefaultPlan 保存默认方案
 func SetUserDefaultPlan(cfg config.AccountConfig, enabled bool) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -541,7 +541,7 @@ func SetUserDefaultPlan(cfg config.AccountConfig, enabled bool) error {
 	return saveGlobalConfig()
 }
 
-// ResetUserDefaultPlan 恢复系统默认方案（对齐 Node default-plan/reset：enabled 保持不变）
+// ResetUserDefaultPlan 恢复系统默认方案
 func ResetUserDefaultPlan() error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -550,7 +550,7 @@ func ResetUserDefaultPlan() error {
 	return saveGlobalConfig()
 }
 
-// ApplyUserDefaultPlan 把默认方案套用到指定账号（对齐 Node applyUserDefaultAccountPlan）
+// ApplyUserDefaultPlan 把默认方案套用到指定账号
 func ApplyUserDefaultPlan(accountID string) (config.AccountConfig, error) {
 	plan := GetUserDefaultPlan()
 	if !plan.Exists {

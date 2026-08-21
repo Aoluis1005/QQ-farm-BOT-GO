@@ -10,12 +10,12 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
-// illustratedTicketItemID 图鉴奖励结算的点券物品ID（对齐 Node getTicketBalanceFromBag 的 500）
+// illustratedTicketItemID 图鉴奖励结算的点券物品ID
 const illustratedTicketItemID = 500
 
-// runTaskAuto 自动做任务：扫描可领取任务并逐个领取（对齐 Node core/src/services/task.js checkAndClaimTasks）
+// runTaskAuto 自动做任务：扫描可领取任务并逐个领取
 // 受 cfg.Automation.Task 控制，由 automationLoop 串行调度（绝不与其他游戏操作并发）。
-// 可领取判定对齐 Node analyzeTaskList：IsUnlocked && !IsClaimed && total>0 && progress>=total。
+// 可领取判定IsUnlocked && !IsClaimed && total>0 && progress>=total。
 func runTaskAuto(accountID string, c *gw.Client) {
 	// 父 ctx 需覆盖整条序列：TaskInfo + 逐个领取(每个 300ms 间隔) + 活跃奖励 + 图鉴奖励(2×背包查询)。
 	// 原先 20s 会在任务较多时把后续 RPC 全部截断（Node 每个 RPC 独立超时、无整体上限）。
@@ -30,7 +30,7 @@ func runTaskAuto(accountID string, c *gw.Client) {
 		return
 	}
 	fs := readActFields(taskInfo)
-	// 可领取收集：daily=2、growth=1、main(tasks)=3（对齐 Node buildDailyTasksForDebug / buildGrowthTasks / task_info.tasks）
+	// 可领取收集：daily=2、growth=1、main(tasks)=3
 	groups := [][]taskItem{
 		parseTaskList(fs, 2), // daily
 		parseTaskList(fs, 1), // growth
@@ -45,56 +45,56 @@ func runTaskAuto(accountID string, c *gw.Client) {
 			if claimTaskRewardGo(ctx, accountID, c, t.ID) {
 				claimNum++
 			}
-			time.Sleep(300 * time.Millisecond) // 对齐 Node doClaim 内 sleep(300)
+			time.Sleep(300 * time.Millisecond) // (300)
 		}
 	}
 	if claimNum > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取 %d 个任务奖励", claimNum))
 	}
 
-	// 活跃奖励（日/周活跃度档位）对齐 Node checkAndClaimActives
+	// 活跃奖励（日/周活跃度档位）
 	if activeClaimed := claimActivesGo(ctx, accountID, c, fs); activeClaimed > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取 %d 个活跃奖励", activeClaimed))
 	}
-	// 图鉴奖励（点券）对齐 Node checkAndClaimIllustratedRewards：仅在点券真实到账时记日志
+	// 图鉴奖励（点券）仅在点券真实到账时记日志
 	if ticketGain := claimIllustratedRewardsGo(ctx, accountID, c); ticketGain > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("自动领取图鉴奖励：点券+%d", ticketGain))
 	}
 }
 
-// runDailyRoutinesGo 每日例行（对齐 Node worker.ts runDailyRoutines：邮件/分享/月卡/商城免费礼/会员）。
+// runDailyRoutinesGo 每日例行。
 // 独立于任务开关（不依赖 cfg.Automation.Task），由 automationLoop 登录后立即执行 + 跨天检测触发。
 // 每项内部有 doneDate 内存态防重（同一天只真正执行一次，后续直接跳过）。
-// 每项执行后无论结果都记日志（对齐 Node log('邮箱'/'月卡'/'会员'/'商城'/'分享', ...)），日志页每天可见。
+// 每项执行后无论结果都记日志（('邮箱'/'月卡'/'会员'/'商城'/'分享', ...)），日志页每天可见。
 func runDailyRoutinesGo(accountID string, c *gw.Client) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	appendOpLog(accountID, "task", "每日例行开始")
-	// 商城免费礼（对齐 Node mall.js buyFreeGifts：GetMallListBySlotType(1) → is_free 商品 → Purchase）
+	// 商城免费礼（GetMallListBySlotType(1) → is_free 商品 → Purchase）
 	if n := buyFreeGiftsGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取商城免费礼包 x%d", n))
 	} else {
 		appendOpLog(accountID, "task", "商城：今日无免费商品可领")
 	}
-	// 每日分享礼包（对齐 Node share.js performDailyShare：CheckCanShare → ReportShare → ClaimShareReward）
+	// 每日分享礼包
 	if performDailyShareGo(ctx, accountID) {
 		appendOpLog(accountID, "task", "领取每日分享礼包")
 	} else {
 		appendOpLog(accountID, "task", "分享：今日不可分享或已领取")
 	}
-	// 邮件奖励（对齐 Node email.ts checkAndClaimEmails：GetEmailList(box 1+2) → BatchClaimEmail）
+	// 邮件奖励（GetEmailList(box 1+2) → BatchClaimEmail）
 	if n := claimEmailsGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取邮箱奖励 %d 封", n))
 	} else {
 		appendOpLog(accountID, "task", "邮箱：今日无待领邮件奖励")
 	}
-	// 月卡礼包（对齐 Node monthcard.ts performDailyMonthCardGift：GetMonthCardInfos → ClaimMonthCardReward）
+	// 月卡礼包
 	if n := claimMonthCardGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取月卡礼包 %d 个", n))
 	} else {
 		appendOpLog(accountID, "task", "月卡：无月卡或今日已领")
 	}
-	// QQ会员每日礼包（对齐 Node qqvip.ts performDailyVipGift：RefreshVipInfo → GetQQVipRewardsStatus → ClaimQQVipRewards）
+	// QQ会员每日礼包
 	if n := claimVipGiftGo(ctx, accountID); n > 0 {
 		appendOpLog(accountID, "task", fmt.Sprintf("领取QQ会员礼包 %d 个", n))
 	} else {
@@ -102,7 +102,7 @@ func runDailyRoutinesGo(accountID string, c *gw.Client) {
 	}
 }
 
-// 每日礼包领取状态（对齐 Node mall.js/share.js 的 doneDateKey 内存态；跨天自动重置）
+// 每日礼包领取状态
 // 注意：Node 每账号独立进程，doneDateKey 天然单账号；Go 多账号共享进程内存，
 // 必须按 accountID 分桶，否则账号 A 领过 → 账号 B 当天不领。
 var (
@@ -111,7 +111,7 @@ var (
 	shareDoneDate    = map[string]string{} // accountID -> 已领日期
 )
 
-// buyFreeGiftsGo 商城免费礼（对齐 Node mall.js buyFreeGifts）
+// buyFreeGiftsGo 商城免费礼
 // MallService.GetMallListBySlotType(slot=1) → goods_list 中 is_free 商品 → Purchase(goods_id, 1)
 func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 	dailyGiftMu.Lock()
@@ -146,7 +146,7 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 		if _, e := rpcRequest(ctx, accountID, mallSvc, "Purchase", proto.EncodePurchaseRequest(g.GoodsID, 1), 12*time.Second); e == nil {
 			bought++
 		}
-		time.Sleep(300 * time.Millisecond) // 对齐 Node 逐个购买间隔
+		time.Sleep(300 * time.Millisecond) // 
 	}
 	dailyGiftMu.Lock()
 	freeGiftDoneDate[accountID] = todayKey()
@@ -154,9 +154,9 @@ func buyFreeGiftsGo(ctx context.Context, accountID string) int {
 	return bought
 }
 
-// performDailyShareGo 每日分享礼包（对齐 Node share.js performDailyShare）
+// performDailyShareGo 每日分享礼包
 // 1) CheckCanShare（field1=can_share）→ 2) ReportShare{shared:true,field_4:42} → 3) ClaimShareReward{claimed:true}
-// 状态语义对齐 Node checkedDateKey：CheckCanShare 成功后无论后续成败都标记"今日已处理"，
+// 状态语义CheckCanShare 成功后无论后续成败都标记"今日已处理"，
 // 避免"奖励已领取但状态永远待领取"（ReportShare/ClaimShareReward 对已领用户会报错但仍算已检查）。
 func performDailyShareGo(ctx context.Context, accountID string) bool {
 	dailyGiftMu.Lock()
@@ -170,7 +170,7 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	if err != nil {
 		return false
 	}
-	// 只要 CheckCanShare 成功（无论 can_share 结果），今日即视为已检查（对齐 Node checkedDateKey）
+	// 只要 CheckCanShare 成功（无论 can_share 结果），今日即视为已检查
 	defer func() {
 		dailyGiftMu.Lock()
 		shareDoneDate[accountID] = todayKey()
@@ -179,7 +179,7 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	if actNum(readActFields(checkBody), 1) == 0 { // can_share=false → 今日无可分享
 		return false
 	}
-	// 2) ReportShare {shared:true, field_4=42}（对齐参考实现：ReportShareRequest{field_1:1, field_4:42}）
+	// 2) ReportShare {shared:true, field_4=42}
 	//    field_4=42 是分享场景标识，只发 field_1 服务端可能不识别导致每日分享领取失败
 	repB := proto.NewBuilder()
 	repB.FieldBool(1, true)
@@ -187,7 +187,7 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	if _, err := rpcRequest(ctx, accountID, shareSvc, "ReportShare", repB.Bytes(), 12*time.Second); err != nil {
 		return false
 	}
-	// 3) ClaimShareReward {claimed:true}（对齐 Node share.js claimShareReward）
+	// 3) ClaimShareReward {claimed:true}
 	clB := proto.NewBuilder()
 	clB.FieldBool(1, true)
 	if _, err := rpcRequest(ctx, accountID, shareSvc, "ClaimShareReward", clB.Bytes(), 12*time.Second); err != nil {
@@ -196,7 +196,7 @@ func performDailyShareGo(ctx context.Context, accountID string) bool {
 	return true
 }
 
-// claimActivesGo 领取日/周活跃奖励（对齐 Node task.js checkAndClaimActives）
+// claimActivesGo 领取日/周活跃奖励
 // task_info.actives=4 → Active{type=1, progress=2, rewards=3}
 // ActiveReward{point_id=1, need_progress=2, status=3}，ActiveStatus.DONE=2
 func claimActivesGo(ctx context.Context, accountID string, c *gw.Client, taskInfoFields []actField) int {
@@ -244,9 +244,8 @@ func claimDailyRewardGo(ctx context.Context, accountID string, c *gw.Client, typ
 	return err == nil
 }
 
-// claimIllustratedRewardsGo 领取全部已达标图鉴奖励（对齐 Node checkAndClaimIllustratedRewards）
+// claimIllustratedRewardsGo 领取全部已达标图鉴奖励
 // 返回本次实际到账的点券数量（0 表示没真正领到东西）。
-//
 // 为何用「点券余额差」而不是数 reply 里的 item 个数：
 // ClaimAllRewardsV2 即使没有可领奖励，服务端仍会返回带 items/bonus_items 的响应，
 // 按 item 个数判定会导致每轮任务循环（30s）都误判成"领到 1 个奖品"并写操作日志 → 日志刷屏。
@@ -263,12 +262,12 @@ func claimIllustratedRewardsGo(ctx context.Context, accountID string, c *gw.Clie
 	if gain <= 0 {
 		return 0
 	}
-	// 对齐 Node task.js (图鉴奖励成功)：recordOperation('taskClaim', 1)
+	// (图鉴奖励成功)：recordOperation('taskClaim', 1)
 	recordOperation(accountID, "taskClaim", 1)
 	return int(gain)
 }
 
-// ticketBalanceFromBag 查询背包点券余额（对齐 Node task.js getTicketBalanceFromBag：物品 ID=500）
+// ticketBalanceFromBag 查询背包点券余额
 // 注意：此处的 500 与首页资产读取用的 proto.ItemIDCoupon(1002) 不是同一个物品，勿混用。
 func ticketBalanceFromBag(ctx context.Context, accountID string) int64 {
 	cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
@@ -289,7 +288,7 @@ func ticketBalanceFromBag(ctx context.Context, accountID string) int64 {
 	return 0
 }
 
-// claimTaskRewardGo 领取单个任务奖励，返回是否成功（对齐 Node claimTaskReward(taskId, doShare=false)）
+// claimTaskRewardGo 领取单个任务奖励，返回是否成功（(taskId, doShare=false)）
 func claimTaskRewardGo(ctx context.Context, accountID string, c *gw.Client, taskID int64) bool {
 	b := proto.NewBuilder()
 	b.FieldInt64(1, taskID)
@@ -297,21 +296,21 @@ func claimTaskRewardGo(ctx context.Context, accountID string, c *gw.Client, task
 	defer cancel()
 	_, err := rpcRequest(cctx, accountID, taskSvc, "ClaimTaskReward", b.Bytes(), 20*time.Second)
 	if err == nil {
-		// 对齐 Node task.js doClaim：领取成功 recordOperation('taskClaim', 1)
+		// 领取成功 recordOperation('taskClaim', 1)
 		recordOperation(accountID, "taskClaim", 1)
 		return true
 	}
 	return false
 }
 
-// emailSvc / monthCardSvc / vipSvc 服务名（对齐 Node sendMsgAsync 首参）
+// emailSvc / monthCardSvc / vipSvc 服务名
 const (
 	emailSvc     = "gamepb.emailpb.EmailService"
 	vipSvc       = "gamepb.qqvippb.QQVipService"
 	monthCardSvc = "gamepb.mallpb.MallService"
 )
 
-// emailItemInfo 邮件条目（对齐 Node EmailItem 关键字段 + box 归属）
+// emailItemInfo 邮件条目
 type emailItemInfo struct {
 	Box       int64  // 所属邮箱类型（1/2）
 	ID        string // field1 id
@@ -319,7 +318,7 @@ type emailItemInfo struct {
 	HasReward bool   // field5 has_reward
 }
 
-// claimEmailsGo 邮件奖励领取（对齐 Node email.ts checkAndClaimEmails）
+// claimEmailsGo 邮件奖励领取
 // EmailService.GetEmailList(box 1+2) → 找 has_reward && !claimed → BatchClaimEmail（失败逐条单领）
 // 返回成功领取的邮件数。
 func claimEmailsGo(ctx context.Context, accountID string) int {
@@ -363,7 +362,7 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 		dailyGiftMu.Unlock()
 		return 0
 	}
-	// 批量领取（按 box 分组，对齐 Node byBox）
+	// 批量领取（按 box 分组）
 	byBox := map[int64][]string{}
 	for _, em := range claimable {
 		byBox[em.Box] = append(byBox[em.Box], em.ID)
@@ -378,9 +377,9 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 			}
 			claimed += len(ids)
 		}
-		time.Sleep(300 * time.Millisecond) // 对齐 Node 批量后短暂间隔
+		time.Sleep(300 * time.Millisecond) // 
 	}
-	// 批量失败的逐条单领（对齐 Node 批量失败静默 continue 单领）
+	// 批量失败的逐条单领
 	for _, em := range claimable {
 		key := fmt.Sprintf("%d:%s", em.Box, em.ID)
 		if batchOK[key] {
@@ -398,7 +397,7 @@ func claimEmailsGo(ctx context.Context, accountID string) int {
 	return claimed
 }
 
-// claimMonthCardGo 月卡礼包领取（对齐 Node monthcard.ts performDailyMonthCardGift）
+// claimMonthCardGo 月卡礼包领取
 // MallService.GetMonthCardInfos → infos 中 can_claim && goods_id>0 → ClaimMonthCardReward(goods_id)
 // 返回成功领取数。
 func claimMonthCardGo(ctx context.Context, accountID string) int {
@@ -446,7 +445,7 @@ func claimMonthCardGo(ctx context.Context, accountID string) int {
 	return claimed
 }
 
-// claimVipGiftGo QQ会员每日礼包（对齐 Node qqvip.ts performDailyVipGift）
+// claimVipGiftGo QQ会员每日礼包
 // RefreshVipInfo → GetQQVipRewardsStatus → reward_statuses 中 enabled && can_claim 的
 // reward_type → ClaimQQVipRewards(reward_types)。返回成功领取的档位数。
 func claimVipGiftGo(ctx context.Context, accountID string) int {
@@ -496,7 +495,7 @@ func claimVipGiftGo(ctx context.Context, accountID string) int {
 	return len(rewardTypes)
 }
 
-// monthCardDoneDate / emailDoneDate / vipDoneDate 每日领取状态（对齐 Node doneDateKey 内存态；跨天自动重置）
+// monthCardDoneDate / emailDoneDate / vipDoneDate 每日领取状态
 // 按 accountID 分桶（Node fork 进程天然单账号；Go 多账号共享内存必须显式隔离）
 var (
 	emailDoneDate     = map[string]string{} // accountID -> 已领日期

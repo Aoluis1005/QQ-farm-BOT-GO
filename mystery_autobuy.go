@@ -12,10 +12,10 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
-// 神秘商人自动购买（对齐 Node mystery-scheduler.js）
+// 神秘商人自动购买
 // Node：启动即执行一次，之后每 60 分钟一轮；每轮逐级查询活跃 NPC 直到 inactive/同一NPC重复/货币不在允许列表
 //（MYSTERY_AUTO_BUY_MAX_PER_CYCLE=20）。
-// GO：遍历所有「开启该功能且已勾选货币」的在线账号顺序执行；购买之间加 500ms 间隔（对齐死规矩：
+// GO：遍历所有「开启该功能且已勾选货币」的在线账号顺序执行；购买之间加 500ms 间隔
 // 游戏商店操作禁止并发的风控约束）。
 
 const (
@@ -112,7 +112,7 @@ func mysteryAutoBuyForClient(ctx context.Context, accountID string, c *gw.Client
 	}
 }
 
-// mysteryOfferActive 判断当前神秘商人是可购买的活跃状态（对齐 normalizeNPC：active + 未购买 + 未过期）。
+// mysteryOfferActive 判断当前神秘商人是可购买的活跃状态。
 func mysteryOfferActive(reply *proto.GetActiveNPCReply) bool {
 	if reply == nil || reply.NPC == nil {
 		return false

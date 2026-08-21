@@ -9,13 +9,13 @@ import (
 )
 
 // ============================================================
-// 好友列表展示缓存（对齐 liyangpengs friendsListCache + TTL）。
+// 好友列表展示缓存。
 // 仅用于「展示」接口（/api/friends/list）；巡查 checkFriends 仍走实时 fetchAllFriends（选人需最新）。
 // 缓存的是 fetchAllFriends 的原始好友列表，组装/过滤在请求时实时做，
-// 因此黑名单、护主犬缓存、myGID 等变化仍能正确反映，无需主动失效（对齐对方：靠 TTL + forceSync）。
+// 因此黑名单、护主犬缓存、myGID 等变化仍能正确反映，无需主动失效。
 // ============================================================
 
-// friendsListCacheTtlSec 好友列表展示缓存 TTL（秒）。写死默认 60s，对齐对方 friendsListCacheTtlSec 默认值。
+// friendsListCacheTtlSec 好友列表展示缓存 TTL（秒）。写死默认 60s，。
 const friendsListCacheTtlSec = 60
 
 type friendsListCacheItem struct {

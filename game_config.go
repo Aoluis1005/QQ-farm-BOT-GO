@@ -10,20 +10,20 @@ import (
 )
 
 // ============================================================
-// 游戏配置加载（对齐 Node core/src/config/gameConfig.js）
+// 游戏配置加载
 // 用于背包物品分类：fruit / seed / props / other / fertilizer
 // Plant.json + ItemInfo.json 位于服务器 game-config/ 目录；本地缺失时回退启发式规则。
 // ============================================================
 
-// plantEntry Plant.json 条目（对齐 Node gameConfig.js：id/seed_id/seasons/grow_phases/size）
+// plantEntry Plant.json 条目
 type plantEntry struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	SeedID     int    `json:"seed_id"`
 	Seasons    int    `json:"seasons"`
 	GrowPhases string `json:"grow_phases"` // "种子:5760;发芽:5760;...;成熟:0;"
-	Size       int    `json:"size"`        // 合种尺寸（2=2x2），可空
-	Exp        int    `json:"exp"`         // 单次收获经验（对齐 Node plant.exp，用于分析排名）
+	Size       int    `json:"size"`        // 合种尺寸（2=2x2）可空
+	Exp        int    `json:"exp"`         // 单次收获经验
 	Fruit      *struct {
 		ID    int `json:"id"`
 		Count int `json:"count"` // 单次收获果实数量（用于分析金币计算）
@@ -48,7 +48,7 @@ type itemInfoEntry struct {
 	Level           int     `json:"level"`
 	PriceID         int     `json:"price_id"`
 	InteractionType string  `json:"interaction_type"`
-	EffectDesc      string  `json:"effect_desc"` // 对齐 Node admin-seed-shop-routes.js 展示名优先 effectDesc`
+	EffectDesc      string  `json:"effect_desc"` // 
 	Layer           int     `json:"layer"`       // 果实层级（图鉴 getFruitLayerByFruitId 用）
 	AssetName       string  `json:"asset_name"`  // 图鉴/物品图片映射用
 }
@@ -57,10 +57,10 @@ type itemInfoEntry struct {
 var (
 	seedToPlantMap  = map[int]plantEntry{} // seed_id -> 植物
 	fruitToPlantMap = map[int]plantEntry{} // fruit.id -> 植物
-	plantByIDMap    = map[int]plantEntry{} // plant.id -> 植物（对齐 Node plantMap）
+	plantByIDMap    = map[int]plantEntry{} // plant.id -> 植物
 	itemInfoMap     = map[int]itemInfoEntry{}
 	seedItemSet     = map[int]bool{}              // ItemInfo type==5 的种子物品 id
-	mutantEffectMap = map[int]mutantEffectEntry{} // mutant id -> 效果（对齐 Node mutantEffectMap）
+	mutantEffectMap = map[int]mutantEffectEntry{} // mutant id -> 效果
 )
 
 // initGameConfig 从 gameConfigDir 加载 Plant.json / ItemInfo.json。
@@ -91,7 +91,7 @@ func loadPlantJSON(path string) {
 	plantByIDMap = make(map[int]plantEntry, len(rows))
 	for _, p := range rows {
 		// 占地尺寸归一：JSON size 为 null/0 时按 1（1x1）处理，
-		// 对齐 Node getPlantSizeBySeedId = Math.max(1, toNum(plant.size) || 1)。
+		// (1, toNum(plant.size) || 1)。
 		// 否则 pickBagSeed/listBagSeeds 的 `Size != 1` 判断会把所有普通 1x1 种子误判为
 		// "非1x1" 全部过滤掉，导致背包优先策略落空、回退到商城乱选种子。
 		if p.Size <= 0 {
@@ -161,9 +161,9 @@ func loadItemInfoJSON(path string) {
 	}
 }
 
-// ---- 背包物品分类判定（对齐 Node warehouse.js getBagDetail） ----
+// ---- 背包物品分类判定 ----
 
-// isFruitItemID 是否为果实物品（对齐 Node warehouse.js isFruitItemId = Boolean(getPlantByFruitId(id))）
+// isFruitItemID 是否为果实物品（(getPlantByFruitId(id))）
 // 统一以 Plant.json 为准：普通果实(4xxxx) 与变异果实(104xxxx) 均已收录于 fruitToPlantMap。
 func isFruitItemID(id int64) bool {
 	n := int(id)
@@ -195,7 +195,7 @@ func isSeedItemID(id int64) bool {
 	return false
 }
 
-// isFertilizerItemID 是否为化肥相关物品（对齐 Node isFertilizerRelatedItemId）
+// isFertilizerItemID 是否为化肥相关物品
 func isFertilizerItemID(id int64) bool {
 	n := int(id)
 	if n <= 0 {
@@ -247,17 +247,17 @@ func itemDisplayName(id int64) string {
 }
 
 // ============================================================
-// 农场页所需配置查询（对齐 Node gameConfig.js）
+// 农场页所需配置查询
 // ============================================================
 
-// getPlantByID 按植物ID取植物配置（对齐 Node getPlantById，plantMap 按 plant.id）
+// getPlantByID 按植物ID取植物配置
 func getPlantByID(plantID int64) (plantEntry, bool) {
 	p, ok := plantByIDMap[int(plantID)]
 	return p, ok
 }
 
-// getPlantGrowTime 总生长秒数（对齐 Node gameConfig.js getPlantGrowTime：
-// grow_phases 形如 "种子:5760;发芽:5760;...;成熟:0;"，取每段 ":(\d+)" 求和）
+// getPlantGrowTime 总生长秒数
+// grow_phases 形如 "种子:5760;发芽:5760;...;成熟:0;"，取每段 ":(\d+)" 求和
 func getPlantGrowTime(plantID int64) int64 {
 	p, ok := plantByIDMap[int(plantID)]
 	if !ok || p.GrowPhases == "" {
@@ -277,7 +277,7 @@ func getPlantGrowTime(plantID int64) int64 {
 	return total
 }
 
-// getPlantNameOrNull 按植物ID取名称（找不到返回空串；对齐 Node getPlantNameOrNull）
+// getPlantNameOrNull 按植物ID取名称（找不到返回空串）
 func getPlantNameOrNull(plantID int64) string {
 	if p, ok := plantByIDMap[int(plantID)]; ok {
 		return p.Name
@@ -285,7 +285,7 @@ func getPlantNameOrNull(plantID int64) string {
 	return ""
 }
 
-// getMutantEffectsByIDs 变异效果列表（对齐 Node getMutantEffectsByIds，过滤无效 ID）
+// getMutantEffectsByIDs 变异效果列表
 type MutantEffect struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`

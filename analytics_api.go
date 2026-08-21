@@ -13,9 +13,9 @@ import (
 )
 
 // ============================================================
-// 分析接口（对齐 Node admin-analytics-routes.js + services/analytics.js）
+// 分析接口
 //   - GET  /api/analytics?sort=exp|fert|gold|profit|fert_profit|level  植物排名
-// 偷菜植物黑名单接口（对齐 Node admin-plant-blacklist-routes.js，配置存于 accountConfig.plantBlacklist）
+// 偷菜植物黑名单接口
 //   - GET    /api/plant-blacklist
 //   - POST   /api/plant-blacklist         {seedId}
 //   - DELETE /api/plant-blacklist/:seedId
@@ -32,7 +32,7 @@ func registerAnalyticsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/plant-blacklist/", handlePlantBlacklistItem)
 }
 
-// ---- 解析（对齐 analytics.js） ----
+// ---- 解析 ----
 
 // parseGrowTime 解析 grow_phases 总秒数（":(\d+)$" 每段求和）
 func parseGrowTime(growPhases string) float64 {
@@ -67,7 +67,7 @@ func parseNormalFertilizerReduceSec(growPhases string) float64 {
 	return 0
 }
 
-// formatGrowTimeSec 秒数人类可读（对齐 analytics.js formatTime）
+// formatGrowTimeSec 秒数人类可读
 func formatGrowTimeSec(secs float64) string {
 	if secs < 60 {
 		return fmt.Sprintf("%.0f秒", secs)
@@ -88,12 +88,12 @@ func formatGrowTimeSec(secs float64) string {
 	return fmt.Sprintf("%.0f时", hours)
 }
 
-// round2 保留两位小数（对齐 JS Number.parseFloat(x.toFixed(2))）
+// round2 保留两位小数（(x.toFixed(2))）
 func round2(x float64) float64 {
 	return math.Round(x*100) / 100
 }
 
-// getPlantRankings 植物排名（对齐 Node getPlantRankings）
+// getPlantRankings 植物排名
 func getPlantRankings(sortBy string) []map[string]interface{} {
 	rankings := []map[string]interface{}{}
 	for _, plant := range getAllPlants() {
@@ -191,7 +191,7 @@ func getPlantRankings(sortBy string) []map[string]interface{} {
 		})
 	}
 
-	// 排序（对齐 Node analytics.js）
+	// 排序
 	sortDesc := func(key string) {
 		// 稳定地按数值降序
 		sortRankings(rankings, key)
@@ -284,7 +284,7 @@ func handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": getPlantRankings(sortBy)})
 }
 
-// ---- 偷菜植物黑名单（对齐 Node admin-plant-blacklist-routes.js） ----
+// ---- 偷菜植物黑名单 ----
 
 func getPlantBlacklist(accountID string) []int {
 	cfg := models.GetAccountConfig(accountID)

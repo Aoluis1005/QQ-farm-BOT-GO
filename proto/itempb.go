@@ -65,14 +65,14 @@ func DecodeBagReply(buf []byte) *BagReply {
 	return rep
 }
 
-// SellItem 出售物品（字段对齐 Node warehouse.js toSellItem → corepb.Item{id=1,count=2,uid=6}）
+// SellItem 出售物品（字段,count=2,uid=6}）
 type SellItem struct {
 	ID    int64
 	Count int64
 	UID   int64
 }
 
-// EncodeUseRequest 对齐 Node itempb.proto UseRequest{item_id=1,count=2}
+// EncodeUseRequest ,count=2}
 func EncodeUseRequest(itemID, count int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, itemID)
@@ -81,18 +81,15 @@ func EncodeUseRequest(itemID, count int64) []byte {
 }
 
 // EncodeUseRequestFallback 使用物品的 raw protobuf 回退编码。
-//
 // 严格照抄 Node core/src/services/warehouse.js useItem() 的 catch 分支（118-134 行）：
-//
 //	writer.uint32(10).fork();                // field 1, wire 2（嵌套 message）
 //	writer.uint32(8).int64(toLong(itemId));  // 内层 field 1, varint
 //	writer.uint32(16).int64(toLong(count));  // 内层 field 2, varint
 //	writer.ldelim();
-//
 // 即：外层 field1 是一个 length-delimited 子消息，子消息里才是 item_id/count。
 // 与 itempb.proto 里 UseRequest{item_id=1,count=2} 的平铺结构不同——线上服务端
 // 实际期望的是这种嵌套形态，proto 文件已过时，故 Node 才需要这个回退。
-// 用 Always 版本以忠实对齐 protobuf.js Writer 低层 API（不做默认值跳过）。
+// 用 Always 版本以忠实（不做默认值跳过）。
 func EncodeUseRequestFallback(itemID, count int64) []byte {
 	sub := NewBuilder()
 	sub.FieldInt64Always(1, itemID)
@@ -102,7 +99,7 @@ func EncodeUseRequestFallback(itemID, count int64) []byte {
 	return b.Bytes()
 }
 
-// EncodeUseRequestWithLands 对齐 Node itempb.proto UseRequest{item_id=1,count=2,land_ids=3}，
+// EncodeUseRequestWithLands ,count=2,land_ids=3}，
 // 用于「在土地上使用物品」类操作（如鹊桥灵露喷洒：item_id=301103，land_ids=[目标地块]）。
 // 在 EncodeUseRequest 的平铺结构基础上补上重复 int64 的 land_ids（field 3）。
 func EncodeUseRequestWithLands(itemID, count int64, landIDs []int64) []byte {
@@ -115,13 +112,13 @@ func EncodeUseRequestWithLands(itemID, count int64, landIDs []int64) []byte {
 	return b.Bytes()
 }
 
-// IsBadParamError 对齐 Node warehouse.js:120 的判定：
+// IsBadParamError 120 的判定：
 // msg.includes('code=1000020') || msg.includes('请求参数错误')
 func IsBadParamError(msg string) bool {
 	return strings.Contains(msg, "code=1000020") || strings.Contains(msg, "请求参数错误")
 }
 
-// EncodeSellRequest 对齐 Node itempb.proto SellRequest{items=1} 每项 corepb.Item{id=1,count=2,uid=6}
+// EncodeSellRequest ,count=2,uid=6}
 func EncodeSellRequest(items []SellItem) []byte {
 	b := NewBuilder()
 	for _, it := range items {
@@ -134,8 +131,7 @@ func EncodeSellRequest(items []SellItem) []byte {
 	return b.Bytes()
 }
 
-// EncodeBatchUseRequest 对齐 Node itempb.proto BatchUseRequest{items=1} 每项 corepb.Item{id=1,count=2,uid=6}
-// （对齐 Node warehouse.js batchUseItems：id/count/uid 均为 int64，uid 缺省 0）
+// EncodeBatchUseRequest ,count=2,uid=6}
 func EncodeBatchUseRequest(items []SellItem) []byte {
 	b := NewBuilder()
 	for _, it := range items {
@@ -148,7 +144,7 @@ func EncodeBatchUseRequest(items []SellItem) []byte {
 	return b.Bytes()
 }
 
-// IsFertilizerContainerFullError 对齐 Node warehouse.js isFertilizerContainerFullError：
+// IsFertilizerContainerFullError 
 // code=1003002 或容器已满文案 → 静默返回（视为"已满，无需填充"）
 func IsFertilizerContainerFullError(msg string) bool {
 	return strings.Contains(msg, "code=1003002") ||
@@ -159,7 +155,7 @@ func IsFertilizerContainerFullError(msg string) bool {
 }
 
 // DecodeSellReply 解析 SellReply，返回(出售物品总件数, 获得金币数)
-// 对齐 Node deriveGoldGainFromSellReply / getGoldFromItems：SellReply sell_items=1 / get_items=2，金币 item id==1 或 1001。
+// SellReply sell_items=1 / get_items=2，金币 item id==1 或 1001。
 // 注意：不认 500001——真实 Sell 响应 get_items 里的 500001 条目 count 是金币余额，
 // 权威 getGoldFromItems 只认 id==1||1001；认 500001 会把余额整额当成收益（导致收益显示 100 多亿）。
 func DecodeSellReply(buf []byte) (soldCount, gold int64) {
@@ -187,7 +183,7 @@ func DecodeSellReply(buf []byte) (soldCount, gold int64) {
 		})
 		if field == 1 { // sell_items
 			soldCount += it.Count
-		} else if field == 2 { // get_items：金币 id==1 或 1001（对齐 Node getGoldFromItems，不认 500001=余额）
+		} else if field == 2 { // get_items：金币 id==1 或 1001
 			if it.ID == 1001 || it.ID == 1 {
 				gold += it.Count
 			}

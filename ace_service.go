@@ -11,22 +11,19 @@ import (
 )
 
 // ============================================================
-// ACE 反作弊上报服务（对齐 Node services/ace-service.js + utils/network.js startAceService）
-//
-// 与 Node worker 对齐：ACE 的周期任务不再由独立 goroutine 驱动，而是由【账号唯一的
+// ACE 反作弊上报服务
+// 与 Node worker ACE 的周期任务不再由独立 goroutine 驱动，而是由【账号唯一的
 // 统一串行执行线 automationLoop】通过 tick(now) 调度（等价 Node 中 AceService 的 scheduler
 // 与自动化 scheduler 跑在同一个账号 worker 线程的单线程事件循环里）。由此保证同一时刻
 // 只有一个 goroutine 访问 TSDK（wasm），消除并发导致的 out of bounds memory access。
-//
-// 调度周期（对齐 Node）：
+// 调度周期：
 //   - process_received_data  每 5s  处理下行数据队列（wasm processReceivedData）
 //   - heartbeat_tick         每 25s TSDK 心跳（wasm sendHeartbeatTick）
 //   - speed_hack_check       每 30s 速度检测（wasm detectSpeedHack）
 //   - ace_poll               每 5s  getDataToServer → AntiData 上报 → sendDataFromServer 回灌
 //   - send_status            150s 后一次性状态上报（wasm sendStatus）
 //   - function_check         180s 后一次性完整性校验（wasm checkFuncArray）
-//
-// 失败退避：1s,2s,4s,8s,16s,32s 封顶（对齐 Node MAX_BACKOFF_MS=30000、failures 计数）。
+// 失败退避：1s,2s,4s,8s,16s,32s 封顶。
 // 随连接断开自动停止：连接关闭回调调用 stop() 并从账号注册表移除。
 // ============================================================
 
@@ -64,7 +61,7 @@ func removeAceService(accountID string) {
 	aceServicesMu.Unlock()
 }
 
-// AceService ACE 上报服务（对齐 Node AceService class）
+// AceService ACE 上报服务
 type AceService struct {
 	client *gw.Client
 	accID  string
@@ -89,7 +86,7 @@ type AceService struct {
 }
 
 // startAceService 登录成功后创建 ACE 服务并注册（不再启动独立 goroutine；
-// 由 automationLoop 的 tick 驱动，对齐 Node 同一账号单线程语义）。
+// 由 automationLoop 的 tick 驱动）。
 func startAceService(c *gw.Client, accountID string) *AceService {
 	now := time.Now()
 	s := &AceService{
@@ -98,7 +95,7 @@ func startAceService(c *gw.Client, accountID string) *AceService {
 		nextProcess:   now.Add(aceProcessIntervalMs * time.Millisecond),
 		nextHeartbeat: now.Add(aceHeartbeatIntervalMs * time.Millisecond),
 		nextSpeed:     now.Add(aceSpeedCheckInterval),
-		nextPoll:      now.Add(acePollIntervalMs * time.Millisecond), // 对齐 Node 首 poll 稍后
+		nextPoll:      now.Add(acePollIntervalMs * time.Millisecond), // 
 		nextStatus:    now.Add(aceStatusDelay),
 		nextFuncCheck: now.Add(aceFunctionCheckDelay),
 		lastSpeedAt:   now,
@@ -108,7 +105,7 @@ func startAceService(c *gw.Client, accountID string) *AceService {
 	return s
 }
 
-// stop 停止 ACE 服务（对齐 Node AceService.stop）；由连接关闭回调调用。幂等。
+// stop 停止 ACE 服务；由连接关闭回调调用。幂等。
 func (s *AceService) stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -159,7 +156,7 @@ func (s *AceService) tick(now time.Time) {
 	}
 }
 
-// nearestTick 返回最近一次到期的周期时刻，供 automationLoop 计算睡眠（对齐 scheduleUnifiedNextTick 取 nearest）。
+// nearestTick 返回最近一次到期的周期时刻，供 automationLoop 计算睡眠。
 func (s *AceService) nearestTick() time.Time {
 	if s.isStopped() {
 		return time.Time{} // 已停止：由 automationLoop 判空处理
@@ -179,7 +176,7 @@ func (s *AceService) nearestTick() time.Time {
 	return n
 }
 
-// processReceivedData 处理下行数据队列（对齐 Node process_received_data 任务）
+// processReceivedData 处理下行数据队列
 func (s *AceService) processReceivedData() {
 	if s.client == nil || s.client.IsClosed() {
 		return
@@ -189,7 +186,7 @@ func (s *AceService) processReceivedData() {
 	}
 }
 
-// heartbeatTick TSDK 心跳（对齐 Node heartbeat_tick 任务）
+// heartbeatTick TSDK 心跳
 func (s *AceService) heartbeatTick() {
 	if s.client == nil || s.client.IsClosed() {
 		return
@@ -199,7 +196,7 @@ func (s *AceService) heartbeatTick() {
 	}
 }
 
-// detectSpeedHack 速度检测（对齐 Node speed_hack_check 任务）
+// detectSpeedHack 速度检测
 func (s *AceService) detectSpeedHack(elapsedMs int64) {
 	if s.client == nil || s.client.IsClosed() {
 		return
@@ -209,7 +206,7 @@ func (s *AceService) detectSpeedHack(elapsedMs int64) {
 	}
 }
 
-// sendStatus 状态上报（对齐 Node send_status 一次性任务）
+// sendStatus 状态上报
 func (s *AceService) sendStatus() {
 	if s.client == nil || s.client.IsClosed() {
 		return
@@ -219,7 +216,7 @@ func (s *AceService) sendStatus() {
 	}
 }
 
-// checkFunctionArray 完整性校验（对齐 Node function_check 一次性任务）
+// checkFunctionArray 完整性校验
 func (s *AceService) checkFunctionArray() {
 	if s.client == nil || s.client.IsClosed() {
 		return
@@ -230,7 +227,7 @@ func (s *AceService) checkFunctionArray() {
 	}
 }
 
-// poll 拉取待上报数据并发送 AntiData（对齐 Node AceService.poll）。
+// poll 拉取待上报数据并发送 AntiData。
 // 本方法运行在账号统一串行线上；结束后通过 nextPoll 安排下次轮询（含失败退避）。
 func (s *AceService) poll(now time.Time) {
 	if s.client == nil || s.client.IsClosed() {
@@ -268,7 +265,7 @@ func (s *AceService) poll(now time.Time) {
 	log.Printf("[ace] 账号 %s AntiData 上报成功：发送 %d 字节，回灌 %d 字节", s.accID, len(data), len(serverData))
 }
 
-// onPollFailure 上报失败：退避重排 nextPoll（对齐 Node poll catch 分支）
+// onPollFailure 上报失败：退避重排 nextPoll
 func (s *AceService) onPollFailure(now time.Time, err error) {
 	s.mu.Lock()
 	s.failures++

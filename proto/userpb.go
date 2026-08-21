@@ -101,7 +101,6 @@ func decodeBasicInfo(sub []byte) *BasicInfo {
 
 // DecodeBasicNotify 解析基础信息变化通知（BasicNotify，field1=basis/BasicInfo）。
 // 服务端会定期推送绝对余额/经验/等级，用于把被 ItemNotify 变化量污染的余额校准回真实值
-// （对齐权威 Node network.ts handleNotify BasicNotify 分支）。
 func DecodeBasicNotify(buf []byte) *BasicInfo {
 	var bi *BasicInfo
 	r := NewReader(buf)
@@ -125,7 +124,7 @@ func EncodeHeartbeatRequest(gid int64, clientVersion string) []byte {
 }
 
 // EncodeReportArkClickRequest 主动加好友（分享卡 → UserService.ReportArkClick）。
-// 对齐 Node invite.js sendReportArkClick：f1 sharer_id, f2 sharer_open_id,
+// f1 sharer_id, f2 sharer_open_id,
 // f3 share_cfg_id=string"1008", f4 scene_id=7, f5 share_key。
 func EncodeReportArkClickRequest(uid int64, openId, shareKey string) []byte {
 	b := NewBuilder()

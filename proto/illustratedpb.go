@@ -1,8 +1,8 @@
 package proto
 
-// gamepb.illustratedpb 图鉴编解码（对齐 Node core/src/proto/illustratedpb.proto）
+// gamepb.illustratedpb 图鉴编解码
 
-// IllustratedItem 图鉴条目（对齐 Node IllustratedItem）
+// IllustratedItem 图鉴条目
 type IllustratedItem struct {
 	SeedID       int64 // 图鉴返回的果实/条目ID（Node 按 seed_id 读取后当作 fruitId 处理）
 	IllustratedTier int32
@@ -12,12 +12,12 @@ type IllustratedItem struct {
 	HasReward    bool
 }
 
-// IllustratedListReply 图鉴列表回复（对齐 Node GetIllustratedListV2Reply）
+// IllustratedListReply 图鉴列表回复
 type IllustratedListReply struct {
 	Items []IllustratedItem
 }
 
-// EncodeGetIllustratedListV2Request 对齐 Node GetIllustratedListV2Request{refresh=1,illustrated_type=2}
+// EncodeGetIllustratedListV2Request ,illustrated_type=2}
 func EncodeGetIllustratedListV2Request(refresh bool, illustratedType int) []byte {
 	b := NewBuilder()
 	b.FieldBool(1, refresh)
@@ -67,7 +67,7 @@ func DecodeGetIllustratedListV2Reply(buf []byte) *IllustratedListReply {
 	return rep
 }
 
-// ClaimAllRewardsV2 领取全部已达标图鉴奖励（对齐 Node task.js checkAndClaimIllustratedRewards）
+// ClaimAllRewardsV2 领取全部已达标图鉴奖励
 // ClaimAllRewardsV2Request: only_claimable=1
 func EncodeClaimAllRewardsV2Request(onlyClaimable bool) []byte {
 	b := NewBuilder()
@@ -76,10 +76,9 @@ func EncodeClaimAllRewardsV2Request(onlyClaimable bool) []byte {
 }
 
 // ClaimAllRewardsV2Reply: items=1, bonus_items=4（仅统计奖品数量用）
-//
 // 警告：不要用返回值判断"是否真的领到奖励"。即使没有可领奖励，服务端仍会返回带
 // items/bonus_items 的响应，据此判定会导致任务循环每轮都误判成功并写日志（日志刷屏）。
-// 判断是否真实到账请用背包点券余额差，见 task_auto.go claimIllustratedRewardsGo（对齐 Node）。
+// 判断是否真实到账请用背包点券余额差，见 task_auto.go claimIllustratedRewardsGo。
 func DecodeClaimAllRewardsV2Reply(buf []byte) (itemCount int) {
 	r := NewReader(buf)
 	r.EachField(func(field, wire int, r *Reader) bool {

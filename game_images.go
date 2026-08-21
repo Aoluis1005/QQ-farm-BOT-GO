@@ -9,11 +9,10 @@ import (
 )
 
 // itemImageMap 物品ID(itemId) → 图片URL 映射，由 InitImageMap 启动时从 seed_images_named 目录扫描建立。
-// 对齐 Node 端 gameConfig.js 的 seedImageMap 逻辑。
 var itemImageMap = map[int]string{}
 
 // seedAssetImageMap 资产名(assetName，如 "Crop_1") → 图片URL。
-// 对齐 Node seedAssetImageMap：从文件名 "xxx_Crop_1_Seed.png" 提取资产名，供 ItemInfo.asset_name 回退匹配。
+// 从文件名 "xxx_Crop_1_Seed.png" 提取资产名，供 ItemInfo.asset_name 回退匹配。
 var seedAssetImageMap = map[string]string{}
 
 // imageNamedRe 匹配 {id}_xxx.png 格式（如 20001_草莓_Crop_1_Seed.png）
@@ -22,12 +21,12 @@ var imageNamedRe = regexp.MustCompile(`^(\d+)_.*\.(png|jpg|jpeg|webp|gif)$`)
 // imageNumericRe 匹配纯 {id}.png 格式（如 1001.png）
 var imageNumericRe = regexp.MustCompile(`^(\d+)\.(png|jpg|jpeg|webp|gif)$`)
 
-// imageAssetRe 匹配 ..._Crop_(\d+)_Seed.png，捕获 "Crop_X"（对齐 Node assetMatch）
+// imageAssetRe 匹配 ..._Crop_(\d+)_Seed.png，捕获 "Crop_X"
 var imageAssetRe = regexp.MustCompile(`(Crop_\d+)_Seed\.(?:png|jpg|jpeg|webp|gif)$`)
 
 // InitImageMap 扫描 gameConfigDir/seed_images_named 目录：
-//   - 按文件名前缀数字建立 itemId → URL（对齐 Node seedImageMap）
-//   - 按文件名中的 Crop_X_Seed 建立 assetName → URL（对齐 Node seedAssetImageMap）
+//   - 按文件名前缀数字建立 itemId → URL
+//   - 按文件名中的 Crop_X_Seed 建立 assetName → URL
 //   - 另外递归扫描 mutant/ 子目录（变异作物图片）
 func InitImageMap(gameConfigDir string) {
 	dir := filepath.Join(gameConfigDir, "seed_images_named")
@@ -71,7 +70,7 @@ func scanImageDir(dir, urlPrefix string) {
 				}
 			}
 		}
-		// 资产名 Crop_X_Seed → "Crop_X"（对齐 Node assetMatch）
+		// 资产名 Crop_X_Seed → "Crop_X"
 		if m := imageAssetRe.FindStringSubmatch(filename); m != nil {
 			assetName := m[1]
 			if _, exists := seedAssetImageMap[assetName]; !exists {
@@ -82,7 +81,6 @@ func scanImageDir(dir, urlPrefix string) {
 }
 
 // tryGetImage 先按 id 查 itemImageMap，未命中再从 ItemInfo.asset_name → seedAssetImageMap 回退。
-// 对齐 Node getItemImageById 内部 tryGetImage。
 func tryGetImage(id int) string {
 	if u, ok := itemImageMap[id]; ok && u != "" {
 		return u
@@ -95,7 +93,7 @@ func tryGetImage(id int) string {
 	return ""
 }
 
-// GetItemImageURL 返回 itemId 对应图片URL，对齐 Node getItemImageById：
+// GetItemImageURL 返回 itemId 对应图片URL，
 //   1. 直接查 id / asset_name
 //   2. itemId 为果实 id 时，用 plant.seed_id 换算后再查
 func GetItemImageURL(itemID int) string {
@@ -110,7 +108,7 @@ func GetItemImageURL(itemID int) string {
 	return ""
 }
 
-// getSeedImageBySeedIdURL 对齐 Node getMappedSeedImage：id 直查 → asset_name 回退（不换算 fruit→seed）。
+// getSeedImageBySeedIdURL id 直查 → asset_name 回退（不换算 fruit→seed）。
 // 供图鉴 buildIllustratedItem 使用（传 fruitId，经 asset_name 命中同源图片）。
 func getSeedImageBySeedIdURL(seedID int) string {
 	return tryGetImage(seedID)

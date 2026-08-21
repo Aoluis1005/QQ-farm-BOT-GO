@@ -1,9 +1,9 @@
 package proto
 
-// gamepb.visitpb 访问好友农场编解码（对齐 proto/visitpb.proto）。
+// gamepb.visitpb 访问好友农场编解码。
 // 好友详情 / 好友地块 / 好友操作前均需 Enter 好友农场获取 lands 与护主犬摘要。
 
-// 护主犬 ID → 名称（对齐 Node friend-api.js DOG_NAMES）
+// 护主犬 ID → 名称
 var DogNames = map[int64]string{
 	90001: "田园犬",
 	90002: "牧羊犬",
@@ -106,7 +106,7 @@ func DecodeVisitEnterReply(buf []byte) *VisitEnterReply {
 }
 
 // parseBriefDogInfo 解析 brief_dog_info：收集所有正 varint，
-// 命中 DOG_NAMES 里任一 ID 即为护主犬（对齐 Node parseBriefDogInfoBytes）。
+// 命中 DOG_NAMES 里任一 ID 即为护主犬。
 func parseBriefDogInfo(buf []byte) (int64, string) {
 	varints := collectVarints(buf)
 	for _, v := range varints {
@@ -143,7 +143,7 @@ func collectVarints(buf []byte) []int64 {
 }
 
 // ExtractTopLevelField7String 从 Enter 响应的顶层原始字节中提取 field7 (string)。
-// 对齐 Node friend-api.js extractEnterNonce：主动加好友时服务端会在 Enter 响应顶层回显
+// 主动加好友时服务端会在 Enter 响应顶层回显
 // 32hex 会话 nonce（该字段不在我们的 schema 中，需直接扫 wire）。
 func ExtractTopLevelField7String(raw []byte) string {
 	r := NewReader(raw)

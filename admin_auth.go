@@ -21,7 +21,7 @@ import (
 // 后台管理员鉴权（自用）
 //  - 登录密码：优先已持久化 passwordHash，其次环境变量 ADMIN_PASSWORD
 //  - 未设置密码时，后台处于"未初始化"态，仅允许首次设置密码(/api/admin/setup)
-//  - token 存内存(重启需重新登录)，对齐 Node 内存 session
+//  - token 存内存(重启需重新登录)，
 //  - 中间件统一做：panic 兜底 + 鉴权 + 超时守卫
 // ============================================================
 
@@ -236,7 +236,7 @@ func handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true})
 }
 
-// handleAdminSystemConfig 读取/更新系统配置（客户端版本号热更新，对齐 Node /api/admin/system-config）
+// handleAdminSystemConfig 读取/更新系统配置（客户端版本号热更新）
 func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -261,7 +261,7 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, "保存失败: "+err.Error())
 			return
 		}
-		// 热更新所有已连接账号（秒级生效，无需重启，对齐 Node config_sync）
+		// 热更新所有已连接账号（秒级生效，无需重启）
 		clientPool.UpdateClientVersion(sc.ClientVersion)
 		writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetSystemConfig()})
 		return

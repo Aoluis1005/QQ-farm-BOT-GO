@@ -19,7 +19,7 @@ import (
 
 // ============================================================
 // 好友服务层：访问/离开好友农场、地块分析、好友操作、狗信息缓存、黑名单本地库。
-// 协议对齐 Node core/src/services/friend-api.js / friend-visit.js / friend-operation-limits.js。
+// 协议。
 // ============================================================
 
 const visitService = "gamepb.visitpb.VisitService"
@@ -47,7 +47,7 @@ func leaveFriendFarm(c *gw.Client, gid int64) {
 	_, _ = c.Request(ctx, visitService, "Leave", proto.EncodeVisitLeaveRequest(gid), 10*time.Second)
 }
 
-// friendLandsAnalysis 好友地块分类结果（对齐 Node friend-land-analyzer.js analyzeFriendLands）
+// friendLandsAnalysis 好友地块分类结果
 type friendLandsAnalysis struct {
 	Stealable       []int64
 	NeedWater       []int64
@@ -58,7 +58,7 @@ type friendLandsAnalysis struct {
 	CanPutGoldenBug []int64
 }
 
-// isBlacklistedSeed 判断土地作物的种子ID是否在偷菜作物黑名单（对齐 Node analyzeFriendLands：
+// isBlacklistedSeed 判断土地作物的种子ID是否在偷菜作物黑名单
 // getPlantById(plantId).seed_id 在黑名单即跳过，不影响自己种植）。
 func isBlacklistedSeed(plantID int64, blacklist []int) bool {
 	if len(blacklist) == 0 {
@@ -91,7 +91,7 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []i
 		}
 		phase := current.Phase
 
-		// 成熟 & 可偷（作物黑名单按 seedId 过滤，对齐 Node analyzeFriendLands）
+		// 成熟 & 可偷（作物黑名单按 seedId 过滤）
 		if phase == proto.PhaseMature {
 			if p.Stealable && !isBlacklistedSeed(p.ID, plantBlacklist) {
 				out.Stealable = append(out.Stealable, land.ID)
@@ -125,7 +125,7 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []i
 		if len(bugOwners) < 2 && !alreadyBug {
 			out.CanPutBug = append(out.CanPutBug, land.ID)
 		}
-		// 可放黄金虫：植物未成熟/未枯死且尚无金虫（对齐 Node friend-land-analyzer.js canPutGoldenBug）
+		// 可放黄金虫：植物未成熟/未枯死且尚无金虫
 		// phase 至此已排除 mature/dead（前文 continue 跳过）
 		if !hasGoldenBug(p) {
 			out.CanPutGoldenBug = append(out.CanPutGoldenBug, land.ID)
@@ -148,7 +148,7 @@ func isBadLimitErr(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "1001046")
 }
 
-// currentPhase 取当前生长阶段（begin_time<=now 的最大值），对齐 Node getCurrentPhase(…, false)
+// currentPhase 取当前生长阶段（begin_time<=now 的最大值）(…, false)
 func currentPhase(phases []*proto.PlantPhaseInfo, now int64) *proto.PlantPhaseInfo {
 	var cur *proto.PlantPhaseInfo
 	for _, ph := range phases {
@@ -162,7 +162,7 @@ func currentPhase(phases []*proto.PlantPhaseInfo, now int64) *proto.PlantPhaseIn
 	return cur
 }
 
-// doFriendOperationResult 好友操作结果（对齐 Node doFriendOperation 返回结构）
+// doFriendOperationResult 好友操作结果
 type doFriendOperationResult struct {
 	OK        bool   `json:"ok"`
 	OpType    string `json:"opType"`
@@ -177,7 +177,7 @@ type doFriendOperationResult struct {
 	DogName    string `json:"-"`
 }
 
-// friendService 好友帮忙 recentHelp 防重（对齐 liyangpengs visit-strategy.ts）：
+// friendService 好友帮忙 recentHelp 防重：
 // 用「地块状态快照」做去重 key，对同一好友同一地块，状态未变且时间窗内已帮则跳过。
 type recentHelpEntry struct {
 	state       string // in_flight / confirmed / noop
@@ -222,7 +222,7 @@ func joinInts(in []int64) string {
 	return strings.Join(ss, ",")
 }
 
-// getHelpSnapshotKey 由好友地块列表生成状态快照 key（对齐 liyangpengs getHelpSnapshotKey）：
+// getHelpSnapshotKey 由好友地块列表生成状态快照 key：
 // 每块地 = [land.id, plant.id, phase.phase, plant.dry_num, weed_owners, insect_owners]，多块用 | 分隔。
 func getHelpSnapshotKey(lands []*proto.LandInfo) string {
 	now := time.Now().Unix()
@@ -246,7 +246,7 @@ func getHelpSnapshotKey(lands []*proto.LandInfo) string {
 	return strings.Join(parts, "|")
 }
 
-// filterRecentHelp 过滤掉「缓存未过期且快照一致」的地块（对齐 filterRecentHelp）。
+// filterRecentHelp 过滤掉「缓存未过期且快照一致」的地块。
 func filterRecentHelp(accountID string, gid int64, landIDs []int64, snapshotKey string) []int64 {
 	now := time.Now().UnixMilli()
 	recentHelpMu.Lock()
@@ -295,7 +295,7 @@ func doFriendFarming(c *gw.Client, accountID string, gid int64, ids []int64) int
 	defer cancel()
 	rep, err := c.Request(ctx, plantService, "Farming", proto.EncodeFriendFarmingRequest(ids, gid), 12*time.Second)
 	if err != nil {
-		// 1001057 = 无需帮忙/已处理（对齐对方 expectedErrorCodes: [1001057]），视为 noop
+		// 1001057 = 无需帮忙/已处理，视为 noop
 		if strings.Contains(err.Error(), "1001057") {
 			return 0
 		}
@@ -311,7 +311,7 @@ func doFriendFarming(c *gw.Client, accountID string, gid int64, ids []int64) int
 	return int64(len(landIDs))
 }
 
-// runFriendFarmingWithFallback 批量帮忙，整批失败则降级逐块重试（对齐 runFarmingWithFallback）。
+// runFriendFarmingWithFallback 批量帮忙，整批失败则降级逐块重试。
 func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, target []int64, snapshotKey string) int64 {
 	if len(target) == 0 {
 		return 0
@@ -332,7 +332,7 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 		releaseRecentHelp(accountID, gid, unconfirmed)
 		return ok
 	}
-	// 整批失败：释放全部，逐块降级重试（sleep 100ms 对齐对方）
+	// 整批失败：释放全部，逐块降级重试（sleep 100ms ）
 	releaseRecentHelp(accountID, gid, target)
 	var total int64
 	for _, id := range target {
@@ -352,7 +352,7 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 	return total
 }
 
-// doFriendOperation 对好友执行单个操作（steal/water/weed/bug/bad），完整走 进入→操作→离开。
+// doFriendOperation 对好友执行单个操作（steal/water/weed/bug/bad）完整走 进入→操作→离开。
 func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, opType string) *doFriendOperationResult {
 	if gid <= 0 {
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Message: "无效好友ID"}
@@ -365,7 +365,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 	// 1. 进入好友农场
 	_, enterReply, err := enterFriendFarm(c, gid, 2, "")
 	if err != nil {
-		// 分类处理进入失败（对齐 Node friend-api.js handleFriendEnterError）：
+		// 分类处理进入失败：
 		// 1002003 封禁→自动加黑名单；1002002/关键词→无效好友自动移出已知列表
 		handleFriendEnterError(c, accountID, gid, err)
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid,
@@ -491,20 +491,20 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 			Message: fmt.Sprintf("捣乱完成 虫%d/草%d", bugCount, weedCount)}
 
 	case "help":
-		// 进农场后实时护主犬判定（对齐 Node __briefDogInfo：经验满/极速模式且非实时护主犬 → 本次不帮，
-		// 弥补 checkFriends 进入前缓存 getFriendDog 的滞后）
+		// 进农场后实时护主犬判定（经验满/极速模式且非实时护主犬 → 本次不帮，
+		// 弥补 checkFriends 进入前缓存 getFriendDog 的滞后
 		acfg := models.GetAccountConfig(accountID)
 		guardOnly := computeEffectiveTurbo(acfg) || (acfg.Automation.FriendHelpExpLimit && !getCanGetHelpExp(accountID))
 		if guardOnly && enterReply.DogID != guardDogID {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "经验已满且非护主犬，跳过"}
 		}
-		// 好友帮忙：单次进入内用一个 Farming RPC 完成浇水/除草/除虫（对齐 liyangpengs runFarmingWithFallback）。
+		// 好友帮忙：单次进入内用一个 Farming RPC 完成浇水/除草/除虫。
 		// 把需帮地块（水/草/虫）合并去重，一次 PlantService.Farming（field_3=0、field_4=2）。
 		ids := dedupeInt64(append(append(append([]int64{}, analysis.NeedWater...), analysis.NeedWeed...), analysis.NeedBug...))
 		if len(ids) == 0 {
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可帮忙土地"}
 		}
-		// 地块快照防重：同地块状态未变化且时间窗内已帮过则跳过（对齐 getHelpSnapshotKey/filterRecentHelp）
+		// 地块快照防重：同地块状态未变化且时间窗内已帮过则跳过
 		snapshotKey := getHelpSnapshotKey(lands)
 		target := filterRecentHelp(accountID, gid, ids, snapshotKey)
 		if len(target) == 0 {
@@ -536,7 +536,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 	}
 }
 
-// stealCropSummary 统计可偷地块的作物名称与数量（对齐 Node 好友偷菜日志：显示菜名与个数）
+// stealCropSummary 统计可偷地块的作物名称与数量
 func stealCropSummary(lands []*proto.LandInfo, stealable []int64) string {
 	set := make(map[int64]struct{}, len(stealable))
 	for _, id := range stealable {
@@ -568,7 +568,6 @@ func stealCropSummary(lands []*proto.LandInfo, stealable []int64) string {
 }
 
 // execFriendOp 执行好友农场操作；成功后从 reply 解析 operation_limits 刷新每日限制缓存
-// （对齐 Node friend-operation-limits.js updateOperationLimits：偷=Harvest 在字段4，其余在字段2）
 func execFriendOp(c *gw.Client, accountID, method string, body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
@@ -638,12 +637,12 @@ func getFriendBasic(c *gw.Client, gid int64) *proto.VisitBasic {
 }
 
 // ============================================================
-// 好友列表拉取（对齐 Node friend-api.js）：wx 用 GetAll；qq 用 GetGameFriends(已知GID) 回退 GetAll。
+// 好友列表拉取：wx 用 GetAll；qq 用 GetGameFriends(已知GID) 回退 GetAll。
 // ============================================================
 
 // fetchAllFriends 拉取所有好友。
 // 微信：GetAll 直连。
-// QQ：先按已知 GID 走 GetGameFriends（新接口），为空则 SyncAll 初始化好友服务，再回退 GetAll。
+// QQ：先按已知 GID 走 GetGameFriends（新接口）为空则 SyncAll 初始化好友服务，再回退 GetAll。
 func fetchAllFriends(c *gw.Client, platform string, knownGids []int64) ([]*proto.GameFriend, error) {
 	if platform == "qq" {
 		if len(knownGids) > 0 {
@@ -721,7 +720,7 @@ func cacheFriendDog(gid int64, reply *proto.VisitEnterReply) {
 		return
 	}
 	m, _ := readDogCache(accID)
-	// 非护主犬（换狗/删好友后的伪护主犬残留）：删除旧缓存记录（对齐 Node friend-visit.js cacheDogInfoFromEnterReply）
+	// 非护主犬（换狗/删好友后的伪护主犬残留）：删除旧缓存记录
 	if reply.DogID != guardDogID {
 		if _, ok := m[gid]; ok {
 			delete(m, gid)
@@ -733,7 +732,7 @@ func cacheFriendDog(gid int64, reply *proto.VisitEnterReply) {
 	writeDogCache(accID, m)
 }
 
-// handleFriendEnterError 分类处理进入好友农场失败（对齐 Node friend-api.js handleFriendEnterError）
+// handleFriendEnterError 分类处理进入好友农场失败
 // 返回处理类型："blacklist"（封禁→加黑名单） / "invalid_removed"（无效好友→移出已知列表） / ""（未处理）
 func handleFriendEnterError(c *gw.Client, accountID string, gid int64, err error) string {
 	msg := err.Error()
@@ -753,7 +752,7 @@ func handleFriendEnterError(c *gw.Client, accountID string, gid int64, err error
 	return ""
 }
 
-// isInvalidFriendAccessErr 判断是否是「不是好友/无效好友」错误（对齐 Node isInvalidFriendAccessError）
+// isInvalidFriendAccessErr 判断是否是「不是好友/无效好友」错误
 func isInvalidFriendAccessErr(msg string) bool {
 	// 错误码硬匹配：VisitService.Enter 返回 code=1002002「不是好友无法拜访」
 	if strings.Contains(msg, "1002002") {
@@ -768,7 +767,7 @@ func isInvalidFriendAccessErr(msg string) bool {
 	return false
 }
 
-// removeKnownFriendGid 从 config 已知好友列表移除失效 GID（对齐 Node removeKnownFriendGid）
+// removeKnownFriendGid 从 config 已知好友列表移除失效 GID
 func removeKnownFriendGid(accountID string, gid int64) {
 	cfg := models.GetAccountConfig(accountID)
 	if len(cfg.KnownFriendGIDs) == 0 {
@@ -838,10 +837,10 @@ func getFriendDog(accountID string, gid int64) (dogInfo, bool) {
 }
 
 // ============================================================
-// 好友黑名单本地库（对齐 Node getFriendBlacklist / addFriendToBlacklist，客户端侧管理）
+// 好友黑名单本地库
 // ============================================================
 
-// blacklistEntry 黑名单条目（对齐 Node BlacklistItem：gid/name + skipSteal/skipHelp）
+// blacklistEntry 黑名单条目
 type blacklistEntry struct {
 	GID       int64  `json:"gid"`
 	Name      string `json:"name"`
@@ -888,8 +887,8 @@ func getBlacklistEntries(accountID string) []blacklistEntry {
 	return out
 }
 
-// toggleBlacklist 拉黑/取消拉黑（对齐前端"已切换黑名单"语义）。
-// 拉黑时默认 skipSteal=skipHelp=true（即黑名单内默认跳过偷菜与帮忙），
+// toggleBlacklist 拉黑/取消拉黑。
+// 拉黑时默认 skipSteal=skipHelp=true（即黑名单内默认跳过偷菜与帮忙）
 // 与 Node /api/friend-blacklist/toggle 的默认行为一致。
 func toggleBlacklist(accountID string, gid int64, name string, skipSteal, skipHelp bool) (blacklisted bool, entry blacklistEntry) {
 	blacklistMu.Lock()
@@ -913,7 +912,7 @@ func toggleBlacklist(accountID string, gid int64, name string, skipSteal, skipHe
 	return true, e
 }
 
-// updateBlacklistItem 更新黑名单条目的 skipSteal/skipHelp（对齐 Node /api/friend-blacklist/update）
+// updateBlacklistItem 更新黑名单条目的 skipSteal/skipHelp
 func updateBlacklistItem(accountID string, gid int64, skipSteal, skipHelp bool) bool {
 	blacklistMu.Lock()
 	defer blacklistMu.Unlock()
@@ -941,7 +940,7 @@ func addFriendBlacklist(accountID string, gid int64, name string) {
 	writeBlacklist(accountID, m)
 }
 
-// seedKnownFriendGidsFromVisitors 从访客记录获取初始好友 GID（对齐 Node syncKnownFriendGidsFromRecentVisitorsOnce）
+// seedKnownFriendGidsFromVisitors 从访客记录获取初始好友 GID
 func seedKnownFriendGidsFromVisitors(c *gw.Client) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()

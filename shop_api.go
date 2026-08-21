@@ -13,7 +13,7 @@ import (
 )
 
 // ============================================================
-// 商城接口（对齐 Node admin-shop-routes.js + 各 admin-*-shop-routes.js + shop-purchase-routes.js）
+// 商城接口
 // 覆盖：
 //   - GET  /api/shop/seed            种子商店（ShopInfo shop_id=2）
 //   - GET  /api/shop/pet             宠物商店（ShopInfo shop_id=3，白名单）
@@ -39,7 +39,7 @@ var petItemOrder = map[int64]int{90011: 1, 90002: 2, 90003: 3}
 // ---- 装扮商店白名单 ----
 var decorationItemIDs = []int{2130, 2131}
 
-// ---- 道具商城白名单 / 硬编码 Meta / 价格覆盖（对齐 Node admin-mall-routes.js） ----
+// ---- 道具商城白名单 / 硬编码 Meta / 价格覆盖 ----
 var mallOrder = []int64{1002, 1003, 1006}
 var mallPriceOverride = map[int64]int64{1002: 42, 1003: 34, 1006: 33}
 var mallMeta = map[int64]struct {
@@ -52,7 +52,7 @@ var mallMeta = map[int64]struct {
 	1006: {"狗粮礼包", []string{"/game-config/seed_images_named/90004_dog_food_1.png", "/game-config/seed_images_named/90005_dog_food_3.png", "/game-config/seed_images_named/90006_dog_food_5.png"}, "triangle"},
 }
 
-// ---- 神秘商人货币名（对齐 Node CURRENCY_NAMES） ----
+// ---- 神秘商人货币名 ----
 var mysteryCurrencyNames = map[int64]string{1001: "金币", 1002: "点券", 1005: "金豆豆"}
 
 func registerShopAPI(mux *http.ServeMux) {
@@ -80,7 +80,7 @@ func shopClient(r *http.Request) *gw.Client {
 	return c
 }
 
-// getSeedHarvestInfo 对齐 Node getSeedHarvestInfo：exp=plant.exp, seasons=plant.seasons, income=果实单价×果实数
+// getSeedHarvestInfo exp=plant.exp, seasons=plant.seasons, income=果实单价×果实数
 func getSeedHarvestInfo(seedID int) (exp, seasons, income int64) {
 	p, ok := seedToPlantMap[seedID]
 	if !ok {
@@ -108,7 +108,7 @@ func requiredLevelFromConds(conds []proto.GoodsCond) int64 {
 	return 0
 }
 
-// buildSeedGoods 构造种子商品（对齐 Node admin-seed-shop-routes；种子需 itemConfig.type===5）
+// buildSeedGoods 构造种子商品
 func buildSeedGoods(g proto.GoodsInfo, userLevel int64) (map[string]interface{}, bool) {
 	itemID := int(g.ItemID)
 	itemConfig, ok := getItemByID(itemID)
@@ -125,7 +125,7 @@ func buildSeedGoods(g proto.GoodsInfo, userLevel int64) (map[string]interface{},
 		assetName = fmt.Sprintf("Crop_%d", itemID-20000)
 	}
 	name := itemConfig.Name
-	// 展示名优先 effectDesc（对齐 Node admin-seed-shop-routes.js:119 itemConfig.effectDesc || itemConfig.name）
+	// 展示名优先 effectDesc
 	if itemConfig.EffectDesc != "" {
 		name = itemConfig.EffectDesc
 	}
@@ -153,7 +153,7 @@ func buildSeedGoods(g proto.GoodsInfo, userLevel int64) (map[string]interface{},
 	}, true
 }
 
-// buildPetGoods 构造宠物商品（对齐 Node admin-pet-shop-routes；白名单过滤）
+// buildPetGoods 构造宠物商品
 func buildPetGoods(g proto.GoodsInfo, userLevel, userGold, userGoldBean int64) (map[string]interface{}, bool) {
 	itemID := g.ItemID
 	if !petItemIDs[itemID] {
@@ -195,7 +195,7 @@ func buildPetGoods(g proto.GoodsInfo, userLevel, userGold, userGoldBean int64) (
 	}, true
 }
 
-// buildDecorationItem 构造装扮商品（对齐 Node buildDecorationItem；价格取 itemConfig.price 金豆豆，id=itemId）
+// buildDecorationItem 构造装扮商品
 func buildDecorationItem(itemID int, userGoldBean int64) (map[string]interface{}, bool) {
 	itemConfig, ok := getItemByID(itemID)
 	if !ok {
@@ -219,7 +219,7 @@ func buildDecorationItem(itemID int, userGoldBean int64) (map[string]interface{}
 	}, true
 }
 
-// buildMallGoods 构造道具商城商品（对齐 Node admin-mall-routes；白名单+Meta，price 取 override 或解析 bytes）
+// buildMallGoods 构造道具商城商品
 func buildMallGoods(m proto.MallGoods, userTicket int64) (map[string]interface{}, bool) {
 	id := m.GoodsID
 	if _, inOrder := mallPriceOverride[id]; !inOrder {
@@ -259,7 +259,7 @@ func buildMallGoods(m proto.MallGoods, userTicket int64) (map[string]interface{}
 	}, true
 }
 
-// normalizeNPC 对齐 Node normalizeNPC（神秘商人状态归一化，秒级时间戳）
+// normalizeNPC （神秘商人状态归一化，秒级时间戳）
 func normalizeNPC(reply *proto.GetActiveNPCReply) map[string]interface{} {
 	var npcID, itemID, itemType, itemCount, currencyID, price, originalPrice, discount int64
 	purchased := false
@@ -421,7 +421,7 @@ func handleShopMall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userTicket := c.Coupon()
-	// 对齐 Node：worker getMallGoods→getMallGoodsList(0)，但 mall.js 内部 slot_type: Number(slotType)||1，0→1，
+	// worker getMallGoods→getMallGoodsList(0)，但 mall.js 内部 slot_type: Number(slotType)||1，0→1，
 	// 故商城 Tab 实际发送 slot_type=1 而非 0。
 	rep, err := c.Request(r.Context(), "gamepb.mallpb.MallService", "GetMallListBySlotType",
 		proto.EncodeGetMallListBySlotTypeRequest(1), shopRequestTO)

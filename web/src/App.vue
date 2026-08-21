@@ -32,7 +32,7 @@ function isActive(t) {
 }
 
 onMounted(async () => {
-  // 应用持久化的主题（否则刷新后图标与页面主题不一致；对齐 legacy body data-theme）
+  // 应用持久化的主题（否则刷新后图标与页面主题不一致）
   document.documentElement.setAttribute('data-theme', app.theme)
   await account.loadAdminStatus()
   if (account.adminLoggedIn) {
@@ -57,7 +57,7 @@ onMounted(async () => {
 function go(to) {
   router.push(to)
 }
-// 右上角切换账号：弹出 bottom sheet，点击账号直接切换当前账号并整页刷新（对齐 legacy）
+// 右上角切换账号：弹出 bottom sheet，点击账号直接切换当前账号并整页刷新
 const showAcc = ref(false)
 function onSwitchAccount() {
   showAcc.value = true
@@ -117,7 +117,7 @@ function pickAccount(id) {
       </button>
     </nav>
 
-    <!-- 切换账号 bottom sheet（对齐 legacy #sheet，点击账号直接切换并刷新） -->
+    <!-- 切换账号 bottom sheet -->
     <div class="sheet-mask" :class="{ show: showAcc }" @click="showAcc = false"></div>
     <div class="sheet" :class="{ show: showAcc }">
       <div class="handle"></div>

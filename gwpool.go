@@ -22,7 +22,7 @@ type ClientPool struct {
 
 	// 掉线自动重连状态（accountID -> 状态）
 	offlineSince      map[string]time.Time // 首次检测到断线的时间
-	reconnectAttempts map[string]int       // 重连计数（对齐 Node：成功不清零，仅手动停止/踢下线/删除账号时清零）
+	reconnectAttempts map[string]int       // 重连计数
 	stopped           map[string]bool      // 达上限后停止自动重连，直到手动触发/重新连上
 	kickBackoffUntil  map[string]time.Time // 被踢后重连防抖：下次允许重连的最早时间（避免与别处登录互踢自旋）
 	transientClose    map[string]bool      // 最近一次断连为“超时型”（服务端抖动/瞬时限流）：此类重连不计入 reconnectMaxAttempts 上限
@@ -51,7 +51,7 @@ func gwConfig(platform string) gw.Config {
 		// YYB 扫码等渠道本质是 WX 渠道（对标 Node platform='wx'）
 		platform = "wx"
 	}
-	// 客户端版本号从系统配置读取（对齐 Node CONFIG.clientVersion），空则回退默认
+	// 客户端版本号从系统配置读取，空则回退默认
 	cv := models.GetSystemConfig().ClientVersion
 	if cv == "" {
 		cv = "1.13.2.10_20260723"
@@ -85,11 +85,11 @@ func (p *ClientPool) store(accountID string, c *gw.Client) {
 	p.mu.Unlock()
 }
 
-// onKick 被踢下线后的自动重连（对齐 Node kickout → 应用宝离线重连）：
+// onKick 被踢下线后的自动重连：
 // 优先用 YYB openid 刷新 code 再连；带防抖避免与“别处登录”互踢形成自旋。
 // 仅当距上次重连超过冷却窗才执行，否则跳过（交给用户自行解决冲突端）。
 func (p *ClientPool) onKick(accountID string) {
-	// 被踢下线日志（对齐 Node kickout 事件；用户需要知道掉线时间与原因）
+	// 被踢下线日志
 	appendOpLog(accountID, "掉线", "账号在别处登录被踢下线（自动重连中）")
 	p.mu.Lock()
 	if until, ok := p.kickBackoffUntil[accountID]; ok && time.Now().Before(until) {
@@ -140,8 +140,8 @@ func connect(acc *models.Account) (*gw.Client, error) {
 		appendOpLog(acc.ID, "掉线", reason+"（自动重连中）")
 	})
 	c.Prime() // 登录后立即预拉首页数据缓存
-	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine（对齐 Node 单线程）
-	// 对齐 Node network.js:583-584：登录成功后 startHeartbeat() + startAceService()
+	// 游戏网络心跳已并入账号串行执行线（automationLoop 驱动），不再起独立 goroutine
+	// 583-584：登录成功后 startHeartbeat + startAceService
 	// ACE 上报服务随连接关闭自动停止（监听 Done()）
 	aceSvc := startAceService(c, acc.ID) // 注册进账号 ACE 表，由 automationLoop 统一串行线驱动
 	go func() {
@@ -149,7 +149,7 @@ func connect(acc *models.Account) (*gw.Client, error) {
 		aceSvc.stop()
 		removeAceService(acc.ID)
 		dropAccountWork(acc.ID)
-		// 连接关闭/掉线 → 停止该账号自动化（对齐 Node：worker 随 socket 断开而停止）
+		// 连接关闭/掉线 → 停止该账号自动化
 		stopAutomationForAccount(acc.ID)
 	}()
 	appendOpLog(acc.ID, "系统", fmt.Sprintf("登录成功: %s (Lv%d)", c.UserName(), c.Level()))
@@ -177,10 +177,10 @@ func refreshCodeFromYyb(acc *models.Account) (string, error) {
 	return getCodeFromYyb(apiBase, apiKey, acc.OpenID, "")
 }
 
-// connectLocked 单飞连接：同一账号同时只有一个 connect 在进行（对齐 Node 单线程登录语义）。
+// connectLocked 单飞连接：同一账号同时只有一个 connect 在进行。
 // 并发调用方（前端多请求 Get / onKick / scanAutoReconnect / 手动重试）共享同一次登录结果，
 // 避免多连接并发登录触发游戏“账号已在其他地方登录”自踢死循环。
-// 连接失败且 code 疑似过期时，用 openid 自动刷新一次后重试（对齐 Node refreshYybCodeIfNeeded）。
+// 连接失败且 code 疑似过期时，用 openid 自动刷新一次后重试。
 func (p *ClientPool) connectLocked(acc *models.Account) (*gw.Client, error) {
 	p.mu.Lock()
 	if ch, ok := p.inflight[acc.ID]; ok {
@@ -205,7 +205,7 @@ func (p *ClientPool) connectLocked(acc *models.Account) (*gw.Client, error) {
 	if err == nil {
 		loadAssetsAsync(acc.ID, c)
 		p.store(acc.ID, c)
-		// 连接成功后才启动自动化（对齐 Node：worker 随连接存在）
+		// 连接成功后才启动自动化
 		startAutomationForAccount(acc.ID)
 	}
 
@@ -225,7 +225,7 @@ func resolveAccountID(accountID string) string {
 }
 
 // Get 获取账号的活跃网关连接；无连接时用 code 连接；
-// code 过期失败时尝试用 openid 自动刷新 code 后重连（对齐 Node refreshYybCodeIfNeeded）
+// code 过期失败时尝试用 openid 自动刷新 code 后重连
 func (p *ClientPool) Get(accountID string) (*gw.Client, error) {
 	accountID = resolveAccountID(accountID)
 	if accountID == "" {
@@ -273,7 +273,7 @@ func (p *ClientPool) evict(accountID string) {
 		old.Close()
 		delete(p.m, accountID)
 	}
-	// 对齐 Node：踢下线/删除账号时清零重连计数与状态
+	// 踢下线/删除账号时清零重连计数与状态
 	delete(p.offlineSince, accountID)
 	delete(p.reconnectAttempts, accountID)
 	delete(p.stopped, accountID)
@@ -281,7 +281,7 @@ func (p *ClientPool) evict(accountID string) {
 	p.mu.Unlock()
 }
 
-// UpdateClientVersion 热更新所有已连接账号的客户端版本号（保存系统配置后秒级生效，对齐 Node config_sync，无需重启）
+// UpdateClientVersion 热更新所有已连接账号的客户端版本号（保存系统配置后秒级生效，，无需重启）
 func (p *ClientPool) UpdateClientVersion(v string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

@@ -13,13 +13,13 @@ import (
 )
 
 // ============================================================
-// 掉线自动重连（对齐 Node core/src/runtime/worker-manager.js + utils/network.js）
+// 掉线自动重连
 // 状态机：online →(断线/心跳连续miss)→ offline →(延迟 reconnectDelayMin)→ 换code重连
 //   → 成功 → online（重连成功**不清零**计数）
 //   → 失败 → 计数保持，延迟后重试；调度前 current >= maxAttempts → stopped（停止）
 // 计数仅在「手动停止 / 踢下线 / 删除账号」时清零。
 // 特例：超时型断连（服务端抖动/瞬时限流）不计入 reconnectMaxAttempts 上限——此类断连非账号故障，
-// 首次检测到时即重置计数/停止态，使其被持续重连直至恢复（对齐 Node 对瞬断容忍的意图）。
+// 首次检测到时即重置计数/停止态，使其被持续重连直至恢复。
 // ============================================================
 
 // StartAutoReconnect 启动后台自动重连扫描（在 main 初始化后调用一次）
@@ -43,7 +43,7 @@ type reconnectTarget struct {
 }
 
 // scanAutoReconnect 扫描所有连接的断线状态；满足延迟条件的账号调度重连。
-// 对齐 Node：autoReconnect=false 或 reconnectDelayMin<=0 → 直接不重连。
+// autoReconnect=false 或 reconnectDelayMin<=0 → 直接不重连。
 // 调度前读当前重连计数，current >= maxAttempts → 停止并删计数；否则 current+1 存入再执行。
 func (p *ClientPool) scanAutoReconnect() {
 	var toReconnect []reconnectTarget
@@ -78,7 +78,7 @@ func (p *ClientPool) scanAutoReconnect() {
 			if now.Sub(since) >= time.Duration(cfg.ReconnectDelayMin)*time.Minute {
 				// 超时型断连（非账号故障）不受 reconnectMaxAttempts 上限约束：持续重连直至恢复。
 				if !p.transientClose[id] {
-					// 调度前检查计数（对齐 Node：先读 current，达到上限即停止并删计数）
+					// 调度前检查计数
 					attempts := p.reconnectAttempts[id]
 					if attempts >= cfg.ReconnectMaxAttempts {
 						p.stopped[id] = true
@@ -92,7 +92,7 @@ func (p *ClientPool) scanAutoReconnect() {
 				toReconnect = append(toReconnect, reconnectTarget{id: id})
 			}
 		} else {
-			// 连接健康：清除断线时间与停止态，但**保留重连计数**（对齐 Node 成功不清零）
+			// 连接健康：清除断线时间与停止态，但**保留重连计数**
 			toReset = append(toReset, id)
 		}
 	}
@@ -154,7 +154,7 @@ func (p *ClientPool) reconnectAccount(accountID string) {
 		return
 	}
 
-	// 成功：清断线/停止态；**保留重连计数**（对齐 Node）。连接与资产已在 connectLocked 内完成。
+	// 成功：清断线/停止态；**保留重连计数**。连接与资产已在 connectLocked 内完成。
 	p.mu.Lock()
 	delete(p.offlineSince, accountID)
 	delete(p.stopped, accountID)
@@ -178,7 +178,7 @@ func (p *ClientPool) TryReconnectNow(accountID string) {
 		log.Printf("[reconnect] 账号 %s 连接健康，无需重连", accountID)
 		return
 	}
-	// 手动触发：先重置状态（对齐 Node 手动操作清零），再执行重连
+	// 手动触发：先重置状态，再执行重连
 	p.resetAutoReconnect(accountID)
 	p.reconnectAccount(accountID)
 }
@@ -299,7 +299,7 @@ func handleReconnectConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, "保存失败: "+err.Error())
 			return
 		}
-		// 修改配置后重置计数/停止态（对齐 Node：手动操作清零）
+		// 修改配置后重置计数/停止态
 		clientPool.resetAutoReconnect(accountID)
 		writeJSON(w, map[string]interface{}{"ok": true, "accountId": accountID, "enabled": enabled})
 	default:

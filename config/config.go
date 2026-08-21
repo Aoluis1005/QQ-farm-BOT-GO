@@ -28,7 +28,7 @@ type AutomationConfig struct {
 	Fertilizer              string `json:"fertilizer"`           // 施肥模式 (smart_normal/smart_only/both/organic...)
 	FertilizerMultiSeason   bool   `json:"fertilizer_multi_season"` // 多季补肥
 	FertilizerSmartSeconds  int    `json:"fertilizer_smart_seconds"`  // 快成熟判定秒数
-	FertilizerLandTypes     []string `json:"fertilizer_land_types"`   // 施肥范围土地类型（对齐 Node DEFAULT_AUTOMATION.fertilizer_land_types）
+	FertilizerLandTypes     []string `json:"fertilizer_land_types"`   // 施肥范围土地类型
 	SkipOwnWeedBug          bool   `json:"skip_own_weed_bug"`   // 不除自己草虫
 	GoldenBugClear          bool   `json:"golden_bug_clear"`    // 自动清除黄金虫
 }
@@ -60,7 +60,7 @@ type AutoCodeRefreshConfig struct {
 	IntervalMinutes int  `json:"intervalMinutes"` // 默认 60
 }
 
-// AutoReconnectConfig 掉线自动重连配置（字段名对齐 Node core/src/config）
+// AutoReconnectConfig 掉线自动重连配置（字段名）
 // 断线后延迟 reconnectDelayMin 分钟，走内置 YYB 换 code 重建连接；
 // 重连计数器只在「手动停止/踢下线/删除账号」时清零，自动重连成功不清零；
 // 调度前 current >= reconnectMaxAttempts 则停止重连。
@@ -186,7 +186,7 @@ type GlobalConfig struct {
 	AccountConfigs           map[string]AccountConfig `json:"accountConfigs"`
 	DefaultAccountConfig      AccountConfig         `json:"defaultAccountConfig"`
 	UserDefaultAccountPlans  map[string]AccountConfig `json:"userDefaultAccountPlans"`
-	DefaultPlanEnabled       bool                 `json:"defaultPlanEnabled"`       // 新账号自动应用默认方案（对齐 Node plan.enabled）
+	DefaultPlanEnabled       bool                 `json:"defaultPlanEnabled"`       // 新账号自动应用默认方案
 	DefaultPlanUpdatedAt     int64                `json:"defaultPlanUpdatedAt"`     // 默认方案最后保存时间
 	AdminPasswordHash        string               `json:"adminPasswordHash"`
 	SystemConfig             SystemConfig         `json:"systemConfig"`
@@ -324,7 +324,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		AccountConfigs:          make(map[string]AccountConfig),
 		DefaultAccountConfig:     DefaultAccountConfig(),
 		UserDefaultAccountPlans: make(map[string]AccountConfig),
-		DefaultPlanEnabled:      true, // 新账号自动应用默认方案（对齐 Node plan.enabled 默认 true）
+		DefaultPlanEnabled:      true, // 新账号自动应用默认方案
 		SystemConfig:            DefaultSystemConfig(),
 		CaptureConfig:           DefaultCaptureConfig(),
 		GlobalWxConfig:          DefaultGlobalWxConfig(),

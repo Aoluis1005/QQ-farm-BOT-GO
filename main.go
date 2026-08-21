@@ -24,7 +24,6 @@ var dataDir string
 // 注意：必须用 all: 前缀，否则 embed 默认跳过文件名以 _ 或 . 开头的文件；
 // Vite 产出的共享块 _plugin-vue_export-helper-*.js 以 _ 开头，漏嵌会导致该块
 // 线上返回 index.html(content-type=text/html) → 浏览器解析模块报错 → 整页黑屏。
-//
 //go:embed all:web/dist
 var webDistFS goembed.FS
 
@@ -88,10 +87,10 @@ func main() {
 	// 启动后台掉线自动重连扫描（增强：不破坏现有懒重连，Get() 仍可用）
 	clientPool.StartAutoReconnect(context.Background())
 
-	// 启动神秘商人自动购买（对齐 Node mystery-scheduler.js，60 分钟一轮）
+	// 启动神秘商人自动购买
 	startMysteryAutoBuyLoop(context.Background())
 
-	// 启动时为所有已配置账号建立初始连接（对齐 Node 启动即 startWorker，保证账号列表在线状态准确）。
+	// 启动时为所有已配置账号建立初始连接。
 	// 后台异步执行，不阻塞 HTTP 启动；失败仅记录（重连/懒连接兜底）。
 	go func() {
 		for _, acc := range models.GetAccounts() {
@@ -101,7 +100,7 @@ func main() {
 		}
 	}()
 
-	// 启动所有账号的自动化引擎（对齐 Node 启动即 startWorker）
+	// 启动所有账号的自动化引擎
 	startAllAutomation()
 
 	// 启动时扫描 game-config/seed_images_named，建立 itemId → 图片URL 映射（working dir 为游戏配置根目录）

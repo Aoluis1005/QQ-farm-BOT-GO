@@ -9,9 +9,8 @@ import (
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
-// 每日任务（对齐 Node core/src/services/task.js + core/src/proto/taskpb.proto）
-// 字段号对齐 taskpb.proto：
-//
+// 每日任务
+// 字段号
 //	TaskInfo: growth_tasks=1, daily_tasks=2, tasks=3, actives=4
 //	Task: id=1, progress=2, is_claimed=3(bool), is_unlocked=4, total_progress=6, desc=9, task_type=10
 //	TaskInfoReply: task_info=1
@@ -64,7 +63,7 @@ func handleTaskDaily(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	body, err := rpcRequest(ctx, accountID, taskSvc, "TaskInfo", []byte{}, 20*time.Second)
 	if err != nil {
-		// 部分环境 TaskInfo 不可用：返回空而非报错（对齐 Node catch 返回空结构）
+		// 部分环境 TaskInfo 不可用：返回空而非报错
 		writeJSON(w, map[string]interface{}{
 			"ok": true, "account": accountID,
 			"growth": []taskItem{}, "daily": []taskItem{}, "err": err.Error(),
@@ -77,7 +76,6 @@ func handleTaskDaily(w http.ResponseWriter, r *http.Request) {
 	dailyRaw := parseTaskList(fs, 2)  // daily_tasks
 	mainRaw := parseTaskList(fs, 3)   // tasks
 
-	// 对齐 Node buildDailyTasksForDebug / buildGrowthTasks：
 	// 部分服务器不单独下发 daily_tasks/growth_tasks，而是把每日/成长任务混在 tasks(field3)
 	// 里用 task_type 标识（每日=2, 成长=1）。此时 daily_tasks/growth_tasks 为空，需按 task_type 回退筛选，
 	// 否则每日任务页永远拿到空列表（用户反馈"每日任务无数据"的后端根因）。
@@ -182,7 +180,7 @@ func handleTaskClaim(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/task/daily-gifts 每日礼包领取状态（商城免费礼/分享/邮件/月卡/会员）
 // POST /api/task/daily-gifts/claim body: { type: "mall"|"share"|"email"|"monthcard"|"vip"|"all" }
-//   手动触发对应每日礼包领取（对齐 Node runDailyRoutines 每日例行五件套）
+//   手动触发对应每日礼包领取
 func handleTaskDailyGifts(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	if accountID == "" {

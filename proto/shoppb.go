@@ -1,14 +1,14 @@
 package proto
 
-// gamepb.shoppb 商店编解码（对齐 Node core/src/proto/shoppb.proto）
+// gamepb.shoppb 商店编解码
 
-// GoodsCond 商品购买条件（对齐 Node Cond；type 1=MIN_LEVEL, 2=UNLOCK_CARD）
+// GoodsCond 商品购买条件
 type GoodsCond struct {
 	Type  int64
 	Param int64
 }
 
-// GoodsInfo 商品信息（对齐 Node GoodsInfo）
+// GoodsInfo 商品信息
 type GoodsInfo struct {
 	ID         int64 // 商品ID（购买用）
 	BoughtNum  int64 // 已购买数量
@@ -25,7 +25,7 @@ type ShopInfoReply struct {
 	GoodsList []GoodsInfo
 }
 
-// EncodeShopInfoRequest 对齐 Node ShopInfoRequest{shop_id=1}
+// EncodeShopInfoRequest 
 func EncodeShopInfoRequest(shopID int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, shopID)
@@ -93,14 +93,14 @@ func decodeGoodsInfo(buf []byte) GoodsInfo {
 	return g
 }
 
-// BuyGoodsReply 购买商品回复（对齐 Node BuyGoodsReply）
+// BuyGoodsReply 购买商品回复
 type BuyGoodsReply struct {
 	Goods    GoodsInfo
 	GetItems []ItemChange
 	CostItems []ItemChange
 }
 
-// ItemChange 购买后的获得/消耗物品变更（对齐 corepb.Item -> id/count）
+// ItemChange 购买后的获得/消耗物品变更
 type ItemChange struct {
 	ID    int64
 	Count int64
@@ -141,7 +141,7 @@ func DecodeBuyGoodsReply(buf []byte) *BuyGoodsReply {
 	return rep
 }
 
-// EncodeBuyGoodsRequest 对齐 Node BuyGoodsRequest{goods_id=1,num=2,price=3}
+// EncodeBuyGoodsRequest ,num=2,price=3}
 func EncodeBuyGoodsRequest(goodsID, num, price int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, goodsID)

@@ -1,7 +1,6 @@
 package proto
 
-// gamepb.emailpb 邮件编解码（对齐 Node core/src/proto/emailpb.proto）
-//
+// gamepb.emailpb 邮件编解码
 //	GetEmailListRequest { int32 box_type=1 }
 //	EmailItem { string id=1; int32 mail_type=2; string title=3; bool claimed=4;
 //	            bool has_reward=5; int64 sent_at=6; string subtitle=7; int64 status_time=8 }

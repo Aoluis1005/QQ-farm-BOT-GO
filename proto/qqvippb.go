@@ -1,7 +1,6 @@
 package proto
 
-// gamepb.qqvippb QQ会员编解码（对齐 Node core/src/proto/qqvippb.proto）
-//
+// gamepb.qqvippb QQ会员编解码
 //	GetQQVipRewardsStatusRequest {}
 //	QQVipRewardStatus { bool enabled=1; bytes rewards=2; int64 vip_level=3; int64 activity_id=4;
 //	                    int32 reward_type=5; bool can_claim=6; int64 begin_time=7; int64 end_time=8 }

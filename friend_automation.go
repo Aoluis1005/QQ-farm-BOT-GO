@@ -36,25 +36,24 @@ func logBadCandidates(accountID string, n int) {
 }
 
 // ============================================================
-// 好友自动巡查引擎（对齐 Node core/worker.js unifiedScheduler：
+// 好友自动巡查引擎
 // runStealTick 25–30s 偷菜 / runHelpTick 30–35s 帮忙+捣乱 / friend-orchestrator.js checkFriends）。
-//
 // 每日操作上限来自服务端 operation_limits（proto 已补解码，见 proto/plantpb.go OperationLimit）：
 // 每次好友操作 reply 经 execFriendOp → updateOperationLimits 写入缓存，含 UTC+8 跨日重置。
 // 偷(10004)/帮(10001-10003)/放虫草(10005-10006) 次数上限优先用服务端 day_times_lt，
-// 放虫草再以本地计数兜底（对齐 Node localBadOperationCount）。黄金虫放置因 proto 无 social_items，跳过。
+// 放虫草再以本地计数兜底。黄金虫放置因 proto 无 social_items，跳过。
 // ============================================================
 
-// guardDogID 护主犬物品 ID（0x15FA5），对齐 Node friend-visit.js dogId=90021
+// guardDogID 护主犬物品 ID（0x15FA5）
 const guardDogID = 90021
 
-// 每轮帮忙农场数上限（对齐参考 GO maxHelpTargetsPerCycle）
+// 每轮帮忙农场数上限
 const maxHelpTargetsPerCycle = 24
-// 偷到后下一轮快扫间隔（对齐参考 GO rapidStealInterval）
+// 偷到后下一轮快扫间隔
 const rapidStealInterval = time.Second
 
-// 极速务农护主犬分批的轮换起点（对齐 node friend-orchestrator turboRoundIndex：
-// 避免每轮都取列表头导致后排护主犬永远轮不到）
+// 极速务农护主犬分批的轮换起点
+// 避免每轮都取列表头导致后排护主犬永远轮不到
 // ft 好友候选（gid/level/need 用于排序；need 越大越优先帮忙）——包级定义，供护主犬轮换分片使用
 type ft struct {
 	gid   int64
@@ -90,7 +89,7 @@ func mustInt(s string) int {
 	return v
 }
 
-// computeEffectiveTurbo 极速务农当前是否「生效」（对齐 node friend-orchestrator computeEffectiveTurbo）：
+// computeEffectiveTurbo 极速务农当前是否「生效」：
 // 总开关关 → 不生效；未启用定时 → 持续生效；启用定时 → 仅北京时间落在设定段 [start,end) 内生效，段外正常巡查
 func computeEffectiveTurbo(cfg config.AccountConfig) bool {
 	a := cfg.Automation
@@ -108,7 +107,7 @@ func computeEffectiveTurbo(cfg config.AccountConfig) bool {
 	return now >= win[0] && now < win[1]
 }
 
-// rotateTargets 从轮换起点取 limit 个候选并推进回绕（对齐 node turboRoundIndex），保证全部护主犬都被覆盖
+// rotateTargets 从轮换起点取 limit 个候选并推进回绕，保证全部护主犬都被覆盖
 func rotateTargets(targets []ft, limit int) []ft {
 	n := len(targets)
 	if n <= limit {
@@ -124,13 +123,13 @@ func rotateTargets(targets []ft, limit int) []ft {
 	return chunk
 }
 
-// badFailLimit 捣乱连续失败暂停阈值（对齐 Node BAD_FAILURE_LIMIT）
+// badFailLimit 捣乱连续失败暂停阈值
 const badFailLimit = 3
 
 // badPauseDuration 捣乱连续失败后暂停时长
 const badPauseDuration = 12 * time.Hour
 
-// 好友操作类型 ID（对齐 Node friend-operation-limits.js OP_NAMES）
+// 好友操作类型 ID
 const (
 	opHelpWater = 10001
 	opHelpWeed  = 10002
@@ -139,23 +138,23 @@ const (
 	opBadWeed   = 10006 // 给好友放草
 )
 
-// badDailyLimit 每日放虫/放草次数上限（对齐 Node friend-operation-limits.js BAD_DAILY_LIMIT=100）
+// badDailyLimit 每日放虫/放草次数上限
 const badDailyLimit = 100
 
-// ===== 服务端 operation_limits 缓存（对齐 Node friend-operation-limits.js operationLimits Map） =====
-// 注意：Node 每账号独立进程（fork），模块级全局即单账号；Go 多账号共享进程内存，
+// ===== 服务端 operation_limits 缓存 =====
+// 注意：Node 每账号独立进程（fork）模块级全局即单账号；Go 多账号共享进程内存，
 // 故这里必须按 accountID 分桶，否则账号间互相污染（经验上限/操作次数跨账号生效）。
 var (
 	opLimitsMu    sync.Mutex
 	opLimits      = map[string]map[int64]*opLimitState{} // accountID -> opID -> state
 	opLimitsKey   string                                 // UTC+8 日期，跨日重置
-	canGetHelpExp = map[string]bool{}                    // accountID -> 经验上限后仅帮护主犬（对齐 Node canGetHelpExp）
+	canGetHelpExp = map[string]bool{}                    // accountID -> 经验上限后仅帮护主犬
 
-	// VisitorList 首次拉取标志（对齐 Node 首次加载用 VisitorList 做初始 friendList）
+	// VisitorList 首次拉取标志
 	firstFriendFetchMu   sync.Mutex
 	firstFriendFetchDone = map[string]bool{}
 
-	// expLimitCallback 经验上限跨日重置回调（对齐 Node ensureExpLimitCallback）
+	// expLimitCallback 经验上限跨日重置回调
 	// reached 回调带 accountID（Go 多账号共享进程，必须按触发账号持久化，不能写死默认账号）
 	onExpLimitReachedFn func(accountID string)
 	onExpLimitResetFn   func()
@@ -203,13 +202,13 @@ func clearBadPausedNotified(accountID string) {
 	badPausedMu.Unlock()
 }
 
-// ===== 防并发（对齐 Node isCheckingFriends） =====
+// ===== 防并发 =====
 var (
 	checkingFriendsMu sync.Mutex
 	isCheckingFriends bool
 )
 
-// ===== 捣乱连续失败暂停状态（按账号隔离；对齐 Node recordBadFailure + pauseFriendBadUntilTomorrow） =====
+// ===== 捣乱连续失败暂停状态（按账号隔离） =====
 var (
 	badFailMu      sync.Mutex
 	badFailCount   = map[string]int{}       // accountID -> 连续失败次数
@@ -225,7 +224,7 @@ func checkOpLimitsDailyReset() {
 		if prevKey != "" {
 			opLimits = map[string]map[int64]*opLimitState{}
 			canGetHelpExp = map[string]bool{}
-			// 调用跨日重置回调（对齐 Node onExpLimitResetCallback：清持久化经验上限标志）
+			// 调用跨日重置回调
 			if onExpLimitResetFn != nil {
 				onExpLimitResetFn()
 			}
@@ -246,18 +245,18 @@ func checkOpLimitsDailyReset() {
 	badDailyMu.Unlock()
 }
 
-// setOnExpLimitReachedCallback 注册经验上限回调（对齐 Node setOnExpLimitReachedCallback）
+// setOnExpLimitReachedCallback 注册经验上限回调
 // fn 接收触发账号的 accountID（Go 多账号共享进程，持久化必须按账号）
 func setOnExpLimitReachedCallback(fn func(accountID string)) {
 	onExpLimitReachedFn = fn
 }
 
-// setOnExpLimitResetCallback 注册跨日重置回调（对齐 Node setOnExpLimitResetCallback）
+// setOnExpLimitResetCallback 注册跨日重置回调
 func setOnExpLimitResetCallback(fn func()) {
 	onExpLimitResetFn = fn
 }
 
-// updateOperationLimits 从每次农场/好友操作 reply 的 operation_limits 刷新缓存（对齐 Node updateOperationLimits）
+// updateOperationLimits 从每次农场/好友操作 reply 的 operation_limits 刷新缓存
 func updateOperationLimits(accountID string, limits []proto.OperationLimit) {
 	if len(limits) == 0 {
 		return
@@ -283,7 +282,7 @@ func updateOperationLimits(accountID string, limits []proto.OperationLimit) {
 	}
 }
 
-// canOperate 操作次数是否未达上限（对齐 Node canOperate(opId, fallbackLimit)）
+// canOperate 操作次数是否未达上限（(opId, fallbackLimit)）
 func canOperate(accountID string, opID, fallback int64) bool {
 	checkOpLimitsDailyReset()
 	opLimitsMu.Lock()
@@ -311,7 +310,7 @@ func getOperationDayTimes(accountID string, opID int64) int64 {
 	return 0
 }
 
-// canGetExp 今日是否还能获得经验（对齐 Node canGetExp(opId)）
+// canGetExp 今日是否还能获得经验（(opId)）
 func canGetExp(accountID string, opID int64) bool {
 	opLimitsMu.Lock()
 	defer opLimitsMu.Unlock()
@@ -330,7 +329,7 @@ func getCanGetHelpExp(accountID string) bool {
 	defer opLimitsMu.Unlock()
 	v, ok := canGetHelpExp[accountID]
 	if !ok {
-		return true // 未触发过经验上限的账号默认可帮忙（对齐 Node canGetHelpExp 初始 true）
+		return true // 未触发过经验上限的账号默认可帮忙
 	}
 	return v
 }
@@ -341,21 +340,21 @@ func setCanGetHelpExp(accountID string, v bool) {
 	canGetHelpExp[accountID] = v
 }
 
-// autoDisableHelpByExpLimit 经验满后自动切换仅帮护主犬模式（对齐 Node autoDisableHelpByExpLimit）
+// autoDisableHelpByExpLimit 经验满后自动切换仅帮护主犬模式
 func autoDisableHelpByExpLimit(accountID string) {
 	if !getCanGetHelpExp(accountID) {
 		return
 	}
 	setCanGetHelpExp(accountID, false)
 	appendOpLog(accountID, "friend", "今日帮助经验已达上限，自动停止普通帮忙，仅帮助护主犬好友")
-	// 持久化经验上限状态（对齐 Node onExpLimitReachedCallback → applyConfigSnapshot）
+	// 持久化经验上限状态
 	if onExpLimitReachedFn != nil {
 		onExpLimitReachedFn(accountID)
 	}
 }
 
-// detectExpFull 帮忙后通过 exp 增量比对判定经验是否已满（对齐 Node helpWater 内的 detectExpFull：
-// 每次 help RPC 后 sleep 200ms，比对 expBefore vs expAfter，若 expAfter <= expBefore 则判定经验满）
+// detectExpFull 帮忙后通过 exp 增量比对判定经验是否已满
+// 每次 help RPC 后 sleep 200ms，比对 expBefore vs expAfter，若 expAfter <= expBefore 则判定经验满
 func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
 	expAfter := c.Exp()
 	if expAfter <= expBefore {
@@ -364,9 +363,9 @@ func detectExpFull(c *gw.Client, expBefore int64, accountID string) {
 }
 
 // getBadRemainingTimes 今日放虫/草剩余次数（上限 - max(服务端放虫+放草次数, 本地成功计数)）
-// 对齐 Node getBadRemainingTimes()=max(0, BAD_DAILY_LIMIT(100) - getBadOperationUsedCount())，
+// =max(0, BAD_DAILY_LIMIT(100) - getBadOperationUsedCount)，
 // getBadOperationUsedCount = max(dayTimes(10005放虫)+dayTimes(10006放草), 本地成功计数)。
-// 服务端对放虫/放草 dayTimes 每日重置（0点），故能正确反映当日剩余；到 100 即停。
+// 服务端对放虫/放草 dayTimes 每日重置（0点）故能正确反映当日剩余；到 100 即停。
 func getBadRemainingTimes(accountID string) int64 {
 	checkOpLimitsDailyReset() // 跨 UTC+8 0点清空旧缓存，保证次日重新按当天额度计算
 	if isBadOperationLimitReached(accountID) {
@@ -424,7 +423,7 @@ func isBadOperationLimitReached(accountID string) bool {
 	return badOperationLimitReached[accountID]
 }
 
-// ===== 捣乱连续失败暂停（对齐 Node recordBadFailure + pauseFriendBadUntilTomorrow） =====
+// ===== 捣乱连续失败暂停 =====
 
 func isBadPaused(accountID string) bool {
 	badFailMu.Lock()
@@ -464,7 +463,7 @@ func recordBadFailure(accountID, reason string) bool {
 	return false
 }
 
-// isIgnorableBadFailureMessage 可忽略的捣乱失败消息（对齐 Node isIgnorableBadFailureMessage）
+// isIgnorableBadFailureMessage 可忽略的捣乱失败消息
 func isIgnorableBadFailureMessage(msg string) bool {
 	ignorable := []string{"??", "No target", "?????", "1001046", "used up", "no target",
 		"没有可捣乱土地", "捣乱失败或今日次数已用完", "今日次数已用完", "次数已用完",
@@ -481,19 +480,19 @@ func isIgnorableBadFailureMessage(msg string) bool {
 	return false
 }
 
-// checkFriends 好友巡查主流程（对齐 Node friend-orchestrator.js checkFriends：
+// checkFriends 好友巡查主流程
 // 偷 → 卖 → 帮 → 捣；护主犬信息随进入好友农场时刷新，见 doFriendOperation 内 cacheFriendDog）。
-// bootstrapFriendDogInfoCacheIfNeeded 护主犬缓存刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded）
-// 【2026-08-19】主动全量刷新已删除（对齐 Node 2026-08-15 决定）：周期遍历全部好友逐个
+// bootstrapFriendDogInfoCacheIfNeeded 护主犬缓存刷新
+// 【2026-08-19】主动全量刷新已删除：周期遍历全部好友逐个
 // enterFriendFarm 查狗（452 好友串行 ~90 秒、~900 个 RPC）会压垮 WS 连接导致掉线。
-// 狗信息只靠日常偷菜/帮忙被动收集（doFriendOperation Enter 后 cacheFriendDog），
+// 狗信息只靠日常偷菜/帮忙被动收集（doFriendOperation Enter 后 cacheFriendDog）
 // 手动刷新走面板按钮 /api/friends/fetch-dog-info。保留函数名避免调用点改动。
 func bootstrapFriendDogInfoCacheIfNeeded(c *gw.Client, accountID string, friends []*proto.GameFriend) {
 	return
 }
 
 func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, onlySteal, onlyHelp bool) int64 {
-	// 防并发（对齐 Node isCheckingFriends 互斥）
+	// 防并发
 	checkingFriendsMu.Lock()
 	if isCheckingFriends {
 		checkingFriendsMu.Unlock()
@@ -507,18 +506,18 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		checkingFriendsMu.Unlock()
 	}()
 
-	// 整轮巡查超时兜底（对齐参考 GO 每轮 45s/90s ctx）：单轮卡死不拖死后续调度
+	// 整轮巡查超时兜底：单轮卡死不拖死后续调度
 	scanStart := time.Now()
 	const scanDeadline = 90 * time.Second
 	scanTimedOut := func() bool { return time.Since(scanStart) > scanDeadline }
 	var stolenTotal int64
 
-	// 静默时段检查（对齐 Node inFriendQuietHours）
+	// 静默时段检查
 	if inQuietHours(cfg) {
 		return 0
 	}
 
-	// 从持久化配置恢复经验上限状态（对齐 Node checkFriends 开头恢复 friendHelpExpExhausted）
+	// 从持久化配置恢复经验上限状态
 	if cfg.FriendHelpExpExhausted && getCanGetHelpExp(accountID) {
 		setCanGetHelpExp(accountID, false)
 		appendOpLog(accountID, "friend", "从配置恢复：经验已达上限状态，仅帮助护主犬好友")
@@ -529,7 +528,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	if acc != nil && acc.Platform != "" {
 		platform = acc.Platform
 	}
-	// 首次加载：额外调用 VisitorList RPC 合并初始好友列表（对齐 Node 首次用 VisitorList 做初始 friendList）
+	// 首次加载：额外调用 VisitorList RPC 合并初始好友列表
 	firstFriendFetchMu.Lock()
 	if !firstFriendFetchDone[accountID] {
 		firstFriendFetchMu.Unlock()
@@ -563,7 +562,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		return 0
 	}
 
-	// 好友名查表（供巡查明细日志显示「偷了谁/帮谁」，对齐 Node 逐好友日志）
+	// 好友名查表（供巡查明细日志显示「偷了谁/帮谁」）
 	nameByGID := make(map[int64]string, len(friends))
 	for _, f := range friends {
 		if f != nil {
@@ -571,7 +570,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	// 护主犬缓存全量刷新（对齐 Node bootstrapFriendDogInfoCacheIfNeeded，周期按用户要求 60min）
+	// 护主犬缓存全量刷新
 	bootstrapFriendDogInfoCacheIfNeeded(c, accountID, friends)
 
 	bl := readBlacklist(accountID)
@@ -593,11 +592,11 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	helpExpReached := expLimitEnabled && !getCanGetHelpExp(accountID)
 	for _, f := range friends {
 		if f == nil || f.GID <= 0 || f.GID == c.GID {
-			continue // 排除无效项与账号自身（对齐 Node checkFriends 内 gid===userState.gid continue）
+			continue // 排除无效项与账号自身
 		}
 		skSteal, skHelp := isBlacklisted(f.GID)
 		p := f.Plant
-		// 偷菜目标：steal_plant_num > 0，按等级降序（对齐 Node stealTargets level desc）
+		// 偷菜目标：steal_plant_num > 0，按等级降序
 		if !onlyHelp && !skSteal && p != nil && p.StealPlantNum > 0 {
 			stealTargets = append(stealTargets, ft{f.GID, f.Level, p.StealPlantNum})
 		}
@@ -618,7 +617,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			}
 			helpTargets = append(helpTargets, ft{f.GID, f.Level, need})
 		}
-		// 捣乱目标：空农场（无作物或全 0），按等级降序（对齐 Node 空农场候选 level desc 前 20）
+		// 捣乱目标：空农场（无作物或全 0）按等级降序
 		if !onlySteal && !skHelp && !skSteal {
 			empty := p == nil || (p.StealPlantNum == 0 && p.DryNum == 0 && p.WeedNum == 0 && p.InsectNum == 0)
 			if empty {
@@ -630,13 +629,13 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	sort.Slice(stealTargets, func(i, j int) bool { return stealTargets[i].level > stealTargets[j].level })
 	sort.Slice(helpTargets, func(i, j int) bool { return helpTargets[i].need > helpTargets[j].need })
 	sort.Slice(badTargets, func(i, j int) bool { return badTargets[i].level > badTargets[j].level })
-	// 仅前 20 名空农场参与捣乱（对齐 Node 空农场候选 level desc 前 20）
+	// 仅前 20 名空农场参与捣乱
 	if len(badTargets) > 20 {
 		badTargets = badTargets[:20]
 	}
 	logBadCandidates(accountID, len(badTargets))
 
-	// 1. 偷菜（对齐 Node 执行 steal → visitFriendForSteal）
+	// 1. 偷菜
 	if !onlyHelp {
 		for _, t := range stealTargets {
 			if !canOperate(accountID, opSteal, 0) || scanTimedOut() {
@@ -650,7 +649,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 				stolenTotal += res.Count
 			}
 		}
-		// 偷完自动卖果实（对齐 Node sellAllFruits）
+		// 偷完自动卖果实
 		if len(stealTargets) > 0 {
 			autoSellAfterHarvest(accountID, c)
 		}
@@ -658,7 +657,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 2. 帮忙
 	if !onlySteal {
-		// 每轮帮忙农场数上限：极速务农 15，普通 24（对齐参考 GO maxHelpTargetsPerCycle），剩余下一轮继续
+		// 每轮帮忙农场数上限：极速务农 15，普通 24，剩余下一轮继续
 		limit := turboHelpRoundLimit
 		turboEff := computeEffectiveTurbo(cfg)
 		if !turboEff {
@@ -666,7 +665,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 		if len(helpTargets) > limit {
 			if turboEff {
-				// 极速护主犬分批轮换起点，保证全部护主犬都被覆盖（对齐 node turboRoundIndex）
+				// 极速护主犬分批轮换起点，保证全部护主犬都被覆盖
 				helpTargets = rotateTargets(helpTargets, limit)
 			} else {
 				helpTargets = helpTargets[:limit]
@@ -681,7 +680,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if expLimitEnabled && !hasGuardDog(t.gid) && !getCanGetHelpExp(accountID) {
 				continue
 			}
-			// 帮忙用 exp 增量比对检测经验上限（对齐 Node visitFriendForHelp 内 checkExpLimit）
+			// 帮忙用 exp 增量比对检测经验上限
 			expBefore := c.Exp()
 			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "help")
 			if res != nil && res.Count > 0 && expLimitEnabled && getCanGetHelpExp(accountID) {
@@ -733,13 +732,13 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	// 4. 好友巡查后：对好友列表中已失效的好友自动移除（对齐 Node delBuddy 调用：检查未知 UID 自动删除）
+	// 4. 好友巡查后：对好友列表中已失效的好友自动移除
 	// Go 在进入好友农场失败时会触发 handleFriendEnterError 处理，此处补充对列表内 fetchDogInfo 返回 unknown 的好友调 DelBuddy
 	for _, f := range friends {
 		if f == nil || f.GID <= 0 {
 			continue
 		}
-		// 如果好友的 plant 为 nil 且 level 为 0（可能是失效好友），尝试 DelBuddy
+		// 如果好友的 plant 为 nil 且 level 为 0（可能是失效好友）尝试 DelBuddy
 		if f.Plant == nil && f.Level <= 0 {
 			// 静默删除：尝试 DelBuddy RPC，失败不报错
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -752,14 +751,14 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	// 5. 自动同意好友申请（对齐 Node autoAcceptFriendApply：检查待处理申请并自动同意）
+	// 5. 自动同意好友申请
 	autoAcceptFriendApply(c, accountID, cfg)
 
-	// 本轮巡查明细以逐好友日志呈现（偷/帮谁、菜名、数量），不再输出空洞的候选/汇总行
+	// 本轮巡查明细以逐好友日志呈现（偷/帮谁、菜名、数量）不再输出空洞的候选/汇总行
 	return stolenTotal
 }
 
-// autoAcceptFriendApply 自动同意好友申请（对齐 Node autoAcceptFriendApply + checkAndAcceptApplications）
+// autoAcceptFriendApply 自动同意好友申请
 func autoAcceptFriendApply(c *gw.Client, accountID string, cfg config.AccountConfig) {
 	minLevel := cfg.AutoAcceptFriendMinLevel
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
@@ -815,11 +814,11 @@ func autoAcceptFriendApply(c *gw.Client, accountID string, cfg config.AccountCon
 	}
 }
 
-// initExpLimitPersistence 注册经验上限持久化回调（对齐 Node ensureExpLimitCallback：
-// 跨日重置清掉 persistent friendHelpExpExhausted，经验满时持久化应用 configSnapshot）
+// initExpLimitPersistence 注册经验上限持久化回调
+// 跨日重置清掉 persistent friendHelpExpExhausted，经验满时持久化应用 configSnapshot
 func initExpLimitPersistence() {
 	// reached：只持久化【触发上限的那个账号】（Go 多账号共享进程，不能写死默认账号，
-	// 否则账号 A 经验满会把 B 的持久化标志也置 true，重启后 B 被误恢复为"经验已满"）
+	// 否则账号 A 经验满会把 B 的持久化标志也置 true，重启后 B 被误恢复为"经验已满"
 	setOnExpLimitReachedCallback(func(accID string) {
 		if accID == "" {
 			return
@@ -828,7 +827,7 @@ func initExpLimitPersistence() {
 		cfg.FriendHelpExpExhausted = true
 		_ = models.SetAccountConfig(accID, cfg)
 	})
-	// reset：跨日重置需要清掉【所有账号】的持久化标志（对齐 Node 每进程重置自己的）
+	// reset：跨日重置需要清掉【所有账号】的持久化标志
 	setOnExpLimitResetCallback(func() {
 		for _, acc := range models.GetAccounts() {
 			cfg := models.GetAccountConfig(acc.ID)

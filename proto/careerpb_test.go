@@ -2,7 +2,7 @@ package proto
 
 import "testing"
 
-// 构造生涯统计响应并校验原始解码（对齐 Node decodeCareerReplyRaw 字段号）
+// 构造生涯统计响应并校验原始解码
 func buildTestCareerReply() []byte {
 	b := NewBuilder()
 
@@ -76,7 +76,7 @@ func TestPrintableString(t *testing.T) {
 	if printableString([]byte("")) != "" {
 		t.Fatal("empty should be empty")
 	}
-	// 中文（非 ASCII）应被丢弃，对齐 Node isPrintable
+	// 中文（非 ASCII）应被丢弃，
 	if printableString([]byte("玩家")) != "" {
 		t.Fatal("non-ascii should be empty")
 	}

@@ -8,7 +8,7 @@ const acc = () => getAccountId()
 const tab = ref('p-farm')
 const fsub = ref('list')
 
-/* ---------------- 农场（对齐 legacy renderLandCard：landCanFertilize/Remove 前端判定） ---------------- */
+/* ---------------- 农场 ---------------- */
 const lands = ref([])
 const landTick = ref(0)
 let landTimer = null
@@ -85,7 +85,7 @@ async function landOp(l, op) {
   } catch (e) { app.error('请求失败') }
 }
 
-/* ---------------- 背包（对齐 renderBag） ---------------- */
+/* ---------------- 背包 ---------------- */
 const bagItems = ref([]); const bagCat = ref('fruit'); const bagSellMode = ref(false); const bagSel = ref(new Set())
 function bagCanUse(it) { return Number(it.itemType) === 11 }
 function bagCanSell(it) { const t = Number(it.itemType); return t === 17 || t === 6 }
@@ -119,7 +119,7 @@ async function bagSellSel() {
   toggleSellMode(); loadBag()
 }
 
-/* ---------------- 好友（对齐 legacy renderFriendCards） ---------------- */
+/* ---------------- 好友 ---------------- */
 const friends = ref([]); const friendSearch = ref(''); const friendDogFilter = ref('all')
 const isGuard = f => !!(f.hasDog || Number(f.dogId) === 90021)   // legacy 渲染用 hasDog、过滤用 dogId
 const shownFriends = computed(() => {
@@ -166,7 +166,7 @@ async function fetchDogInfo() {
   app.success(d?.ok ? '狗信息已更新' : ('获取失败：' + (d?.error || '未知')))
   loadFriends()
 }
-// 手动添加"已知好友 GID"（对齐 Node knownFriendGids：好友列表拉不到时填 GID 让 bot 抓取/巡查）
+// 手动添加"已知好友 GID"
 const knownGids = ref([]); const knownOpen = ref(false); const knownGidInput = ref('')
 async function loadKnownGids() {
   try {
@@ -190,7 +190,7 @@ async function removeKnownGid(gid) {
     await loadKnownGids(); loadFriends()
   } catch (e) {}
 }
-/* 加好友（对齐 legacy parseShareLink + /api/friend/apply） */
+/* 加好友 */
 const addLink = ref(''); const addPreview = ref(''); const addMsg = ref('')
 function refreshPreview() {
   const d = parseShare(addLink.value)
@@ -213,7 +213,7 @@ async function sendFriendApply() {
     addMsg.value = data?.ok ? ('已发送好友申请：uid=' + uid) : ('失败：' + (data?.error || data?.rawError || '未知'))
   } catch (e) { addMsg.value = '请求失败: ' + e.message }
 }
-/* 黑名单（对齐 legacy：update skipSteal/skipHelp + toggle 移出） */
+/* 黑名单 */
 const blackList = ref([]); const blk = ref(0)
 async function loadBlacklist() { if (!acc()) return; try { const { data } = await api.get('/api/friends/blacklist'); blackList.value = data?.data || []; blk.value = blackList.value.length } catch (e) {} }
 async function blkToggleSkip(b, which, on) {
@@ -227,7 +227,7 @@ async function rmBlack(gid) {
   await api.post('/api/friend-blacklist/toggle', { gid: String(gid) }).catch(() => {})
   loadBlacklist(); loadFriends()
 }
-/* 访客（对齐 legacy：actionType 数字 1/2/3 + 时间格式化） */
+/* 访客 */
 const visitors = ref([]); const vFilter = ref('all')
 const V_BADGE = { 1: 'v-badge steal', 2: 'v-badge help', 3: 'v-badge bad' }
 const V_TEXT = { 1: '偷取', 2: '帮忙', 3: '捣乱' }
@@ -251,7 +251,7 @@ const vname = v => v.nick || (v.visitorGid ? ('GID:' + v.visitorGid) : (v.name |
 const vdetail = v => v.actionDetail || v.actionLabel || v.action || ''
 const vtime = v => fmtInteract(Number(v.serverTimeMs || v.timeSec || 0))
 async function loadVisitors() { if (!acc()) return; try { const { data } = await api.get('/api/friends/visitors'); visitors.value = (Array.isArray(data?.data) ? data.data : []) } catch (e) {} }
-/* 批量删除（对齐 legacy：等级阈值 + 保留护主犬 + 勾选 + password） */
+/* 批量删除 */
 const delLevel = ref(30); const delSkipGuard = ref(true); const delPwd = ref(''); const delSel = ref(new Set())
 const delSorted = computed(() => friends.value.slice())
 function toggleDel(id) { const s = new Set(delSel.value); s.has(id) ? s.delete(id) : s.add(id); delSel.value = s }
@@ -268,7 +268,7 @@ async function delBatch() {
   else app.error('失败：' + (data?.error || '未知'))
 }
 
-/* ---------------- 每日任务（对齐 legacy：/api/task/daily） ---------------- */
+/* ---------------- 每日任务 ---------------- */
 const dailyTasks = ref([]); const growthTasks = ref([]); const taskDone = ref('--'); const taskClaim = ref('--')
 async function loadTasks() {
   if (!acc()) return
@@ -289,7 +289,7 @@ async function claimTask(taskId) {
   loadTasks()
 }
 
-/* ---------------- 每日礼包（对齐 Node runDailyRoutines：邮件/分享/月卡/商城免费礼/会员） ---------------- */
+/* ---------------- 每日礼包 ---------------- */
 const giftState = ref({}); const giftBusy = ref(false); const giftMsg = ref('')
 const giftItems = [
   { key: 'email',     icon: '📬', label: '邮箱奖励',    desc: '邮件中的奖励附件' },
@@ -321,7 +321,7 @@ async function claimGifts() {
   giftBusy.value = false
 }
 
-/* ---------------- 护主犬（对齐 legacy：d.claimable 顶层） ---------------- */
+/* ---------------- 护主犬 ---------------- */
 const dogClaimable = ref('--'); const dogMsg = ref('')
 async function loadDog() {
   if (!acc()) return

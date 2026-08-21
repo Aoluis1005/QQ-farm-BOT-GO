@@ -22,11 +22,11 @@ const INC_MAP = {
 const INC_ITEMS = ['收获','偷菜','种植','施肥','浇水','除草','除虫','一键务农','帮忙','清黄金虫','放黄金虫','任务']
 
 const PATROL_KEY = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // POST key
-const PATROL_GET = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // GET key 同为 farm（对齐 legacy switchMap）
+const PATROL_GET = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' } // GET key 同为 farm
 const PATROL_TRIO = { 偷菜: 'steal', 帮忙: 'help', 收菜: 'farm' }
 // legacy 各巡查项默认间隔：偷菜 3~10 / 帮忙 3~5 / 收菜 5~10（仅在接口无返回值时兜底）
 const PATROL_DEFAULT = { steal: { min: 3, max: 10 }, help: { min: 3, max: 5 }, farm: { min: 5, max: 10 } }
-// 巡查钟配色（对齐预览：偷菜绿/帮忙金/收菜蓝，接 App 主题 token）与扫动节奏
+// 巡查钟配色与扫动节奏
 const PATROL_COLOR = { 偷菜: 'var(--good)', 帮忙: 'var(--warn)', 收菜: 'var(--primary)' }
 const PATROL_DUR = { 偷菜: 6, 帮忙: 11, 收菜: 8 }
 
@@ -79,7 +79,7 @@ function allOn() {
   ;['steal', 'help', 'farm'].forEach((k) => {
     patrol.value = { ...patrol.value, [k]: { ...(patrol.value[k] || {}), enabled: true } }
   })
-  // 逐项持久化（对齐 legacy allOn：三个真实 key 全 POST enabled:true）
+  // 逐项持久化
   api.post('/api/home/patrol', { key: 'steal', enabled: true }).catch(() => {})
   api.post('/api/home/patrol', { key: 'help', enabled: true }).catch(() => {})
   api.post('/api/home/patrol', { key: 'farm', enabled: true }).catch(() => {})
@@ -141,13 +141,13 @@ function patrolClockSvg(who) {
     + `<circle cx="${c}" cy="${c}" r="3.4" style="fill:${col}"/></svg>`
 }
 
-// 生涯统计（对齐 Node CareerModal：items 全量倒序；meta 累计统计；前3领奖台 + 明细网格加载更多）
+// 生涯统计
 const careerPlayer = computed(() => (career.value && career.value.player) || {})
 const careerMeta = computed(() => (career.value && career.value.meta) || {})
 const totalHarvest = computed(() => Number(careerMeta.value.stats_total || 0))
 const totalFriendPick = computed(() => Number(careerMeta.value.stats_count || 0))
 const careerItems = computed(() => ((career.value && career.value.items) || []).slice().sort((a, b) => (b.count || 0) - (a.count || 0)))
-// 领奖台：中间最高（对齐 Node order=[1,0,2]）
+// 领奖台：中间最高
 const podiumItems = computed(() =>
   [1, 0, 2].flatMap((i, idx) => { const it = careerItems.value[i]; return it ? [{ item: it, rank: idx + 1 }] : [] })
 )
@@ -170,7 +170,7 @@ function rankBadge(idx) {
   return idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : 'rank-bronze'
 }
 
-// 首页日志/资产实时刷新：每 5s 拉一次（对齐 Node 前端轮询），切换账号时 next 轮自动带新 accountId
+// 首页日志/资产实时刷新：每 5s 拉一次，切换账号时 next 轮自动带新 accountId
 let pollTimer = null
 onMounted(() => {
   load()
@@ -261,7 +261,7 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
     </div>
   </div>
 
-  <!-- 生涯统计弹窗（对齐 Node CareerModal：居中卡片，遮罩盖住底部 dock，不碰导航） -->
+  <!-- 生涯统计弹窗 -->
   <div class="sheet-mask" :class="{ show: careerOpen }" @click="careerOpen = false"></div>
   <div class="sheet career-sheet" :class="{ show: careerOpen }">
     <button class="career-x" aria-label="关闭" @click="careerOpen = false">✕</button>
@@ -335,7 +335,7 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
 .sheet-mask { display: none; }
 .sheet { display: none; }
 
-/* ===== 生涯统计弹窗（对齐 Node CareerModal） ===== */
+/* ===== 生涯统计弹窗 ===== */
 .career-sheet { width: min(520px, calc(100vw - 32px)); max-width: 92vw; max-height: 82dvh; overflow-y: auto; padding: 20px; scrollbar-width: none; }
 .career-sheet::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .career-x { position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; border: none; border-radius: 50%; background: var(--bg-hi); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2; }

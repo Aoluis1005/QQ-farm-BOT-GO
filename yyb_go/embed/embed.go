@@ -1,5 +1,4 @@
 // Package embed 提供将 YYB(应用宝) 服务内嵌到宿主进程的薄封装层。
-//
 // 它只是在 yyb_go/internal/httpapi 之上包了一层：在 127.0.0.1 随机端口启动
 // HTTP 服务，并把 bot 所需的 Config / Start / GetApiToken / SetApiToken /
 // DefaultDBFilename API 透传出去。真正的 YYB 协议实现（换 code、扫码登录、

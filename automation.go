@@ -19,10 +19,9 @@ import (
 )
 
 // ============================================================
-// 自动化引擎（对齐 Node core/worker.js unifiedScheduler + services/farming-orchestrator.js
-// + services/planting-service.js + services/farm-fertilizer.js + services/farm-scheduler.js）
-//
-// 设计：每个账号一个 runner（含若干 goroutine），按 config.AutomationConfig 决定开哪些循环。
+// 自动化引擎
+// + services/planting-service.js + services/farm-fertilizer.js + services/farm-scheduler.js
+// 设计：每个账号一个 runner（含若干 goroutine）按 config.AutomationConfig 决定开哪些循环。
 // 目前接入：农场巡田（水/草/虫/收/种/施肥/升级）、自动卖果实、自动买化肥。
 // 好友巡查（偷/帮/捣）、护主犬刷新、每日任务等在后续批次接入。
 // ============================================================
@@ -30,29 +29,29 @@ import (
 var (
 	automationMu      sync.Mutex
 	automationRunners = map[string]*automationRunner{}
-	// farm 执行互斥：farm_push 推送触发与 automationLoop 串行 farm 不能同时执行（对齐 Node isCheckingFarm）
+	// farm 执行互斥：farm_push 推送触发与 automationLoop 串行 farm 不能同时执行
 	farmBusyMu  sync.Mutex
 	farmBusySet = map[string]bool{}
 
-	// 2x2 预留机制（对齐 Node plantPrioritized2x2Crops 预留等待四格清空）
+	// 2x2 预留机制
 	reserved2x2Mu      sync.Mutex
 	reserved2x2        = map[string][]int64{} // groupKey -> landIDs
 	failed2x2RetriesMu sync.Mutex
 	failed2x2Retries   = map[string]int64{} // retryKey -> retryUntil Unix
-	last2x2WaitKey     string               // 避免重复日志（对齐 Node last2x2WaitingSignature）
+	last2x2WaitKey     string               // 避免重复日志
 )
 
 type automationRunner struct {
 	stop chan struct{}
 }
 
-// 游戏网络心跳间隔/连续丢失阈值（对齐 Node network.startHeartbeat setInterval 25s）
+// 游戏网络心跳间隔/连续丢失阈值
 const (
 	gwHeartbeatInterval = 25 * time.Second
 	hbMissLimit         = 5
 )
 
-// ===== 账号串行执行线：前端 HTTP 账号操作也投递到这里执行（对齐 Node worker.handleApiCall） =====
+// ===== 账号串行执行线：前端 HTTP 账号操作也投递到这里执行 =====
 // 保证同一账号任何时刻只有一条执行线访问 TSDK，杜绝并发（out of bounds 根因）。
 type accountWork struct {
 	fn   func()
@@ -92,7 +91,7 @@ func dropAccountWork(accountID string) {
 }
 
 // submitAccountWork 将账号操作投递到该账号唯一串行执行线执行并等待完成。
-// 对齐 Node worker.handleApiCall：前端 HTTP 操作投递到账号 worker 单线程执行。
+// 前端 HTTP 操作投递到账号 worker 单线程执行。
 func submitAccountWork(accountID string, fn func()) error {
 	// 已在账号串行执行线内（同 goroutine 正在执行一段外部任务，其内部又发起 RPC）→ 直接内联执行。
 	lineExecMu.Lock()
@@ -118,10 +117,10 @@ func submitAccountWork(accountID string, fn func()) error {
 }
 
 // startAutomationForAccount 为账号启动自动化调度器（已存在则先停后起）
-// 对齐 Node worker.js：每账号只有【一个】串行调度器，绝不为同账号起多个并行 goroutine。
+// 每账号只有【一个】串行调度器，绝不为同账号起多个并行 goroutine。
 func startAutomationForAccount(accountID string) {
 	// 账号未连接（离线/初始化失败）不启动自动化，避免“没在线还跑自动化/日志刷屏”。
-	// 对齐 Node：worker 随 socket 连接存在，断开即停止。连接成功后由 connectLocked 触发启动。
+	// worker 随 socket 连接存在，断开即停止。连接成功后由 connectLocked 触发启动。
 	if clientPool.cached(accountID) == nil {
 		return
 	}
@@ -157,7 +156,7 @@ func startAllAutomation() {
 	}
 }
 
-// ── 间隔工具（对齐 Node randomIntervalMs / applyIntervalsToRuntime） ──
+// ── 间隔工具 ──
 
 func randomIntervalMs(minMs, maxMs int) time.Duration {
 	if maxMs <= minMs {
@@ -169,7 +168,7 @@ func randomIntervalMs(minMs, maxMs int) time.Duration {
 	return time.Duration(minMs+rand.Intn(maxMs-minMs+1)) * time.Millisecond
 }
 
-// farmInterval 农场巡查间隔（秒→毫秒），默认 2–5s
+// farmInterval 农场巡查间隔（秒→毫秒）默认 2–5s
 // nextHelpTime 帮忙通道下次运行时刻：极速务农开启时同样读前端 HelpMin/Max 配置（turbo 快照也读前端）
 func nextHelpTime(iv config.IntervalsConfig, turbo bool) time.Time {
 	if turbo {
@@ -196,7 +195,7 @@ func farmInterval(iv config.IntervalsConfig) time.Duration {
 	return randomIntervalMs(minS*1000, maxS*1000)
 }
 
-// stealInterval 偷菜巡查间隔（秒→毫秒），读前端设置的 StealMin/Max（对齐 Node stealCheckInterval，默认 10–15s）
+// stealInterval 偷菜巡查间隔（秒→毫秒）读前端设置的 StealMin/Max
 func stealInterval(iv config.IntervalsConfig) time.Duration {
 	minS, maxS := iv.StealMin, iv.StealMax
 	if minS <= 0 {
@@ -211,7 +210,7 @@ func stealInterval(iv config.IntervalsConfig) time.Duration {
 	return randomIntervalMs(minS*1000, maxS*1000)
 }
 
-// helpInterval 帮忙巡查间隔（秒→毫秒），读前端设置的 HelpMin/Max（对齐 Node helpCheckInterval，默认 15–20s）
+// helpInterval 帮忙巡查间隔（秒→毫秒）读前端设置的 HelpMin/Max
 func helpInterval(iv config.IntervalsConfig) time.Duration {
 	minS, maxS := iv.HelpMin, iv.HelpMax
 	if minS <= 0 {
@@ -226,7 +225,7 @@ func helpInterval(iv config.IntervalsConfig) time.Duration {
 	return randomIntervalMs(minS*1000, maxS*1000)
 }
 
-// ── 单账号统一串行调度器（对齐 Node unifiedScheduler.runUnifiedTick + scheduleUnifiedNextTick） ──
+// ── 单账号统一串行调度器 ──
 
 // automationLoop 每个账号仅一个 goroutine：把农场巡田、帮忙、偷菜、买化肥统一到【一条串行时间线】。
 // 参考 Node runUnifiedTick —— 一次 tick 内按 farm→help→steal 顺序 await 执行，绝不并发；
@@ -234,18 +233,18 @@ func helpInterval(iv config.IntervalsConfig) time.Duration {
 func automationLoop(accountID string, stop chan struct{}) {
 	getCfg := func() config.AccountConfig { return models.GetAccountConfig(accountID) }
 
-	// 各任务下次运行时刻（对齐 Node runUnifiedTick 的 nextFarmRunAt/nextStealRunAt/nextHelpRunAt）
+	// 各任务下次运行时刻
 	nextFarm := time.Now().Add(farmInterval(getCfg().Intervals))
 	nextSteal := time.Now().Add(stealInterval(getCfg().Intervals))
 	nextHelp := nextHelpTime(getCfg().Intervals, getCfg().Automation.FriendTurboMode)
-	// 买化肥首跑延迟 30s（对齐原 fertilizeBuyLoop），此后按配置间隔
+	// 买化肥首跑延迟 30s，此后按配置间隔
 	nextBuy := time.Now().Add(30 * time.Second)
-	// 自动做任务首跑延迟 15s（对齐 Node task_init_bootstrap），此后每 30s 周期扫描领取
+	// 自动做任务首跑延迟 15s，此后每 30s 周期扫描领取
 	nextTask := time.Now().Add(15 * time.Second)
-	// 每日例行（对齐 Node startDailyRoutineTimer：登录后立即执行一次 + 跨天检测再执行，
+	// 每日例行（登录后立即执行一次 + 跨天检测再执行，
 	// 独立于任务开关 runDailyRoutinesGo 内部按日期防重）——lastDailyDate 初始为空 → 首轮立即执行
 	lastDailyDate := ""
-	// 游戏网络心跳（对齐 Node network.startHeartbeat setInterval 25s）；并入统一串行线，不再独立 goroutine
+	// 游戏网络心跳；并入统一串行线，不再独立 goroutine
 	nextHb := time.Now().Add(gwHeartbeatInterval)
 	hbMiss := 0
 
@@ -253,14 +252,13 @@ func automationLoop(accountID string, stop chan struct{}) {
 
 	for {
 		// 与自动化共用同一条串行执行线：驱动 ACE 周期任务
-		// （对齐 Node：ACE 的 scheduler 与自动化 scheduler 同账号单线程，绝不并发访问 TSDK）
 		if ace := getAceService(accountID); ace != nil {
 			ace.tick(time.Now())
 		}
 		cfg := getCfg()
 		now := time.Now()
 
-		// 极速务农(turbo)：对齐 Node friend-orchestrator 独占模式——生效时暂停 farm/买肥/steal/bad/goldenbug，
+		// 极速务农(turbo)：，
 		// 只跑「护主犬循环 + 心跳/ACE」，避免其它巡查抢占 WS 使心跳被淹没导致假断连
 		turbo := computeEffectiveTurbo(cfg)
 		shouldFarm := cfg.Automation.Farm && !turbo && now.After(nextFarm)
@@ -271,11 +269,10 @@ func automationLoop(accountID string, stop chan struct{}) {
 		shouldBuy := (cfg.Automation.FertilizerBuyOrganic || cfg.Automation.FertilizerBuyNormal) && !turbo && now.After(nextBuy)
 		shouldTask := cfg.Automation.Task && now.After(nextTask)
 		shouldHb := now.After(nextHb)
-		// 每日例行：登录后首轮立即执行（lastDailyDate 为空），此后仅跨天执行
-		// （对齐 Node startDailyRoutineTimer 的 lastDailyRunDate 跨日检测，30s 轮询里只比较日期）
+		// 每日例行：登录后首轮立即执行（lastDailyDate 为空）此后仅跨天执行
 		shouldDaily := lastDailyDate != todayKey()
 
-		// 无到期任务：睡到最近到期时刻再驱动一次 tick（对齐 scheduleUnifiedNextTick 取 nearest）
+		// 无到期任务：睡到最近到期时刻再驱动一次 tick
 		if !shouldFarm && !shouldSteal && !shouldHelp && !shouldBuy && !shouldTask && !shouldHb && !shouldDaily {
 			nearest := nextFarm
 			if nextSteal.Before(nearest) {
@@ -293,7 +290,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 			if nextHb.Before(nearest) {
 				nearest = nextHb
 			}
-			// ACE 周期任务也纳入最近到期计算，保证准点驱动（对齐 Node scheduleUnifiedNextTick 取 nearest）
+			// ACE 周期任务也纳入最近到期计算，保证准点驱动
 			if ace := getAceService(accountID); ace != nil {
 				if an := ace.nearestTick(); !an.IsZero() && an.Before(nearest) {
 					nearest = an
@@ -303,7 +300,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 			if wait < 50*time.Millisecond {
 				wait = 50 * time.Millisecond
 			}
-			// 空闲期同时监听前端投递的账号操作（对齐 Node worker.handleApiCall），在唯一串行线上执行
+			// 空闲期同时监听前端投递的账号操作，在唯一串行线上执行
 			q := workQueue(accountID)
 			t := time.NewTimer(wait)
 			select {
@@ -326,7 +323,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 			}
 		}
 
-		// 统一 tick：按序【串行】执行，同账号绝不并发（对齐 Node runUnifiedTick 的 farm→help→steal await）
+		// 统一 tick：按序【串行】执行，同账号绝不并发
 		c, err := clientPool.Get(accountID)
 		if err != nil || c == nil {
 			// 连接不可用：各任务整体顺延一轮，避免忙等
@@ -353,8 +350,8 @@ func automationLoop(accountID string, stop chan struct{}) {
 				runFarmOnce(accountID, c, cfg)
 				unlockFarm(accountID)
 			}
-			// 化肥礼包并入 farm tick（对齐 Node runFarmTick 内 openFertilizerGiftPacksSilently；
-			// 每日一次由 runFertilizerGiftOnce 内部防重）
+			// 化肥礼包并入 farm tick
+			// 每日一次由 runFertilizerGiftOnce 内部防重
 			if cfg.Automation.FertilizerGift {
 				runFertilizerGiftOnce(accountID, c)
 			}
@@ -363,7 +360,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 		if shouldSteal {
 			stolen := checkFriends(c, accountID, cfg, true, false)
 			if stolen > 0 {
-				nextSteal = time.Now().Add(rapidStealInterval) // 本轮偷到 → 1s 快扫（对齐参考 GO rapidStealInterval）
+				nextSteal = time.Now().Add(rapidStealInterval) // 本轮偷到 → 1s 快扫
 			} else {
 				nextSteal = time.Now().Add(stealInterval(getCfg().Intervals))
 			}
@@ -380,7 +377,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 			runTaskAuto(accountID, c)
 			nextTask = time.Now().Add(30 * time.Second)
 		}
-		// 每日例行（独立于任务开关，对齐 Node runDailyRoutines）——放在 task 之后执行
+		// 每日例行（独立于任务开关）——放在 task 之后执行
 		if shouldDaily {
 			runDailyRoutinesGo(accountID, c)
 			lastDailyDate = todayKey()
@@ -388,7 +385,7 @@ func automationLoop(accountID string, stop chan struct{}) {
 	}
 }
 
-// fetchBuyInterval 自动买化肥间隔（对齐原 fertilizeBuyLoop：FertilizerBuyCheckIntervalMinutes，默认 60 分钟）
+// fetchBuyInterval 自动买化肥间隔
 func fetchBuyInterval(accountID string) time.Duration {
 	ivMin := models.GetAccountConfig(accountID).FertilizerBuyCheckIntervalMinutes
 	if ivMin <= 0 {
@@ -415,7 +412,7 @@ func unlockFarm(accountID string) {
 	farmBusyMu.Unlock()
 }
 
-// inQuietHours 检查是否处于好友静默时段（对齐 Node friend-api.js inFriendQuietHours）
+// inQuietHours 检查是否处于好友静默时段
 func inQuietHours(cfg config.AccountConfig) bool {
 	qh := cfg.FriendQuietHours
 	if !qh.Enabled || qh.Start == "" || qh.End == "" {
@@ -455,7 +452,7 @@ func parseTimeToMinutes(s string) int {
 	return h*60 + m
 }
 
-// newFarmPushHandler 构建农场推送触发巡田处理器（对齐 Node onLandsChangedPush）：
+// newFarmPushHandler 构建农场推送触发巡田处理器：
 // 收到 LandsNotify 后 500ms 去抖，再延迟 1s 执行 runFarmOnce；若 farm 正在执行则跳过。
 func newFarmPushHandler(accountID string) func(string) {
 	last := time.Now().Add(-time.Hour)
@@ -484,7 +481,7 @@ func newFarmPushHandler(accountID string) func(string) {
 	}
 }
 
-// runFarmOnce 单次巡田（对齐 Node farming-orchestrator.js runFarmOperation('all') 顺序）
+// runFarmOnce 单次巡田（('all') 顺序）
 func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 	ctx := context.Background()
 	rep, err := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(0), 15*time.Second)
@@ -495,14 +492,14 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 	now := time.Now().Unix()
 	a := analyzeFarmLands(lands, now)
 
-	// 1. 一键务农（水/草/虫），对齐 Node runFarmOperation 步骤1
+	// 1. 一键务农（水/草/虫）
 	var farmingIDs []int64
 	farmingIDs = append(farmingIDs, a.needWater...)
 	if !cfg.Automation.SkipOwnWeedBug {
 		farmingIDs = append(farmingIDs, a.needWeed...)
 		farmingIDs = append(farmingIDs, a.needBug...)
 	}
-	// GoldenBugClear：独立开关控制清除好友放置的黄金虫（对齐 Node runFarmOperation golden_bug_clear）
+	// GoldenBugClear：独立开关控制清除好友放置的黄金虫
 	if cfg.Automation.GoldenBugClear {
 		farmingIDs = append(farmingIDs, a.needGoldenBug...)
 	}
@@ -510,7 +507,7 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 	if len(farmingIDs) > 0 {
 		if err := execFarmOp(c, "Farming", proto.EncodeFarmingRequest(farmingIDs, c.GID)); err == nil {
 			recordOperation(accountID, "farming", int64(len(farmingIDs)))
-			// 金虫单独统计（对齐 Node recordOperation('goldenBugClear')）
+			// 金虫单独统计（('goldenBugClear')）
 			if len(a.needGoldenBug) > 0 {
 				recordOperation(accountID, "goldenBugClear", int64(len(a.needGoldenBug)))
 			}
@@ -519,7 +516,7 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	// 2. 收获（对齐 Node 步骤2，harvest 后触发自动卖）
+	// 2. 收获
 	if len(a.harvestable) > 0 {
 		if err := execFarmOp(c, "Harvest", proto.EncodeHarvestRequest(a.harvestable, c.GID, true)); err == nil {
 			recordOperation(accountID, "harvest", int64(len(a.harvestable)))
@@ -531,8 +528,8 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	// 2.5 重新拉取农场地块，刷新枯死/空地/刚收获变空的地（对齐 Node resolveRemovableHarvestedLands：
-	// 收获后 mature 地块变空，需并入种植目标；dead/empty 也在本次快照内重算）
+	// 2.5 重新拉取农场地块，刷新枯死/空地/刚收获变空的地
+	// 收获后 mature 地块变空，需并入种植目标；dead/empty 也在本次快照内重算
 	if len(a.harvestable) > 0 || len(a.dead) > 0 || len(a.empty) > 0 {
 		if rep2, e2 := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(0), 15*time.Second); e2 == nil {
 			lands = proto.DecodeAllLandsReply(rep2.Body).Lands
@@ -540,7 +537,7 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		}
 	}
 
-	// 3. 种植（枯死 + 空地），对齐 Node 步骤3 autoPlantEmptyLands
+	// 3. 种植（枯死 + 空地）
 	plantTargets := append([]int64{}, a.dead...)
 	plantTargets = append(plantTargets, a.empty...)
 	plantTargets = dedupeInt64(plantTargets)
@@ -549,12 +546,12 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		time.Sleep(300 * time.Millisecond)
 	}
 
-	// 4. 多季补肥（对齐 Node 步骤4），reason=multi_season
+	// 4. 多季补肥，reason=multi_season
 	if cfg.Automation.FertilizerMultiSeason && cfg.Automation.Fertilizer != "final_normal" && len(a.growing) > 0 {
 		runFertilizerByConfig(accountID, c, cfg, a.growing, "multi_season", false)
 	}
 
-	// 5. 解锁 + 升级（对齐 Node 步骤5，先解锁后升级）
+	// 5. 解锁 + 升级
 	if cfg.Automation.LandUpgrade {
 		for _, id := range a.couldUnlock {
 			if err := execFarmOp(c, "UnlockLand", proto.EncodeUnlockLandRequest(id, false)); err == nil {
@@ -571,14 +568,14 @@ func runFarmOnce(accountID string, c *gw.Client, cfg config.AccountConfig) {
 		}
 	}
 
-	// 6. 智能施肥（farm 循环内，对齐 Node 步骤6：runFertilizerByConfig([], {skipNormal:true})）
+	// 6. 智能施肥（farm 循环内，runFertilizerByConfig([], {skipNormal:true})）
 	mode := cfg.Automation.Fertilizer
 	if mode == "smart" || mode == "smart_only" || mode == "smart_normal" || mode == "final_normal" || mode == "final_organic" {
 		runFertilizerByConfig(accountID, c, cfg, nil, "", true)
 	}
 }
 
-// farmAnalysis 地块分类（对齐 Node farm-land-analyzer.js analyzeLands），只处理已解锁且非从属地块
+// farmAnalysis 地块分类，只处理已解锁且非从属地块
 type farmAnalysis struct {
 	needWater     []int64
 	needWeed      []int64
@@ -637,7 +634,7 @@ func analyzeFarmLands(lands []*proto.LandInfo, now int64) farmAnalysis {
 			a.needBug = append(a.needBug, l.ID)
 		}
 		// 黄金虫判定：好友放置到作物上的社交金虫（plantpb.proto social_items 字段35）
-		// 对齐 Node farm-land-analyzer.js hasGoldenBug：item_id==301101 && type==2
+		// item_id==301101 && type==2
 		if hasGoldenBug(l.Plant) {
 			a.needGoldenBug = append(a.needGoldenBug, l.ID)
 		}
@@ -645,7 +642,7 @@ func analyzeFarmLands(lands []*proto.LandInfo, now int64) farmAnalysis {
 	return a
 }
 
-// hasGoldenBug 判断作物上是否有好友放置的黄金虫（对齐 Node hasGoldenBug）
+// hasGoldenBug 判断作物上是否有好友放置的黄金虫
 func hasGoldenBug(p *proto.PlantInfo) bool {
 	if p == nil {
 		return false
@@ -673,12 +670,11 @@ func dedupeInt64(in []int64) []int64 {
 	return out
 }
 
-// ── 种植（对齐 Node planting-service.js autoPlantEmptyLands / plantFromShop） ──
+// ── 种植 ──
 
 // autoPlantLands 在给定空地/枯死地上种植（targetLandIDs 为 master/standalone 地块）
-// 对齐 Node planting-service.js autoPlantEmptyLands：
 //  1. 枯死先铲除；2) 2x2 优先（用背包四格种子预留并种植）；
-//  3. bag_priority 按背包种子顺序消耗（并按地块品质拆分），其余/剩余走第二优先策略；
+//  3. bag_priority 按背包种子顺序消耗（并按地块品质拆分）其余/剩余走第二优先策略；
 //  4. 其余策略走商城购买种植。
 func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, lands []*proto.LandInfo, targetLandIDs []int64) {
 	landByID := map[int64]*proto.LandInfo{}
@@ -687,7 +683,7 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 			landByID[l.ID] = l
 		}
 	}
-	// 构建种植单元：master + 从属地（2x2），仅保留未处理过的 master
+	// 构建种植单元：master + 从属地（2x2）仅保留未处理过的 master
 	type unit struct {
 		master int64
 		ids    []int64
@@ -717,7 +713,7 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 	if len(units) == 0 {
 		return
 	}
-	// 枯死作物先铲除（对齐 Node autoPlantEmptyLands：removePlant(dead) 再种植）
+	// 枯死作物先铲除（removePlant(dead) 再种植）
 	for _, u := range units {
 		if l := landByID[u.master]; l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
 			if ph := currentPhase(l.Plant.Phases, time.Now().Unix()); ph != nil && ph.Phase == proto.PhaseDead {
@@ -732,10 +728,10 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		strategy = "level"
 	}
 
-	// 2x2 优先：背包四格种子预留 + 等待四格清空（对齐 Node plantPrioritized2x2Crops）
+	// 2x2 优先：背包四格种子预留 + 等待四格清空
 	if cfg.Prioritize2x2Crops {
 		var remainUnits []unit
-		// 提前拉取2x2种子列表（对齐 Node size2Seeds 筛选 plantSize==2）
+		// 提前拉取2x2种子列表
 		seeds, seedsErr := listBagSeeds(accountID, c, cfg, 2)
 		if seedsErr != nil {
 			seeds = nil
@@ -850,7 +846,7 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		units = remainUnits
 	}
 
-	// bag_priority：先按背包种子顺序消耗；按地块品质拆分（对齐 Node autoPlantEmptyLands bag_priority 分支）
+	// bag_priority：先按背包种子顺序消耗；按地块品质拆分
 	if strategy == "bag_priority" {
 		allowed := normalizeFertilizerLandTypes(cfg.BagPriorityLandTypes) // 5 种品质，空集/全选=不限制
 		unrestricted := len(allowed) == 0 || len(allowed) >= 5
@@ -892,7 +888,7 @@ func autoPlantLands(accountID string, c *gw.Client, cfg config.AccountConfig, la
 		return
 	}
 
-	// 其余策略：商城购买种植（对齐 Node plantFromShop）
+	// 其余策略：商城购买种植
 	var masters []int64
 	for _, u := range units {
 		masters = append(masters, u.master)
@@ -910,7 +906,6 @@ func plantDelay(cfg config.AccountConfig) time.Duration {
 }
 
 // autoPlantEmptyLands 手动"一键种植"：对当前农场所有空地/枯死地用种植策略自动选种种植
-// （对齐 Node planting-service.js autoPlantEmptyLands 入口；autoPlantLands 内部会对枯死地先铲除）。
 func autoPlantEmptyLands(accountID string, c *gw.Client, cfg config.AccountConfig) (int, error) {
 	rep, err := c.Request(context.Background(), plantService, "AllLands",
 		proto.EncodeAllLandsRequest(0), 15*time.Second)
@@ -929,7 +924,7 @@ func autoPlantEmptyLands(accountID string, c *gw.Client, cfg config.AccountConfi
 	return len(targets), nil
 }
 
-// plantOnLands 在指定地块种植指定种子（对齐 Node planting-service.js plantSeeds：
+// plantOnLands 在指定地块种植指定种子
 // 逐块传 [landId]，2x2 补全从属地，枯死地块先铲除，确保种子库存后种植）。
 // 用于前端手动种植 / /api/farm/action action=plant。
 func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64) (int, error) {
@@ -956,7 +951,7 @@ func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64)
 		}
 	}
 	fullIDs = dedupeInt64(fullIDs)
-	// 枯死地块先铲除（对齐 Node autoPlantEmptyLands → removePlant）
+	// 枯死地块先铲除
 	for _, id := range fullIDs {
 		l := landByID[id]
 		if l != nil && l.Plant != nil && len(l.Plant.Phases) > 0 {
@@ -966,7 +961,7 @@ func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64)
 			}
 		}
 	}
-	// 按 2x2 分组（主地+从属地 = 一次 Plant RPC，消耗 1 颗种子），对齐 Node plantSeeds
+	// 按 2x2 分组（主地+从属地 = 一次 Plant RPC，消耗 1 颗种子）
 	type pg struct{ ids []int64 }
 	var pgroups []pg
 	seenG := map[int64]bool{}
@@ -985,7 +980,7 @@ func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64)
 		seenG[id] = true
 		pgroups = append(pgroups, g)
 	}
-	// 购买：每组 1 颗（2x2 一组消耗 1 颗，对齐 Node plantCount=floor(landIds/footprint)）
+	// 购买：每组 1 颗（2x2 一组消耗 1 颗，(landIds/footprint)）
 	realSeed, err := ensureSeedOwned(c, seedID, 0, 0, len(pgroups))
 	if err != nil || realSeed <= 0 {
 		return 0, err
@@ -1010,7 +1005,7 @@ func plantOnLands(accountID string, c *gw.Client, seedID int64, landIDs []int64)
 	return planted, nil
 }
 
-// seedCand 商店候选种子（对齐 Node findBestSeed 的 candidate）
+// seedCand 商店候选种子
 type seedCand struct {
 	seedID  int64
 	goodsID int64
@@ -1018,8 +1013,8 @@ type seedCand struct {
 	reqLvl  int
 }
 
-// eventSeeds 活动种子（对齐 Node farm.js EVENT_SEEDS：昙花/荷包牡丹/银杏树苗/蝴蝶兰/风信子/蔷薇）
-// 活动种子只从背包种植（event_plant 模式），【禁止从商店购买】——商店候选需排除，
+// eventSeeds 活动种子
+// 活动种子只从背包种植（event_plant 模式）【禁止从商店购买】——商店候选需排除，
 // 否则"最高经验/时"策略会选到活动种子 → 购买失败 → 一直卡在种植失败。
 var eventSeeds = map[int64]bool{
 	20224:   true, // 昙花
@@ -1065,7 +1060,7 @@ func isBuySeedBlocked(seedID int64) bool {
 	return true
 }
 
-// bagSeedItem 背包种子（按 plantSize 过滤后用于种植），对齐 Node plantFromBagSeeds 的可用种子
+// bagSeedItem 背包种子（按 plantSize 过滤后用于种植）
 type bagSeedItem struct {
 	seedID int64
 	count  int64
@@ -1075,7 +1070,7 @@ type bagSeedItem struct {
 
 var errNoSeed = &seedErr{"no available seed"}
 
-// errGoldShort 金币不足以购买所需种子（对齐 Node planting-service.js 金币预检：缩减购买数，为 0 则跳过）。
+// errGoldShort 金币不足以购买所需种子。
 // 调用方应据此跳过该组种植，而非当作致命错误。
 var errGoldShort = errors.New("金币不足，跳过购买")
 
@@ -1112,7 +1107,7 @@ func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfi
 			continue
 		}
 		if g.Price <= 0 {
-			continue // 对齐权威 Node findBestSeed：price<=0 不入候选
+			continue // price<=0 不入候选
 		}
 		reqLvl := 0
 		for _, cd := range g.Conds {
@@ -1178,7 +1173,7 @@ func bestByRanking(cands []seedCand, candMap map[int64]seedCand, sortBy string, 
 		if !ok {
 			continue
 		}
-		// 对齐 Node findBestSeed：等级门槛高于用户等级的候选跳过
+		// 等级门槛高于用户等级的候选跳过
 		if int64(lvl) > userLevel {
 			continue
 		}
@@ -1188,7 +1183,7 @@ func bestByRanking(cands []seedCand, candMap map[int64]seedCand, sortBy string, 
 	return bestByLevel(cands)
 }
 
-// pickBagSeed 背包优先：返回背包中可用的种子（count>0 且 1x1），按 BagSeedPriority 排序
+// pickBagSeed 背包优先：返回背包中可用的种子（count>0 且 1x1）按 BagSeedPriority 排序
 func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int64, bool) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
@@ -1210,9 +1205,9 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
-		// 背包已有种子全部参与种植（含活动种子），不再排除活动种子/黑名单；
+		// 背包已有种子全部参与种植（含活动种子）不再排除活动种子/黑名单；
 		// 事件种子商店买不到，应只在其不在背包时走商店排除。
-		// 背包物品是种子，须按 seed_id 查 Plant.json（对齐 Node getPlantBySeedId）；
+		// 背包物品是种子，须按 seed_id 查 Plant.json；
 		// 误用 getPlantByID(plant.id) 会在 plant.id != seed_id 时漏掉该种子。
 		pe, ok := seedToPlantMap[int(it.ID)]
 		if !ok || pe.Size != 1 {
@@ -1236,9 +1231,9 @@ func pickBagSeed(accountID string, c *gw.Client, cfg config.AccountConfig) (int6
 	return seeds[0].seedID, true
 }
 
-// ensureSeedOwned 背包种子不足时从商店购买（对齐 Node buyGoods/plantFromShop）。
+// ensureSeedOwned 背包种子不足时从商店购买。
 // 返回值为实际应种植的种子 ID：购买成功时优先用 buyResult.get_items[0].id
-// （部分礼包商品实际产出种子 ID 与 goods.item_id 不同），未购买（背包已有）时返回入参 seedID。
+// （部分礼包商品实际产出种子 ID 与 goods.item_id 不同）未购买（背包已有）时返回入参 seedID。
 func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int64, error) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
@@ -1271,7 +1266,7 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int6
 	if goodsID <= 0 {
 		return 0, errNoSeed
 	}
-	// 金币预检（对齐 Node planting-service.js:1058-1069：金币不足则缩减购买数，为 0 则跳过购买）。
+	// 金币预检。
 	// Go 按组种植，每个 ensureSeedOwned 只买 need 颗（通常为 1）；单价高于余额或总价超余额时跳过该组，
 	// 不再直接发起购买（避免无谓失败与误扣）。
 	if price > 0 && c.Gold() > 0 {
@@ -1293,15 +1288,15 @@ func ensureSeedOwned(c *gw.Client, seedID, goodsID, price int64, need int) (int6
 		markBuySeedFailed(seedID)
 		return 0, err
 	}
-	// 对齐 Node plantFromShop：从购买结果取真实种子 ID
+	// 从购买结果取真实种子 ID
 	if got := proto.DecodeBuyGoodsReply(brep.Body); got != nil && len(got.GetItems) > 0 && got.GetItems[0].ID > 0 {
 		return got.GetItems[0].ID, nil
 	}
 	return seedID, nil
 }
 
-// listBagSeeds 返回背包中可用种子（count>0 且 plantSize==size），按 BagSeedPriority 排序。
-// 排序键：priority 升序 → requiredLevel 降序 → seedId 升序（对齐 Node sortBagSeedsForPlanting）。
+// listBagSeeds 返回背包中可用种子（count>0 且 plantSize==size）按 BagSeedPriority 排序。
+// 排序键：priority 升序 → requiredLevel 降序 → seedId 升序。
 func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size int) ([]bagSeedItem, error) {
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
@@ -1317,7 +1312,7 @@ func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size
 		if it.ID <= 0 || it.Count <= 0 || !isSeedItemID(it.ID) {
 			continue
 		}
-		// 背包已有种子全部参与种植（含活动种子），不再排除活动种子/黑名单
+		// 背包已有种子全部参与种植（含活动种子）不再排除活动种子/黑名单
 		pe, ok := seedToPlantMap[int(it.ID)]
 		if !ok || pe.Size != size {
 			continue
@@ -1340,9 +1335,9 @@ func listBagSeeds(accountID string, c *gw.Client, cfg config.AccountConfig, size
 	return seeds, nil
 }
 
-// plantBagSeedsForLands 用背包 1x1 种子按优先级顺序种植（对齐 Node plantFromBagSeeds）。
+// plantBagSeedsForLands 用背包 1x1 种子按优先级顺序种植。
 // 每种背包种子按其数量消耗；返回未被背包种子覆盖的剩余空地主地 ID，以及是否允许用第二优先策略补种
-// （某背包种子部分种植失败时 fallbackAllowed=false，避免误购商城种子，对齐 Node partial_bag_failure）。
+// （某背包种子部分种植失败时 fallbackAllowed=false，避免误购商城种子）。
 func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountConfig, masters []int64) (remaining []int64, fallbackAllowed bool, err error) {
 	fallbackAllowed = true
 	if len(masters) == 0 {
@@ -1396,7 +1391,7 @@ func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountCon
 			appendOpLog(accountID, "farm", fmt.Sprintf("背包种植种子 %d → 1 块地", realSeed))
 			time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
 		}
-		// 实际种植数少于请求数 → 部分失败，避免误购商城（对齐 Node partial_bag_failure）
+		// 实际种植数少于请求数 → 部分失败，避免误购商城
 		// 等级锁定种子整批无法种植（planted==0）时不阻断 fallback
 		if planted < int(maxCount) && len(remainingSet) > 0 && (!levelLocked || planted > 0) {
 			fallbackAllowed = false
@@ -1408,7 +1403,7 @@ func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountCon
 	return remaining, fallbackAllowed, nil
 }
 
-// plantFromShopLands 对给定主地列表按策略从商城选种购买并种植（对齐 Node plantFromShop + plantSeeds）。
+// plantFromShopLands 对给定主地列表按策略从商城选种购买并种植。
 // overrideStrategy 非空时覆盖账号策略（用于 bag_priority 第二优先补种）。
 func plantFromShopLands(accountID string, c *gw.Client, cfg config.AccountConfig, masters []int64, overrideStrategy string) {
 	for _, m := range masters {
@@ -1436,7 +1431,7 @@ func plantFromShopLands(accountID string, c *gw.Client, cfg config.AccountConfig
 	}
 }
 
-// ── 智能施肥（对齐 Node farm-fertilizer.js runFertilizerByConfig） ──
+// ── 智能施肥 ──
 
 func normalizeFertilizerLandTypes(in []string) []string {
 	valid := map[string]bool{"purple": true, "gold": true, "black": true, "red": true, "normal": true}
@@ -1468,7 +1463,7 @@ func normalizeLandTypeName(t string) string {
 	return t
 }
 
-// landTypeByLevel 对齐 Node getLandTypeByLevel：5→purple,4→gold,3→black,2→red,else normal
+// landTypeByLevel 5→purple,4→gold,3→black,2→red,else normal
 func landTypeByLevel(level int64) string {
 	switch level {
 	case 5:
@@ -1503,7 +1498,7 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 	now := time.Now().Unix()
 	smartSeconds := cfg.Automation.FertilizerSmartSeconds
 	if smartSeconds <= 0 {
-		smartSeconds = 3600 // 对齐 Node runFertilizerByConfig 默认 3600
+		smartSeconds = 3600 // 
 	}
 
 	// 按土地类型过滤（从属地块随 master 处理：仅对非 slave 地块施肥）
@@ -1531,12 +1526,12 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 		return out
 	}
 
-	// 候选池：multi_season 用显式地块（对齐 Node explicitIds），其余用全部 standalone
+	// 候选池：multi_season 用显式地块，其余用全部 standalone
 	basePool := standaloneIDs(standalone)
 	if reason == "multi_season" && len(explicitLandIDs) > 0 {
 		basePool = explicitLandIDs
 	}
-	// 智能/最终阶段候选（对齐 Node getFastMatureLands / getFinalStageLands）
+	// 智能/最终阶段候选
 	fast := filterByType(getFastMatureLands(standalone, int64(smartSeconds), now))
 
 	var normalTargets, organicTargets []int64
@@ -1553,7 +1548,7 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 		}
 		organicTargets = filterByType(getOrganicFertilizerTargetsFromLands(standalone))
 	case "smart":
-		// 普通(显式快成熟) + 有机(快成熟)，对齐 Node smart 分支
+		// 普通(显式快成熟) + 有机(快成熟)，
 		if !skipNormal {
 			normalTargets = fast
 		}
@@ -1574,7 +1569,7 @@ func runFertilizerByConfig(accountID string, c *gw.Client, cfg config.AccountCon
 
 	if len(normalTargets) > 0 {
 		fertilizedNormal := fertilizeLands(c, normalTargets, normalFertilizerID)
-		recordOperation(accountID, "fertilize", int64(fertilizedNormal)) // 对齐 Node：记实际成功施肥数，非目标块数
+		recordOperation(accountID, "fertilize", int64(fertilizedNormal)) // 记实际成功施肥数，非目标块数
 	}
 	if len(organicTargets) > 0 {
 		fertilizedOrganic := fertilizeOrganicLoop(c, organicTargets) // 有机肥：无次数即停止
@@ -1593,7 +1588,7 @@ func standaloneIDs(lands []*proto.LandInfo) []int64 {
 	return out
 }
 
-// getFastMatureLands 对齐 Node getFastMatureLands：MATURE begin_time 在 [0, threshold] 内且未枯死，
+// getFastMatureLands MATURE begin_time 在 [0, threshold] 内且未枯死，
 // 且 left_inorc_fert_times > 0（无有机肥余次的地块不进入候选）
 func getFastMatureLands(lands []*proto.LandInfo, thresholdSec, now int64) []int64 {
 	out := make([]int64, 0, len(lands))
@@ -1620,7 +1615,7 @@ func getFastMatureLands(lands []*proto.LandInfo, thresholdSec, now int64) []int6
 	return out
 }
 
-// getOrganicFertilizerTargetsFromLands 对齐 Node farm-fertilizer.js getOrganicFertilizerTargetsFromLands：
+// getOrganicFertilizerTargetsFromLands 
 // 仅挑选"还能再施有机肥"的地块（left_inorc_fert_times > 0）。HasLeftInorcFertTimes=false 时
 // 视为服务端未下发该字段，按 Node Object.hasOwn 语义包含（不跳过）。
 func getOrganicFertilizerTargetsFromLands(lands []*proto.LandInfo) []int64 {
@@ -1645,7 +1640,7 @@ func getOrganicFertilizerTargetsFromLands(lands []*proto.LandInfo) []int64 {
 	return out
 }
 
-// getFinalStageLands 对齐 Node getFinalStageLands：当前阶段恰为 MATURE 前一阶段；
+// getFinalStageLands 当前阶段恰为 MATURE 前一阶段；
 // organicOnly 时仅保留 left_inorc_fert_times > 0 的地块
 func getFinalStageLands(lands []*proto.LandInfo, organicOnly bool, now int64) []int64 {
 	out := make([]int64, 0, len(lands))
@@ -1686,7 +1681,7 @@ func getFinalStageLands(lands []*proto.LandInfo, organicOnly bool, now int64) []
 	return out
 }
 
-// fertilizeLands 逐块施化肥，返回实际成功施肥的地块数（对齐 Node fertilize() 返回成功数）
+// fertilizeLands 逐块施化肥，返回实际成功施肥的地块数（ 返回成功数）
 func fertilizeLands(c *gw.Client, ids []int64, fertID int64) int {
 	n := 0
 	for _, id := range ids {
@@ -1698,7 +1693,7 @@ func fertilizeLands(c *gw.Client, ids []int64, fertID int64) int {
 	return n
 }
 
-// fertilizeOrganicLoop 对齐 Node fertilizeOrganicLoop：逐块施有机肥，无次数即停止；返回实际成功施的块数
+// fertilizeOrganicLoop 逐块施有机肥，无次数即停止；返回实际成功施的块数
 func fertilizeOrganicLoop(c *gw.Client, ids []int64) int {
 	n := 0
 	for _, id := range ids {
@@ -1711,22 +1706,21 @@ func fertilizeOrganicLoop(c *gw.Client, ids []int64) int {
 	return n
 }
 
-// ── 自动卖果实（对齐 Node warehouse.js sellAllFruits） ──
-//
+// ── 自动卖果实 ──
 // Node 最新版要点：
 //  1. 果实判定用 isFruitItemId(id) = Boolean(getPlantByFruitId(id))，纯查 Plant.json；
 //  2. 自动出售跳过名单 AUTO_SELL_SKIP_ITEM_IDS = new Set([41221])，
 //     这些物品即便可售也会被服务端以 code=1000020 拒绝，需从候选剔除，否则整批 Sell 失败；
-//  3. 分批出售（SELL_BATCH_SIZE=15），批量失败改逐个重试并跳过不可售 item。
+//  3. 分批出售（SELL_BATCH_SIZE=15）批量失败改逐个重试并跳过不可售 item。
 
-// autoSellSkipItemIDs 自动出售跳过名单（对齐 Node AUTO_SELL_SKIP_ITEM_IDS）
+// autoSellSkipItemIDs 自动出售跳过名单
 // 41221 为青梅活动果实，调 ItemService.Sell 会被服务端以 code=1000020 拒绝。
 var autoSellSkipItemIDs = map[int64]bool{41221: true}
 
 const sellBatchSize = 15
 
 func autoSellAfterHarvest(accountID string, c *gw.Client) {
-	prevGold := c.Gold() // 卖前余额（对齐 Node totalsBefore.gold，用于余额差值兜底）
+	prevGold := c.Gold() // 卖前余额
 	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
@@ -1742,9 +1736,9 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 	if len(sell) == 0 {
 		return
 	}
-	parsedGold := int64(0) // 出售响应解析金币（对齐 Node totalGoldFromReply）
+	parsedGold := int64(0) // 出售响应解析金币
 	soldKinds := 0
-	// 分批出售（对齐 Node warehouse.js sellAllFruits：SELL_BATCH_SIZE=15）
+	// 分批出售
 	for i := 0; i < len(sell); i += sellBatchSize {
 		end := i + sellBatchSize
 		if end > len(sell) {
@@ -1756,7 +1750,7 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 			soldKinds += len(batch)
 			continue
 		}
-		// 批量失败，逐个重试（对齐 Node 批量失败改逐个重试，跳过不可售物品）
+		// 批量失败，逐个重试
 		for _, it := range batch {
 			g, ok := trySellOne(accountID, c, it)
 			if ok {
@@ -1768,8 +1762,8 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 			time.Sleep(300 * time.Millisecond)
 		}
 	}
-	// 对齐 Node 金币结算 = max(出售响应解析值, 余额差值兜底)
-	// 等待余额状态刷新（对齐 Node 等待 getUserState().gold 更新，最多 3s）
+	// (出售响应解析值, 余额差值兜底)
+	// 等待余额状态刷新（.gold 更新，最多 3s）
 	afterGold := prevGold
 	waitStart := time.Now()
 	for time.Since(waitStart) < 3*time.Second {
@@ -1779,7 +1773,7 @@ func autoSellAfterHarvest(accountID string, c *gw.Client) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	// 对齐权威 deriveGoldGainFromSellReply：get_items 有金币(parsedGold)就直接作为收益，
+	// get_items 有金币(parsedGold)就直接作为收益，
 	// 不掺余额差值——避免 ItemNotify 把卖前余额覆盖成小值时，差值兜底把几十亿余额当收益。
 	// 仅当 get_items 无金币(parsedGold==0)且余额已知且增长时才用差值兜底。
 	totalGold := parsedGold

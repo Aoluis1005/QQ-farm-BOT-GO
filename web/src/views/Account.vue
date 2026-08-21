@@ -30,7 +30,7 @@ async function loadAccounts() {
   }
 }
 
-/* ---------- 切换当前账号（对齐 legacy switchTo：POST active + 整页刷新） ---------- */
+/* ---------- 切换当前账号 ---------- */
 async function switchAcc(id) {
   if (String(id) === String(activeId.value)) return
   try {
@@ -44,7 +44,7 @@ async function switchAcc(id) {
 
 /* ---------- 手动添加 code ---------- */
 const addCode = ref(''); const addName = ref(''); const addPlatform = ref('qq'); const addBusy = ref(false)
-const ADD_CHS = [{ v: 'qq', l: 'QQ' }, { v: 'wx', l: '微信' }] // 对齐 legacy：仅 QQ / 微信
+const ADD_CHS = [{ v: 'qq', l: 'QQ' }, { v: 'wx', l: '微信' }] // 仅 QQ / 微信
 async function addByCode() {
   if (!addCode.value.trim()) { app.error('请输入 code'); return }
   addBusy.value = true
@@ -55,7 +55,7 @@ async function addByCode() {
   } catch (e) { app.error('请求失败: ' + (e.response?.data?.error || e.message)) } finally { addBusy.value = false }
 }
 
-/* ---------- 扫码登录 YYB（对齐 legacy 精确协议） ---------- */
+/* ---------- 扫码登录 YYB ---------- */
 const qrUrl = ref(''); const qrMsg = ref(''); const qrBusy = ref(false)
 let qrTimer = null
 function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null } }
@@ -125,7 +125,7 @@ async function startQrLogin() {
   } catch (e) { qrBusy.value = false; _qrStatus('扫码登录失败'); console.error(e) }
 }
 
-/* ---------- 掉线自动重连（扫码弹窗内 rc-panel，对齐 legacy） ---------- */
+/* ---------- 掉线自动重连（扫码弹窗内 rc-panel） ---------- */
 const rcfg = reactive({ enabled: true, delay: 3, max: 3 })
 const rcState = ref('连接：-')
 function _fmtRc(st) {
@@ -163,7 +163,7 @@ async function retryRc() {
   } catch (e) { app.error('触发失败') } finally { rcRetryBusy.value = false }
 }
 
-/* ---------- 编辑 / 删除（对齐 legacy：PUT/DELETE /api/accounts/{id}） ---------- */
+/* ---------- 编辑 / 删除 ---------- */
 async function saveEdit() {
   if (!editing.value) return
   try {
@@ -183,7 +183,7 @@ async function delAcc(id) {
 
 /* ---------- 退出登录 ---------- */
 function logout() {
-  // 统一清 admin_token + 内存登录态（account.logout 内部 setToken('') 会 removeItem，并对齐 legacy）
+  // 统一清 admin_token + 内存登录态（account.logout 内部 setToken('') 会 removeItem，并）
   account.logout()
   router.push('/login')
 }
@@ -329,7 +329,7 @@ onUnmounted(() => stopQr())
       <p v-if="qrMsg" style="font-size:12px;color:var(--muted);margin-top:8px;text-align:center">{{ qrMsg }}</p>
     </div>
 
-    <!-- 掉线自动重连（对齐 legacy #qrSheet .rc-panel） -->
+    <!-- 掉线自动重连 -->
     <div class="rc-panel" style="margin-top:14px">
       <div class="rc-head">📡 掉线自动重连 <small>断线后延迟换 code 自动重连</small></div>
       <div class="rc-row">

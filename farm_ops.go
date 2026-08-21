@@ -16,10 +16,10 @@ import (
 
 const plantService = "gamepb.plantpb.PlantService"
 
-// 普通化肥 ID（对齐 Node NORMAL_FERTILIZER_ID）
+// 普通化肥 ID
 const normalFertilizerID = 1011
 
-// 有机化肥 ID（对齐 Node ORGANIC_FERTILIZER_ID；前端单块地催熟用有机肥，见 worker.js fertilizeLand）
+// 有机化肥 ID
 const organicFertilizerID = 1012
 
 var opLogMu sync.Mutex

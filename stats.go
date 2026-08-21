@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// ============ 今日收益统计（对齐 Node services/stats.js） ============
+// ============ 今日收益统计 ============
 
 type AccountStats struct {
 	Date         string           `json:"date"`
@@ -26,7 +26,7 @@ type AccountStats struct {
 	SavedAt      int64            `json:"savedAt"`
 }
 
-// newOperationMap 预初始化今日收益全部操作 key（对齐 Node operations 结构，缺 key 会导致 recordOperation 记不进）
+// newOperationMap 预初始化今日收益全部操作 key
 func newOperationMap() map[string]int64 {
 	return map[string]int64{
 		"harvest": 0, "water": 0, "weed": 0, "bug": 0, "farming": 0,
@@ -54,7 +54,7 @@ func statsFilePath(accountID string) string {
 	return filepath.Join(dataDir, "stats", accountID+".json")
 }
 
-// getAccountStats 加载并确保今日统计（跨天自动重置，对齐 Node checkAndResetDailyStats）
+// getAccountStats 加载并确保今日统计（跨天自动重置）
 func getAccountStats(accountID string) *AccountStats {
 	statsMu.Lock()
 	defer statsMu.Unlock()
@@ -101,8 +101,8 @@ func saveStatsFile(accountID string, s *AccountStats) {
 	}
 }
 
-// recordOperation 记录一次操作（对齐 Node recordOperation）
-// recordGift 同气礼包（物品 101351 增量）累计（对齐 Node network.js recordTongQiGift）
+// recordOperation 记录一次操作
+// recordGift 同气礼包（物品 101351 增量）累计
 func recordGift(accountID string, delta int64) {
 	s := getAccountStats(accountID)
 	s.TongQiGift += delta
@@ -134,7 +134,7 @@ func initStats(accountID string, gold, exp, coupon int64) {
 	saveStatsFile(accountID, acc)
 }
 
-// updateStats 跟踪金币/经验增量（今日收益 totalGold 来源，对齐 Node updateStats）
+// updateStats 跟踪金币/经验增量（今日收益 totalGold 来源）
 func updateStats(accountID string, gold, exp int64) {
 	acc := getAccountStats(accountID)
 	if gold > acc.LastGold {
@@ -147,12 +147,12 @@ func updateStats(accountID string, gold, exp int64) {
 	saveStatsFile(accountID, acc)
 }
 
-// getTodayIncome 今日收益数据（对齐前端 income 卡片字段）
+// getTodayIncome 今日收益数据
 func getTodayIncome(accountID string) map[string]interface{} {
 	acc := getAccountStats(accountID)
 	op := acc.Operations
 	m := map[string]interface{}{
-		// 顶部「收益」= sell（出售获得金币），对齐 Node Dashboard.vue: sell={label:'收益'}
+		// 顶部「收益」= sell（出售获得金币）， sell={label:'收益'}
 		// 原实现用 GoldGained(净值diff累加) 与 Node 语义不符，已改为 op["sell"]
 		"totalGold":   op["sell"],
 		"dogGifts":    acc.TongQiGift,
@@ -164,7 +164,7 @@ func getTodayIncome(accountID string) map[string]interface{} {
 		"weed":        op["weed"],
 		"insecticide": op["bug"],
 		"oneKeyFarm":  op["farming"],
-		// 好友帮忙改为单个 Farming RPC 后统一记 helpFarming（对齐 liyangpengs），不再细分水/草/虫
+		// 好友帮忙改为单个 Farming RPC 后统一记 helpFarming，不再细分水/草/虫
 		"helpFarming": op["helpFarming"],
 		"clearGolden": op["goldenBugClear"],
 		"putGolden":   op["goldenBugPut"],

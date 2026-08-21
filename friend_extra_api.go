@@ -50,7 +50,7 @@ func handleFetchFriendsDogInfo(w http.ResponseWriter, r *http.Request) {
 		platform = acc.Platform
 	}
 	knownGids := models.GetAccountConfig(accountID).KnownFriendGIDs
-	// 复用好友列表展示缓存（同一份 GetAll 数据，避免单独再拉一次；对齐 list 缓存）
+	// 复用好友列表展示缓存（同一份 GetAll 数据，避免单独再拉一次）
 	allFriends, err := getAllFriendsCached(c, accountID, platform, knownGids, false)
 	if err != nil {
 		writeError(w, 500, "拉取好友失败: "+err.Error())

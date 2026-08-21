@@ -9,7 +9,7 @@ import (
 )
 
 // 活动协议解析层。
-// 字段号对齐 Node core/src/proto/activitypb.proto 与 core/src/services/activity.js 的 readProtoFields 手动解析。
+// 字段号。
 // 关键：商店等数据嵌套在返回体深层，必须像 Node scanExchangeShopInfoFromRawBody 一样递归扫描字段块。
 
 // --- 基础工具 ---
@@ -86,7 +86,7 @@ func actStr(fs []actField, no int) string {
 	return string(b)
 }
 
-// collectBytes 递归扫描 buf 中所有字段号为 target 的 length-delimited 块（对齐 Node scanLengthDelimitedFields）
+// collectBytes 递归扫描 buf 中所有字段号为 target 的 length-delimited 块
 // 注意：必须与 readActFields 采用相同的显式逐 wire 读取方式，否则会漏扫嵌套字段（此前用 Skip 漏掉 field110）。
 func collectBytes(buf []byte, target int, maxDepth int) (out [][]byte) {
 	defer func() { _ = recover() }()
@@ -123,7 +123,7 @@ func collectBytes(buf []byte, target int, maxDepth int) (out [][]byte) {
 
 // --- 数据结构（供 JSON 输出） ---
 
-// ActivityInfo 活动信息（对齐 Node normalizeHeluSubActivities 用到的字段）
+// ActivityInfo 活动信息
 type ActivityInfo struct {
 	ID        int64  `json:"id"`
 	ParentID  int64  `json:"parent_id"`
@@ -138,7 +138,7 @@ type ActivityInfo struct {
 	Enabled   bool   `json:"enabled"`
 }
 
-// ShopItem 兑换/随机商店商品项（对齐 Node normalizeExchangeShopItem / ActivityExchangeShopInfo）
+// ShopItem 兑换/随机商店商品项
 type ShopItem struct {
 	ID           int64  `json:"id"`
 	Name         string `json:"name"`
@@ -147,7 +147,7 @@ type ShopItem struct {
 	StatusLabel  string `json:"status_label,omitempty"`
 	Owned        bool   `json:"owned"`
 	IsRepeatable bool   `json:"is_repeatable,omitempty"` // 化肥/道具：可重复兑换（type 7 或 fertilizer/fertilizerpro）
-	ExchangeLimit int64 `json:"exchange_limit,omitempty"`  // 可重复道具=剩余可兑换次数（对齐 Node exchangeLimit）
+	ExchangeLimit int64 `json:"exchange_limit,omitempty"`  // 可重复道具=剩余可兑换次数
 	ItemID       int64  `json:"item_id,omitempty"`
 	Count        int64  `json:"count,omitempty"`
 	Image        string `json:"image,omitempty"`
@@ -224,7 +224,7 @@ func parseShopItemFull(raw []byte) *ShopItem {
 	it.Owned = actNum(fs, 5) != 0
 	it.IsRepeatable = isRepeatableItem(it.ItemID)
 	it.Image = GetItemImageURL(int(it.ItemID))
-	// 可重复道具（化肥）：status 即剩余可兑换次数，且不因 owned 阻塞（对齐 Node exchangeLimit）
+	// 可重复道具（化肥）：status 即剩余可兑换次数，且不因 owned 阻塞
 	if it.IsRepeatable && it.Status > 1 {
 		it.ExchangeLimit = it.Status
 	}
@@ -235,7 +235,7 @@ func parseShopItemFull(raw []byte) *ShopItem {
 	return it
 }
 
-// isRepeatableItem 判定可重复兑换道具（对齐 Node：itemType===7 或 interactionType fertilizer/fertilizerpro）
+// isRepeatableItem 判定可重复兑换道具
 func isRepeatableItem(itemID int64) bool {
 	if it, ok := itemInfoMap[int(itemID)]; ok {
 		if it.Type == 7 {
@@ -268,7 +268,6 @@ func exchangeShopStatusLabel(it *ShopItem) string {
 }
 
 // ParseActivityList 解析 ActivityService.List 返回：
-//
 //	实测顶层仅 field1(单个大分组) + field2(repeated 精简活动条目)
 //	entry: 1=id(varint) 2=title(string) 3=start(varint) 4=end(varint)
 func ParseActivityList(body []byte) []*ActivityInfo {
@@ -312,7 +311,7 @@ func parseActivityNode(raw []byte) *ActivityNode {
 		node.ExchangeShop = parseExchangeItems(shopBlk)
 	}
 	if node.ExchangeShop == nil {
-		// 深层回退：递归扫描所有 102 块解码（对齐 Node scanExchangeShopInfoFromRawBody）
+		// 深层回退：递归扫描所有 102 块解码
 		var best []*ShopItem
 		for _, blk := range collectBytes(raw, 102, 8) {
 			if items := parseExchangeItems(blk); len(items) > len(best) {
@@ -328,7 +327,7 @@ func parseActivityNode(raw []byte) *ActivityNode {
 	return node
 }
 
-// ParseSeason 解析 SeasonService.GetSeasonInfo 返回（对齐 Node normalizeSeasonInfo/normalizeSeasonPassport）
+// ParseSeason 解析 SeasonService.GetSeasonInfo 返回
 type SeasonPassport struct {
 	ActivityID       int64    `json:"activity_id"`
 	CurrentLevel     int64    `json:"current_level"`
@@ -424,7 +423,7 @@ func parseSeasonPassport(raw []byte) *SeasonPassport {
 	return p
 }
 
-// parseItem 解析 corepb.Item（对齐 Node parseActivityItemMessage）
+// parseItem 解析 corepb.Item
 func parseItem(raw []byte) *Item {
 	fs := readActFields(raw)
 	itemID := actNum(fs, 1)
@@ -442,7 +441,7 @@ func parseItem(raw []byte) *Item {
 	return it
 }
 
-// ParseSolar 解析 SolarTermsService.GetSolarTerms 返回（对齐 Node normalizeSolarTermsInfo）
+// ParseSolar 解析 SolarTermsService.GetSolarTerms 返回
 type SolarTerm struct {
 	ID       int64    `json:"id"`
 	Status   int64    `json:"status"`
@@ -539,7 +538,6 @@ func strAny(v interface{}) string {
 
 // ---- 观星礼录（二十八星宿） ----
 // 数据源：ActivityService.GetGroup(GUANXING_ACTIVITY_ID) 返回体 field110（CONSTELLATION_DATA_FIELD）。
-// 对齐 Node findConstellationBytes / normalizeConstellationGroup / normalizeConstellationNode。
 
 const (
 	guanxingActivityID  = 2026072701 // 观星礼录本体（type=13）
@@ -549,7 +547,7 @@ const (
 	guanxingExtField    = 119        // 官方客户端点亮请求附带的空扩展字段
 )
 
-// ConstellationGroup 星宿分组：名称、四象归类与释义（对齐 normalizeConstellationGroup）
+// ConstellationGroup 星宿分组：名称、四象归类与释义
 type ConstellationGroup struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
@@ -558,7 +556,7 @@ type ConstellationGroup struct {
 	Links    string `json:"links"`
 }
 
-// ConstellationNode 星宿节点（对齐 normalizeConstellationNode）
+// ConstellationNode 星宿节点
 // field2=已解锁 field3=已领取 field4=可领取
 type ConstellationNode struct {
 	ID          int64   `json:"id"`
@@ -585,7 +583,7 @@ type ConstellationSummary struct {
 type ConstellationInfo struct {
 	ActivityID  int64                `json:"activity_id"`
 	Title       string               `json:"title"`
-	SeasonTitle  string               `json:"seasonTitle"` // 对齐 Node normalizeGuanxingActivity base.seasonTitle=观星礼录
+	SeasonTitle  string               `json:"seasonTitle"` // 
 	StartTime   int64                `json:"start_time"`
 	EndTime     int64                `json:"end_time"`
 	NowTime     int64                `json:"now_time"`
@@ -650,7 +648,7 @@ func parseConstNode(raw []byte, gmap map[int64]*ConstellationGroup) *Constellati
 	return n
 }
 
-// findConstellationBytes 提取返回体最大 field110 星宿块（对齐 Node findConstellationBytes）。
+// findConstellationBytes 提取返回体最大 field110 星宿块。
 // 遍历方式与 dbgCollectStats 完全一致（含深度≤6），实测可靠拿到 field110。
 func findConstellationBytes(body []byte) []byte {
 	var best []byte
@@ -690,12 +688,12 @@ func findConstellationBytes(body []byte) []byte {
 	return best
 }
 
-// ParseConstellation 从 GetGroup 原始返回体中提取 field110 星宿数据（对齐 normalizeGuanxingActivity）
+// ParseConstellation 从 GetGroup 原始返回体中提取 field110 星宿数据
 func ParseConstellation(body []byte) *ConstellationInfo {
 	defer func() { _ = recover() }()
 	now := timeNow()
 	base := &ConstellationInfo{ActivityID: guanxingActivityID, Title: "观星礼录", SeasonTitle: "观星礼录", StartTime: 0, EndTime: 0, NowTime: now}
-	// 定位 activity info（ActivityInfo: 1=id 4=title 6=start 7=end，对齐 findActivityInfoEntries）
+	// 定位 activity info（ActivityInfo: 1=id 4=title 6=start 7=end）
 	for _, blk := range collectBytes(body, 1, 5) {
 		fs := readActFields(blk)
 		if actNum(fs, 1) != guanxingActivityID {
@@ -781,7 +779,7 @@ func mergeRewardItems(items []*Item) []*Item {
 
 // ---- 领取结果解析 ----
 
-// ParseSeasonClaim 解析 SeasonService.ClaimBattlePassRewards 返回（对齐 normalizeSeasonClaimResult）
+// ParseSeasonClaim 解析 SeasonService.ClaimBattlePassRewards 返回
 // field1=rewards(repeated Item) field3=passport
 type SeasonClaimResult struct {
 	Rewards  []*Item         `json:"rewards"`
@@ -803,7 +801,7 @@ func ParseSeasonClaim(body []byte) *SeasonClaimResult {
 	return res
 }
 
-// ParseSolarClaim 解析 SolarTermsService.ClaimSolarTerms 返回（对齐 normalizeSolarTermsClaimResult）
+// ParseSolarClaim 解析 SolarTermsService.ClaimSolarTerms 返回
 // field1=rewards field2=term
 type SolarClaimResult struct {
 	Rewards []*Item     `json:"rewards"`

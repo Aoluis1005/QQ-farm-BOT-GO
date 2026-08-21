@@ -30,7 +30,7 @@ const AUTO_LABELS = {
 }
 
 function freshAut() {
-  // 默认开关对齐 legacy + 后端 DefaultAccountConfig（多数自动化默认开启）
+  // 默认开关（多数自动化默认开启）
   return {
     farm: true, task: true, sell: true, friend: true, farm_push: true, land_upgrade: true,
     fertilizer_gift: false, fertilizer_buy_normal: false, fertilizer_buy_organic: false,
@@ -1040,7 +1040,7 @@ onMounted(() => {
           <p v-if="!cxFiltered.length" class="cx-empty" style="grid-column:1/-1">暂无图鉴项目</p>
         </template>
       </div>
-      <p style="font-size:10.5px;color:var(--muted);text-align:center;margin-top:10px">图鉴数据对齐 Node illustrated · 未解锁且满足等级可购买补录</p>
+      <p style="font-size:10.5px;color:var(--muted);text-align:center;margin-top:10px">图鉴数据说明 · 未解锁且满足等级可购买补录</p>
     </div>
 
     <!-- ============ 分析 ============ -->

@@ -21,7 +21,7 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/harvest", handleFarmHarvest)
 	mux.HandleFunc("/api/farm/action", handleFarmAction)
 	mux.HandleFunc("/api/farm/plant", handleFarmPlant)
-	mux.HandleFunc("/api/bag", handleBagItems)       // 对齐 Node admin-bag-routes.js GET /api/bag
+	mux.HandleFunc("/api/bag", handleBagItems)       // 
 	mux.HandleFunc("/api/bag/items", handleBagItems) // 兼容旧路径
 	mux.HandleFunc("/api/bag/seeds", handleBagSeeds)
 	mux.HandleFunc("/api/bag/use", handleBagUse)
@@ -60,7 +60,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 	}
 	all := proto.DecodeAllLandsReply(body)
 
-	// ── 对齐 Node farm-land-analyzer.js getLandsDetail()，逐字段构造 ──
+	// ── ，逐字段构造 ──
 	serverTime := time.Now().Unix()
 	landMap := buildFarmLandMap(all.Lands)
 
@@ -77,7 +77,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 
 		ctx := getFarmDisplayLandContext(l, landMap)
 
-		// 未解锁（对齐 Node：unlocked=false → status='locked'）
+		// 未解锁
 		if !l.Unlocked {
 			details = append(details, map[string]interface{}{
 				"id": landID, "unlocked": false, "status": "locked",
@@ -94,7 +94,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 
 		plant := ctx.SourceLand.Plant
 
-		// 空地（对齐 Node：无 plant 或无 phases → status='empty'，phaseName='空地'）
+		// 空地
 		if plant == nil || len(plant.Phases) == 0 {
 			details = append(details, map[string]interface{}{
 				"id": landID, "unlocked": true, "status": "empty",
@@ -160,7 +160,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 		}
 		phaseName := farmPhaseName(phase)
 
-		// 剩余成熟时间：对齐 Node——找 MATURE 阶段的 begin_time，减去服务器时间
+		// 剩余成熟时间：，减去服务器时间
 		matureInSec := int64(0)
 		for _, ph := range plant.Phases {
 			if ph.Phase == proto.PhaseMature && ph.BeginTime > serverTime {
@@ -170,7 +170,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 		}
 		totalGrowTime := getPlantGrowTime(plantID)
 
-		// 状态（对齐 Node：MATURE→harvestable，DEAD→dead，否则 growing）
+		// 状态
 		status := "growing"
 		if phase == proto.PhaseMature {
 			status = "harvestable"
@@ -178,7 +178,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 			status = "dead"
 		}
 
-		// 需要浇水/除草/除虫（对齐 Node：计数或阶段时间已到，二选一成立即可）
+		// 需要浇水/除草/除虫
 		needWater := plant.DryNum > 0 || (currentPhase.DryTime > 0 && currentPhase.DryTime <= serverTime)
 		needWeed := len(plant.WeedOwners) > 0 || (currentPhase.WeedsTime > 0 && currentPhase.WeedsTime <= serverTime)
 		needBug := len(plant.InsectOwners) > 0 || (currentPhase.InsectTime > 0 && currentPhase.InsectTime <= serverTime)
@@ -221,9 +221,9 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 	}})
 }
 
-// ── 以下辅助函数对齐 Node farm-land-analyzer.js ──
+// ── 以下辅助函数
 
-// farmLandTypeNameByLevel 土地类型名（对齐 getLandTypeNameByLevel）
+// farmLandTypeNameByLevel 土地类型名
 func farmLandTypeNameByLevel(level int64) string {
 	switch level {
 	case 5:
@@ -239,7 +239,7 @@ func farmLandTypeNameByLevel(level int64) string {
 	}
 }
 
-// farmPhaseName 阶段名（对齐 Node config.js PHASE_NAMES：['未知','种子','发芽','小叶','大叶','开花','成熟','枯死']）
+// farmPhaseName 阶段名
 func farmPhaseName(phase int32) string {
 	names := [...]string{"未知", "种子", "发芽", "小叶", "大叶", "开花", "成熟", "枯死"}
 	if phase >= 0 && int(phase) < len(names) {
@@ -248,7 +248,7 @@ func farmPhaseName(phase int32) string {
 	return ""
 }
 
-// farmCurrentPhase 当前所处阶段（对齐 Node getCurrentPhase：从后往前找第一个 begin_time<=now）
+// farmCurrentPhase 当前所处阶段
 func farmCurrentPhase(phases []*proto.PlantPhaseInfo, serverTime int64) *proto.PlantPhaseInfo {
 	if len(phases) == 0 {
 		return nil
@@ -286,12 +286,12 @@ func farmSlaveLandIDs(land *proto.LandInfo) []int64 {
 	return out
 }
 
-// farmHasPlantData 是否有植物数据（对齐 Node hasPlantData）
+// farmHasPlantData 是否有植物数据
 func farmHasPlantData(land *proto.LandInfo) bool {
 	return land != nil && land.Plant != nil && len(land.Plant.Phases) > 0
 }
 
-// farmLinkedMasterLand 关联的主土地（对齐 Node getLinkedMasterLand）
+// farmLinkedMasterLand 关联的主土地
 func farmLinkedMasterLand(land *proto.LandInfo, landMap map[int64]*proto.LandInfo) *proto.LandInfo {
 	landID := land.ID
 	masterID := land.MasterLandID
@@ -309,7 +309,7 @@ func farmLinkedMasterLand(land *proto.LandInfo, landMap map[int64]*proto.LandInf
 	return master
 }
 
-// farmDisplayLandContext 显示上下文（对齐 Node getDisplayLandContext：处理合种 master/slave）
+// farmDisplayLandContext 显示上下文
 type farmLandContext struct {
 	SourceLand       *proto.LandInfo
 	OccupiedByMaster bool
@@ -337,7 +337,7 @@ func getFarmDisplayLandContext(land *proto.LandInfo, landMap map[int64]*proto.La
 	return farmLandContext{SourceLand: land, OccupiedByMaster: false, MasterLandID: landID, OccupiedLandIDs: []int64{landID}}
 }
 
-// summarizeFarmLands 汇总（对齐 Node summarizeLandDetails，只统计 unlocked 的地块）
+// summarizeFarmLands 汇总
 func summarizeFarmLands(lands []map[string]interface{}) map[string]int {
 	s := map[string]int{"harvestable": 0, "growing": 0, "empty": 0, "dead": 0, "needWater": 0, "needWeed": 0, "needBug": 0}
 	for _, land := range lands {
@@ -545,7 +545,7 @@ func handleFarmHarvest(w http.ResponseWriter, r *http.Request) {
 	}
 	recordOperation(accountID, "harvest", int64(len(ids)))
 	appendOpLog(accountID, "harvest", fmt.Sprintf("手动收获 %d 块地", len(ids)))
-	// 收获后可选自动卖（对齐 Node 自动卖果实）
+	// 收获后可选自动卖
 	if models.GetAccountConfig(accountID).Automation.Sell {
 		autoSellAfterHarvest(accountID, c)
 	}
@@ -590,7 +590,7 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 真实背包数据：对齐 Node warehouse.js getBag → itempb.ItemService/Bag
+	// 真实背包数据：
 	rep, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Bag",
 		proto.EncodeBagRequest(), 12*time.Second)
 	if err != nil {
@@ -607,14 +607,14 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		Category        string `json:"category"`
 		Img             string `json:"img,omitempty"`
 		Icon            string `json:"icon,omitempty"`
-		ItemType        int64  `json:"itemType"`        // 对齐 Node info.type：6/17=果实可售, 11=道具可用
+		ItemType        int64  `json:"itemType"`        // 6/17=果实可售, 11=道具可用
 		UID             int64  `json:"uid"`             // 物品实例 uid，出售时回传
-		Price           int64  `json:"price"`           // 对齐 Node getBagDetail info.price
-		PriceID         int64  `json:"priceId"`         // 对齐 Node getBagDetail info.price_id
-		PriceUnit       string `json:"priceUnit"`       // 对齐 Node getBagDetail：1005=金豆豆/200=点券/else金
-		Level           int64  `json:"level"`           // 对齐 Node getBagDetail info.level
-		InteractionType string `json:"interactionType"` // 对齐 Node getBagDetail info.interaction_type
-		HoursText       string `json:"hoursText"`       // 对齐 Node getBagDetail（默认空）
+		Price           int64  `json:"price"`           // 
+		PriceID         int64  `json:"priceId"`         // 
+		PriceUnit       string `json:"priceUnit"`       // 1005=金豆豆/200=点券/else金
+		Level           int64  `json:"level"`           // 
+		InteractionType string `json:"interactionType"` // 
+		HoursText       string `json:"hoursText"`       // （默认空）
 	}
 	items := make([]bagOut, 0, len(br.Items))
 	for _, it := range br.Items {
@@ -641,7 +641,7 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 		items = append(items, outItem)
 	}
 
-	// 排序：果实→种子→化肥→道具→其他，同类数量降序（对齐 Node getBagDetail 排序意图）
+	// 排序：果实→种子→化肥→道具→其他，同类数量降序
 	catOrder := map[string]int{"fruit": 0, "seed": 1, "fertilizer": 2, "props": 3, "other": 4}
 	sort.SliceStable(items, func(i, j int) bool {
 		oi, oj := catOrder[items[i].Category], catOrder[items[j].Category]
@@ -658,7 +658,6 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleBagSeeds GET /api/bag/seeds
-// 对齐 Node admin-bag-routes.js GET /api/bag/seeds → warehouse.getBagSeeds()：
 // 仅返回背包中实际拥有的种子（id>0 且 count>0 且 Plant.json 收录），
 // 含数量/尺寸(2x2)/所需等级，供"背包种子优先顺序"面板使用（而非全种子库）。
 func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
@@ -706,7 +705,7 @@ func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		name := plant.Name
-		// 去 "??" 后缀（对齐 Node rawName.endsWith('??') 处理）
+		// 去 "??" 后缀（('??') 处理）
 		if strings.HasSuffix(name, "??") {
 			name = name[:len(name)-2]
 		}
@@ -716,7 +715,7 @@ func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = "种子" + strconv.Itoa(id)
 		}
-		// requiredLevel：对齐 Node Math.max(0, plant.land_level_need || info.level || getSeedLevel(id))
+		// requiredLevel：(0, plant.land_level_need || info.level || getSeedLevel(id))
 		// Go 无 land_level_need 字段，用 getSeedLevel(itemInfo.level) 作为权威值
 		reqLvl := getSeedLevel(id)
 		if reqLvl < 0 {
@@ -751,7 +750,7 @@ func handleBagSeeds(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
 }
 
-// handleBagUse POST /api/bag/use 对齐 Node admin-bag-routes.js POST /api/bag/use
+// handleBagUse POST /api/bag/use 
 func handleBagUse(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -778,7 +777,7 @@ func handleBagUse(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 对齐 Node warehouse.js useItem()：先发标准 UseRequest；若报 code=1000020 /
+	// 先发标准 UseRequest；若报 code=1000020 /
 	// 请求参数错误，则改用 raw protobuf 嵌套形态重发一次（服务端实际期望的结构）。
 	_, err = c.Request(r.Context(), "gamepb.itempb.ItemService", "Use",
 		proto.EncodeUseRequest(req.ItemID, req.Count), 12*time.Second)
@@ -793,7 +792,7 @@ func handleBagUse(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "message": "use ok"})
 }
 
-// handleBagSell POST /api/bag/sell 对齐 Node admin-bag-routes.js POST /api/bag/sell
+// handleBagSell POST /api/bag/sell 
 func handleBagSell(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -833,16 +832,16 @@ func handleBagSell(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "出售失败: "+err.Error())
 		return
 	}
-	// 解析卖果实金币收益（对齐 Node warehouse.js deriveGoldGainFromSellReply + emit('sell')）
+	// 解析卖果实金币收益（('sell')）
 	soldCount, gold := proto.DecodeSellReply(rep.Body)
-	// 对齐 Node worker.js sellItems：手动出售也按金币记录 sell 操作计数
+	// 手动出售也按金币记录 sell 操作计数
 	if gold > 0 {
 		recordOperation(accountID, "sell", gold)
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "message": "sell ok", "gold": gold, "count": soldCount})
 }
 
-// classifyBagCategory 对齐 Node warehouse.js getBagDetail 的 category 判定。
+// classifyBagCategory 。
 // 前端分类 tab：fruit/seed/props(=props+fertilizer)/other。分类判定走 game_config.go（源于 Plant.json+ItemInfo.json）。
 func classifyBagCategory(id int64) (category, name string) {
 	switch id {
@@ -881,7 +880,7 @@ func classifyBagCategory(id int64) (category, name string) {
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }
 
-// handleFriendList 真实好友列表（对齐 Node friend-land-analyzer.js getFriendsList）：
+// handleFriendList 真实好友列表：
 // 仅调用 FriendService/GetAll（或 QQ 的 GetGameFriends），【不进入任何好友农场】。
 // 护主犬(dogId)来自本地狗信息缓存（由 fetch-dog-info / 巡查时 Enter 收集），
 // 可偷/可帮忙摘要直接取自 GetAll 响应的 friend.plant 字段。
@@ -892,7 +891,7 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 展示用好友列表走 TTL 缓存（对齐 liyangpengs friendsListCache）；?forceSync=true 强制刷新绕过缓存
+	// 展示用好友列表走 TTL 缓存；?forceSync=true 强制刷新绕过缓存
 	forceSync := r.URL.Query().Get("forceSync") == "true"
 	platform := ""
 	if acc := models.GetAccountByID(accountID); acc != nil {
@@ -906,9 +905,9 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	myGID := c.GID
-	// 黑名单取自本地文件（与 toggle/blacklist tab 同源），对齐 Node getFriendBlacklistDetails
+	// 黑名单取自本地文件（与 toggle/blacklist tab 同源），
 	blackMap := readBlacklist(accountID)
-	// 护主犬缓存（对齐 Node readFriendDogInfoCache）
+	// 护主犬缓存
 	dogMap, _ := readDogCache(accountID)
 
 	friends := make([]map[string]interface{}, 0, len(allFriends))
@@ -916,7 +915,7 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 		if f.GID <= 0 || f.GID == myGID {
 			continue
 		}
-		// 排除假 NPC（对齐 Node getFriendsList："小小农夫" level 1）
+		// 排除假 NPC
 		if (f.Name == "小小农夫" || f.Remark == "小小农夫") && f.Level == 1 {
 			continue
 		}
@@ -940,7 +939,7 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 			"tip":        "",
 		}
 
-		// 护主犬：本地缓存优先（对齐 Node getFriendsList 的 dogInfoCache）
+		// 护主犬：本地缓存优先
 		if d, ok := dogMap[f.GID]; ok {
 			item["hasDog"] = d.DogID > 0
 			item["dogId"] = d.DogID
@@ -979,7 +978,7 @@ func handleFriendList(w http.ResponseWriter, r *http.Request) {
 		friends = append(friends, item)
 	}
 
-	// 按名称中文序、再 gid 排序（对齐 Node getFriendsList）
+	// 按名称中文序、再 gid 排序
 	sort.SliceStable(friends, func(i, j int) bool {
 		ni, _ := friends[i]["name"].(string)
 		nj, _ := friends[j]["name"].(string)
@@ -1013,7 +1012,7 @@ func countRipeLands(lands []*proto.LandInfo) int {
 }
 
 // handleFriendLandsRoute GET /api/friends/lands?gid=xxx  好友地块明细（真实作物图）
-// handleFriendListCacheClear 清空指定账号的好友列表展示缓存（对齐对方 POST /api/friends/clear-cache）。
+// handleFriendListCacheClear 清空指定账号的好友列表展示缓存。
 func handleFriendListCacheClear(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -1037,7 +1036,7 @@ func handleFriendLandsRoute(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 真实地块：进入好友农场解析（对齐 Node getFriendLandsDetail），含真实作物图
+	// 真实地块：进入好友农场解析，含真实作物图
 	detail, derr := getFriendLandsForDisplay(c, gid)
 	if derr != nil {
 		writeError(w, 500, "获取好友地块失败: "+derr.Error())
@@ -1048,7 +1047,7 @@ func handleFriendLandsRoute(w http.ResponseWriter, r *http.Request) {
 
 func handleFriendBlacklist(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
-	// 本地黑名单库（对齐 Node getFriendBlacklist 前端展示 name/avatar/reason/addedAt + skip 开关）
+	// 本地黑名单库
 	entries := getBlacklistEntries(accountID)
 	out := make([]map[string]interface{}, 0, len(entries))
 	for _, e := range entries {
@@ -1072,7 +1071,6 @@ func handleFriendRequests(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 对齐 Node friend-api.js getApplications → FriendService/GetApplications
 	rep, err := c.Request(r.Context(), friendService, "GetApplications",
 		proto.EncodeGetApplicationsRequest(), 12*time.Second)
 	if err != nil {
@@ -1100,7 +1098,7 @@ func handleFriendVisitors(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "网关未连接: "+err.Error())
 		return
 	}
-	// 对齐 Node interact.js getInteractRecords：多服务路由候选，取首个成功
+	// 多服务路由候选，取首个成功
 	var recs []*proto.InteractRecord
 	var lastErr error
 	for _, cand := range proto.InteractRecordCandidates {
@@ -1117,12 +1115,12 @@ func handleFriendVisitors(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if recs == nil {
-		// 全部路由失败：返回空而非报错（对齐 Node 前端“暂无访客记录”），同时给出诊断
+		// 全部路由失败：返回空而非报错，同时给出诊断
 		writeJSON(w, map[string]interface{}{"ok": true, "data": []interface{}{}, "errorHint": fmt.Sprint(lastErr)})
 		return
 	}
 
-	// 时间降序 → 访客ID降序 → 操作类型降序（对齐 Node sort）
+	// 时间降序 → 访客ID降序 → 操作类型降序
 	sort.SliceStable(recs, func(i, j int) bool {
 		if recs[i].ServerTime != recs[j].ServerTime {
 			return recs[i].ServerTime > recs[j].ServerTime
@@ -1161,7 +1159,7 @@ func handleFriendVisitors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": out})
 }
 
-// interactActionLabel 对齐 Node interact.js getActionLabel / ACTION_LABELS
+// interactActionLabel 
 func interactActionLabel(t int32) string {
 	switch t {
 	case 1:
@@ -1175,7 +1173,7 @@ func interactActionLabel(t int32) string {
 	}
 }
 
-// buildInteractDetail 对齐 Node interact.js buildActionDetail
+// buildInteractDetail 
 func buildInteractDetail(rec *proto.InteractRecord) string {
 	var parts []string
 	switch rec.ActionType {
@@ -1210,7 +1208,7 @@ func buildInteractDetail(rec *proto.InteractRecord) string {
 	return strings.Join(parts, " · ")
 }
 
-// serverTimeMs 服务器秒 -> 毫秒（对齐 Node serverTimeMs = serverTimeSec*1000）
+// serverTimeMs 服务器秒 -> 毫秒
 func serverTimeMs(sec int64) int64 {
 	if sec <= 0 {
 		return 0
@@ -1276,7 +1274,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 	}
 	detail := req.Action
 	switch req.Action {
-	case "full": // 全部收获（is_all=true + 传全部地块 ids，对齐 Node）
+	case "full": // 全部收获（is_all=true + 传全部地块 ids）
 		ids, err := allLandIDs(c, r.Context())
 		if err != nil {
 			writeError(w, 500, err.Error())
@@ -1288,7 +1286,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 		}
 		recordOperation(accountID, "harvest", int64(len(ids)))
 		detail = fmt.Sprintf("全部收获 %d 块地", len(ids))
-	case "harvest": // 收获：未指定地块则全部收获（is_all=true 对齐 Node）
+	case "harvest": // 收获：未指定地块则全部收获（is_all=true ）
 		ids := parseIDs(req.LandID)
 		if len(ids) == 0 {
 			all, err := allLandIDs(c, r.Context())
@@ -1330,7 +1328,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 		}
 		recordOperation(accountID, "farming", int64(len(ids)))
 		detail = fmt.Sprintf("一键务农 %d 块地", len(ids))
-	case "upgrade": // 一键升级土地（对齐 Node runFarmOperation 'upgrade'：先解锁 could_unlock，再升级 could_upgrade，逐个执行带间隔）
+	case "upgrade": // 一键升级土地
 		rep, err := c.Request(r.Context(), "gamepb.plantpb.PlantService", "AllLands",
 			proto.EncodeAllLandsRequest(0), 15*time.Second)
 		if err != nil {
@@ -1348,14 +1346,14 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		unlocked, upgraded := 0, 0
-		// 先解锁（对齐 Node：unlockLand(landId, false)，逐个失败不中断）
+		// 先解锁（unlockLand(landId, false)，逐个失败不中断）
 		for _, id := range unlockIDs {
 			if err := execFarmOp(c, "UnlockLand", proto.EncodeUnlockLandRequest(id, false)); err == nil {
 				unlocked++
 			}
 			time.Sleep(200 * time.Millisecond)
 		}
-		// 再升级（对齐 Node：upgradeLand(landId)，逐个失败不中断）
+		// 再升级（upgradeLand(landId)，逐个失败不中断）
 		for _, id := range upgradeIDs {
 			if err := execFarmOp(c, "UpgradeLand", proto.EncodeUpgradeLandRequest(id)); err == nil {
 				upgraded++
@@ -1363,7 +1361,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(200 * time.Millisecond)
 		}
 		if unlocked == 0 && upgraded == 0 {
-			// 对齐 Node：无候选时不报错（runFarmOperation 返回 hadWork:false，路由仍 ok:true）
+			// 无候选时不报错（runFarmOperation 返回 hadWork:false，路由仍 ok:true）
 			detail = "没有可解锁或可升级的土地"
 			appendOpLog(accountID, req.Action, detail)
 			writeJSON(w, map[string]interface{}{"ok": true, "action": req.Action, "message": detail})
@@ -1388,7 +1386,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		detail = fmt.Sprintf("铲除 %d 块地", len(ids))
-	case "plant": // 手动种植：对齐 Node plantSeeds / autoPlantEmptyLands
+	case "plant": // 手动种植：
 		cfg := models.GetAccountConfig(accountID)
 		if req.SeedID != "" && req.LandID != "" {
 			seedID, perr := strconv.ParseInt(req.SeedID, 10, 64)
@@ -1408,7 +1406,7 @@ func handleFarmAction(w http.ResponseWriter, r *http.Request) {
 			}
 			detail = fmt.Sprintf("种植 %d 块地", n)
 		} else {
-			// 未指定种子：用种植策略自动选种，种植当前农场所有空地/枯死地（对齐 Node autoPlantEmptyLands）
+			// 未指定种子：用种植策略自动选种，种植当前农场所有空地/枯死地
 			n, perr := autoPlantEmptyLands(accountID, c, cfg)
 			if perr != nil {
 				writeError(w, 500, "自动种植失败: "+perr.Error())

@@ -1,6 +1,6 @@
 package proto
 
-// gamepb.plantpb 农场数据编解码（对齐 proto/plantpb.proto）
+// gamepb.plantpb 农场数据编解码
 
 // EncodeAllLandsRequest 获取所有地块请求
 func EncodeAllLandsRequest(hostGid int64) []byte {
@@ -78,7 +78,7 @@ type PlantInfo struct {
 
 // SocialItem 背包型社交道具（plantpb.proto SocialItem），用于判定黄金虫
 // 字段依据 2026-07-12 黄金虫抓包：item_id=1 count=2 type=3 owner_gid=4 created_at=5
-// 黄金虫判定：item_id==301101 && type==2（对齐 Node farm-land-analyzer.js GOLDEN_BUG_ITEM_ID/GOLDEN_BUG_SOCIAL_TYPE）
+// 黄金虫判定：item_id==301101 && type==2
 type SocialItem struct {
 	ID        int64 // item_id=1
 	Count     int64 // count=2
@@ -276,7 +276,7 @@ func EncodeFarmingRequest(landIDs []int64, hostGid int64) []byte {
 	return b.Bytes()
 }
 
-// EncodeFriendFarmingRequest 好友帮忙一键务农（对齐 liyangpengs 参考实现的 FarmingRequest：
+// EncodeFriendFarmingRequest 好友帮忙一键务农
 // land_ids=1 / host_gid=2 / field_3=0 / field_4=2，两者均为好友帮忙抓包场景固定值）。
 // 注意 field_3=0 也需原样编码，故用 FieldInt64Always（FieldInt64 会跳过 0）。
 func EncodeFriendFarmingRequest(landIDs []int64, hostGid int64) []byte {
@@ -314,7 +314,7 @@ func EncodeRemovePlantRequest(landIDs []int64) []byte {
 }
 
 // EncodePutSocialItemRequest 放置背包型社交道具（黄金虫）
-// PutSocialItemRequest: host_gid=1, land_ids=2, item_id=3, social_type=5（对齐 plantpb.proto）
+// PutSocialItemRequest: host_gid=1, land_ids=2, item_id=3, social_type=5
 func EncodePutSocialItemRequest(hostGid int64, landIDs []int64, itemID int64, socialType int64) []byte {
 	b := NewBuilder()
 	b.FieldInt64(1, hostGid)
@@ -341,7 +341,7 @@ func EncodeUnlockLandRequest(landID int64, doShared bool) []byte {
 	return b.Bytes()
 }
 
-// EncodePlantRequest 种植（对齐 Node planting-service.js encodePlantRequest：
+// EncodePlantRequest 种植
 // PlantRequest{ items(字段2):[ PlantItem{ seed_id=1, land_ids=2 } ] }，无 count 字段，多地块走 land_ids 数组）。
 // 注意：PlantRequest.items 是 repeated PlantItem，外层字段号为 2（字段1 是旧版 land_and_seed map）。
 func EncodePlantRequest(seedID int64, landIDs []int64) []byte {
@@ -355,7 +355,7 @@ func EncodePlantRequest(seedID int64, landIDs []int64) []byte {
 	return b.Bytes()
 }
 
-// ============ 好友农场操作请求编码（对齐 Node friend-operation-limits.js） ============
+// ============ 好友农场操作请求编码 ============
 // 均由 gamepb.plantpb.PlantService 投递，字段：land_ids / host_gid。
 
 // 浇水（WaterLandRequest: land_ids=1, host_gid=2）
@@ -431,7 +431,6 @@ func EncodeCheckCanOperateRequest(hostGid, operationID int64) []byte {
 }
 
 // DecodeOpsLandList 解析操作类响应中的地块列表（field 1 = repeated LandInfo）。
-// 对齐 Harvest/WaterLand/WeedOut/Insecticide/PutInsects/PutWeeds 的 Reply.land。
 func DecodeOpsLandList(buf []byte) []*LandInfo {
 	out := []*LandInfo{}
 	r := NewReader(buf)
@@ -448,7 +447,7 @@ func DecodeOpsLandList(buf []byte) []*LandInfo {
 	return out
 }
 
-// ============ 操作每日限制（对齐 proto/plantpb.proto OperationLimit） ============
+// ============ 操作每日限制 ============
 // 出现在各农场/好友操作 Reply 的 operation_limits（repeated，字段 2 或 4）：
 //   WaterLandReply/WeedOutReply/InsecticideReply/PutInsectsReply/PutWeedsReply/FarmingReply
 //   /PlantReply/RemovePlantReply/FertilizeReply = 字段 2；
@@ -511,15 +510,13 @@ func DecodeOperationLimits(buf []byte) []OperationLimit {
 	return out
 }
 
-// FarmingResult 好友帮忙单地块结果（对齐 plantpb.proto FarmingResult：land_id=1 / reward=2）
+// FarmingResult 好友帮忙单地块结果
 type FarmingResult struct {
 	LandID int64
 }
 
 // DecodeFarmingReply 解析 PlantService.Farming 的 reply：
-//
 //	operation_limits=字段2（repeated OperationLimit）、results=字段3（repeated FarmingResult）。
-//
 // 返回解析出的每日限制与成功帮忙的地块ID列表。
 func DecodeFarmingReply(buf []byte) (limits []OperationLimit, landIDs []int64) {
 	if len(buf) == 0 {

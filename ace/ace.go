@@ -25,7 +25,7 @@ var wasmBin []byte
 // 进程启动时间，用于模拟 performance.now()
 var startTS = time.Now()
 
-// 服务器时间同步间隔（对齐 Node q 每次异步校准的语义）
+// 服务器时间同步间隔
 const serverTimeSyncInterval = 10 * time.Minute
 
 // Runtime TSDK 运行时封装
@@ -43,10 +43,9 @@ type Runtime struct {
 
 	// mu 串行化所有对 WASM 共享内存(TSKD)的访问。TSDK 非线程安全，
 	// 多 goroutine(前端 handler / 自动化 / loadAssets / 心跳 / ACE)并发调用会数据竞争->偶发假卡死。
-	// 对齐参考纯 GO 工程 internal/protocol/tsdk/runtime.go 的 r.mu。
 	mu sync.Mutex
 
-	// serverTime 服务器时间（秒），由后台 goroutine 从官方接口同步（对齐 Node q）
+	// serverTime 服务器时间（秒），由后台 goroutine 从官方接口同步
 	serverTime atomic.Int64
 }
 
@@ -169,16 +168,16 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 		}
 		return r.writeCS(ctx, m, outPtr, capacity, string(data))
 	}).Export("g")
-	// h: clock（对齐 Node：微秒级，clockId 0=Date.now()，否则 performance.now()）
+	// h: clock（微秒级，clockId 0=Date.now，否则 performance.now）
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, clockID, low, high, outPtr uint32) uint32 {
 		if clockID > 3 {
 			return 28
 		}
 		var value int64
 		if clockID == 0 {
-			value = time.Now().UnixMicro() // 对齐 Node Date.now()*1e6（微秒）
+			value = time.Now().UnixMicro() // *1e6（微秒）
 		} else {
-			value = time.Since(startTS).Microseconds() // 对齐 Node performance.now()*1e6
+			value = time.Since(startTS).Microseconds() // *1e6
 		}
 		m.Memory().WriteUint64Le(outPtr, uint64(value))
 		return 0
@@ -227,7 +226,7 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 		}
 		return uint32(out[0])
 	}).Export("p")
-	// q: server time（对齐 Node：优先服务器时间，未同步则本地秒）
+	// q: server time
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, outPtr uint32) uint32 {
 		m.Memory().WriteUint32Le(outPtr, uint32(r.serverTime.Load()))
 		return 1
@@ -262,7 +261,7 @@ func (r *Runtime) exportHost(mb wazero.HostModuleBuilder) {
 	mb.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, ptr, length uint32) uint32 { return 0 }).Export("v")
 }
 
-// syncServerTimeLoop 后台同步官方服务器时间（对齐 Node q 的异步校准）
+// syncServerTimeLoop 后台同步官方服务器时间
 func (r *Runtime) syncServerTimeLoop() {
 	r.syncServerTimeOnce()
 	ticker := time.NewTicker(serverTimeSyncInterval)
@@ -588,7 +587,7 @@ func (r *Runtime) HeartbeatTick() error {
 	return err
 }
 
-// ProcessReceivedData 处理下行数据队列（对齐 Node tsdk-runtime.js processReceivedData）
+// ProcessReceivedData 处理下行数据队列
 func (r *Runtime) ProcessReceivedData() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -600,7 +599,7 @@ func (r *Runtime) ProcessReceivedData() error {
 	return err
 }
 
-// SendStatus 主动上报状态（对齐 Node tsdk-runtime.js sendStatus）
+// SendStatus 主动上报状态
 func (r *Runtime) SendStatus() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -612,7 +611,7 @@ func (r *Runtime) SendStatus() error {
 	return err
 }
 
-// DetectSpeedHack 速度检测（对齐 Node tsdk-runtime.js detectSpeedHack）
+// DetectSpeedHack 速度检测
 func (r *Runtime) DetectSpeedHack(elapsedMs int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -627,7 +626,7 @@ func (r *Runtime) DetectSpeedHack(elapsedMs int64) error {
 	return err
 }
 
-// GetDataToServer 取待上报的 ACE 数据（对齐 Node tsdk-runtime.js getDataToServer）：
+// GetDataToServer 取待上报的 ACE 数据：
 // wasm 通过 lengthPtr 写出数据长度，返回数据指针；无数据返回空切片。
 func (r *Runtime) GetDataToServer() ([]byte, error) {
 	r.mu.Lock()
@@ -661,7 +660,7 @@ func (r *Runtime) GetDataToServer() ([]byte, error) {
 	return append([]byte(nil), buf...), nil
 }
 
-// SendDataFromServer 回灌服务端下发数据（对齐 Node tsdk-runtime.js sendDataFromServer）
+// SendDataFromServer 回灌服务端下发数据
 func (r *Runtime) SendDataFromServer(data []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -681,7 +680,7 @@ func (r *Runtime) SendDataFromServer(data []byte) error {
 	return err
 }
 
-// CheckFunctionArray 完整性校验（对齐 Node tsdk-runtime.js checkFunctionArray）。
+// CheckFunctionArray 完整性校验。
 // names 为函数名列表（Node 传方法 toString 的字符串数组；Go 侧以导出名等价替代）。
 func (r *Runtime) CheckFunctionArray(names []string, typeFlag int64) error {
 	r.mu.Lock()

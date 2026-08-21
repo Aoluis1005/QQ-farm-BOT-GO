@@ -1,6 +1,6 @@
 package proto
 
-// DecodeEventMessage 解码服务器推送封装（对齐权威 Node network.ts handleNotify：
+// DecodeEventMessage 解码服务器推送封装
 // game.proto EventMessage{ string message_type=1; bytes body=2 }）。网关 Notify 推送的
 // Message.body 是 EventMessage，类型标识在 message_type 字段、真正的业务通知（ItemNotify 等）
 // 在 body 字段。必须先解这一层再按 message_type 分发。

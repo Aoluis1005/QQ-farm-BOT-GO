@@ -1,7 +1,6 @@
 package proto
 
 // gamepb.friendpb.FriendService 相关编解码。
-// 对齐 Node core/src/proto/friendpb.proto 与 utils/proto.js。
 
 // GetApplicationsRequest {}（空请求）
 func EncodeGetApplicationsRequest() []byte { return nil }

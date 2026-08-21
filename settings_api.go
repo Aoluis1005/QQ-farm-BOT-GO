@@ -15,7 +15,7 @@ import (
 )
 
 // ============================================================
-// 设置接口（对齐 Node admin-settings-routes.js / store.js）
+// 设置接口
 // 覆盖：自动控制(automation)、种植策略(strategy)、默认方案(default-plan)、种子列表(/api/seeds)
 // 逻辑关系（Node 确认）：
 //   - 自动控制 = 账号级开关集合（POST /api/automation）
@@ -34,7 +34,7 @@ func registerSettingsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/seeds", handleSeeds)
 }
 
-// reqAccountID 解析请求中的账号 ID：query accountId 优先，其次 x-account-id header（对齐 Node）
+// reqAccountID 解析请求中的账号 ID：query accountId 优先，其次 x-account-id header
 func reqAccountID(r *http.Request) string {
 	id := r.URL.Query().Get("accountId")
 	if id == "" {
@@ -43,7 +43,7 @@ func reqAccountID(r *http.Request) string {
 	return resolveAccountID(id)
 }
 
-// GET /api/settings  获取账号全量配置（对齐 Node admin-settings-routes.js GET /api/settings）
+// GET /api/settings  获取账号全量配置
 func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, 405, "method not allowed")
@@ -59,7 +59,7 @@ func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/settings/save  全量保存账号配置（除 automation；automation 走 /api/automation）
-// ── 设置合法性钳制（对齐 Node models/store.js:474-481 / 581-644） ──
+// ── 设置合法性钳制 ──
 var allowedPlantingStrategies = map[string]bool{
 	"preferred":       true,
 	"level":           true,
@@ -70,7 +70,7 @@ var allowedPlantingStrategies = map[string]bool{
 	"bag_priority":    true,
 }
 
-// clampPlantDelaySeconds 对齐 Node: Math.max(0, Math.min(60, Number(x) || 2))
+// clampPlantDelaySeconds  Math.max(0, Math.min(60, Number(x) || 2))
 func clampPlantDelaySeconds(v int) int {
 	if v == 0 {
 		return 2
@@ -115,7 +115,7 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetAccountConfig(accountID)})
 }
 
-// POST /api/automation  保存自动化开关（全量对象，对齐 Node saveSettings 里的 POST /api/automation）
+// POST /api/automation  保存自动化开关（全量对象）
 func handleAutomationSave(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -140,7 +140,7 @@ func handleAutomationSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetAutomation(accountID)})
 }
 
-// GET/PUT /api/settings/default-plan  读/存默认方案（对齐 Node）
+// GET/PUT /api/settings/default-plan  读/存默认方案
 func handleDefaultPlan(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -169,7 +169,7 @@ func handleDefaultPlan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/settings/default-plan/import  从当前账号导入为默认方案（对齐 Node）
+// POST /api/settings/default-plan/import  从当前账号导入为默认方案
 func handleDefaultPlanImport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -189,7 +189,7 @@ func handleDefaultPlanImport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetUserDefaultPlan()})
 }
 
-// POST /api/settings/default-plan/apply  把默认方案套用到当前账号（对齐 Node）
+// POST /api/settings/default-plan/apply  把默认方案套用到当前账号
 func handleDefaultPlanApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -208,7 +208,7 @@ func handleDefaultPlanApply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": cfg})
 }
 
-// POST /api/settings/default-plan/reset  恢复系统默认（对齐 Node，enabled 保持不变）
+// POST /api/settings/default-plan/reset  恢复系统默认
 func handleDefaultPlanReset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -221,8 +221,8 @@ func handleDefaultPlanReset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "data": models.GetUserDefaultPlan()})
 }
 
-// seedOut 种子列表条目（对齐 Node getAvailableSeeds 的商店回退分支：
-// {seedId, goodsId:0, name, price:null, requiredLevel, locked:false, soldOut:false, unknownMeta:true}）
+// seedOut 种子列表条目
+// {seedId, goodsId:0, name, price:null, requiredLevel, locked:false, soldOut:false, unknownMeta:true}
 type seedOut struct {
 	SeedID        int    `json:"seedId"`
 	GoodsID       int    `json:"goodsId"`
@@ -332,7 +332,7 @@ func buildLocalSeedList() []seedOut {
 			SoldOut:       false,
 			UnknownMeta:   true,
 		}
-		// 名称：优先 ItemInfo type5 名（"草莓种子"），否则 Plant 植物名
+		// 名称：优先 ItemInfo type5 名（"草莓种子"）否则 Plant 植物名
 		if it, ok := itemInfoMap[id]; ok && it.Name != "" {
 			item.Name = it.Name
 			item.RequiredLevel = it.Level

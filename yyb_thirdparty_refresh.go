@@ -13,11 +13,10 @@ import (
 // getCodeFromThirdpartyYyb 调用第三方应用宝的 {apiBase}/api/open/v1/farm/code 接口，
 // 用 openid + Bearer APIToken 换取登录 code。失败返回 error；refresh=true 强制刷新。
 // 重用 handleYybThirdpartyCode 中的多信封 code 提取逻辑（extractCodeFromThirdparty）。
-//
 // 注意：与内置 YYB 流程互不冲突；调用方（refreshCodeFromYyb）只在 acc.Thirdparty 三字段全填时走本函数。
 func getCodeFromThirdpartyYyb(apiBase, apiToken, openid string, forceRefresh bool) (string, error) {
 	base := strings.TrimRight(strings.TrimSpace(apiBase), "/")
-	// 规范化：去掉尾部可能误带的路径后缀（对齐 Node normalizeApiBase）
+	// 规范化：去掉尾部可能误带的路径后缀
 	base = stripSuffix(base, "/api/open/v1/farm/code")
 	base = stripSuffix(base, "/api/open/v1")
 	base = stripSuffix(base, "/api/open")

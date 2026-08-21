@@ -36,7 +36,7 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		accounts := models.GetAccounts()
-		// 在线状态用网关连接实时判断（对齐 Node getAccounts：acc.running = !!worker）——
+		// 在线状态用网关连接实时判断——
 		// 持久化 status 创建即 offline 且从不更新，故这里覆盖返回，不写库。
 		for i := range accounts {
 			if c := clientPool.cached(accounts[i].ID); c != nil && !c.IsClosed() {
@@ -44,7 +44,7 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 			} else {
 				accounts[i].Status = "offline"
 			}
-			// 脱敏：第三方应用宝的 apiToken 不外泄到前端（对齐 Node admin-account-routes.js:55-66）
+			// 脱敏：第三方应用宝的 apiToken 不外泄到前端
 			if accounts[i].Thirdparty != nil && accounts[i].Thirdparty.APIToken != "" {
 				tp := *accounts[i].Thirdparty
 				tp.APIToken = "***"
@@ -344,7 +344,7 @@ func handleYybGetCode(w http.ResponseWriter, r *http.Request) {
 	}})
 }
 
-// getCodeFromYyb 用 openid 调应用宝 /wxapp/getCode 换新 code（对齐 Node refreshYybCodeIfNeeded）
+// getCodeFromYyb 用 openid 调应用宝 /wxapp/getCode 换新 code
 func getCodeFromYyb(apiBase, apiKey, openid, appID string) (string, error) {
 	if apiBase == "" || apiKey == "" {
 		return "", fmt.Errorf("应用宝接口地址或 API Token 未配置")
@@ -387,7 +387,7 @@ func handleYybThirdpartyCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 调用第三方接口: POST {apiBase}/api/open/v1/farm/code
-	// 规范化 apiBase：去尾部斜杠与用户误带的路径后缀（对齐 Node normalizeApiBase）
+	// 规范化 apiBase：去尾部斜杠与用户误带的路径后缀
 	base := strings.TrimRight(body.APIBase, "/")
 	base = stripSuffix(base, "/api/open/v1/farm/code")
 	base = stripSuffix(base, "/api/open/v1")

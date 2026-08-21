@@ -17,7 +17,7 @@ import (
 // friendService 好友服务名（gamepb.friendpb.FriendService）
 const friendService = "gamepb.friendpb.FriendService"
 
-// registerFriendOpsAPI 注册农场操作 + 好友互动接口（对齐 Node admin 路由）
+// registerFriendOpsAPI 注册农场操作 + 好友互动接口
 func registerFriendOpsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/farm/operate", handleFarmOperate)
 	mux.HandleFunc("/api/land/fertilize", handleLandFertilize)
@@ -109,7 +109,7 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid landId")
 		return
 	}
-	// 单块地催熟使用有机肥料（对齐 Node worker.js fertilizeLand: fertilize([landId], ORGANIC_FERTILIZER_ID)）
+	// 单块地催熟使用有机肥料（ fertilize([landId], ORGANIC_FERTILIZER_ID)）
 	if err := execFarmOp(c, "Fertilize", proto.EncodeFertilizeRequest(ids, organicFertilizerID)); err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -119,7 +119,7 @@ func handleLandFertilize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID.String(), "message": "催熟完成"})
 }
 
-// POST /api/land/remove  body: { landId }  —— 铲除单块地作物（对齐 Node admin-farm-operation-routes.js /api/land/remove）
+// POST /api/land/remove  body: { landId }  —— 铲除单块地作物
 func handleLandRemove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -156,8 +156,8 @@ func handleLandRemove(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"ok": true, "landId": req.LandID.String(), "message": "铲除完成"})
 }
 
-// POST /api/land/remove-all  —— 一键铲除全部已种植作物（对齐 Node worker.js removeAllPlants：
-// 过滤 unlocked && status 不在 empty/locked，然后批量 RemovePlant）
+// POST /api/land/remove-all  —— 一键铲除全部已种植作物
+// 过滤 unlocked && status 不在 empty/locked，然后批量 RemovePlant
 func handleLandRemoveAll(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")
@@ -242,7 +242,7 @@ func handleFriendBlacklistToggle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "无可用账号")
 		return
 	}
-	// 拉黑时默认跳过偷菜与帮忙（skipSteal=skipHelp=true），与 Node 一致
+	// 拉黑时默认跳过偷菜与帮忙（skipSteal=skipHelp=true）与 Node 一致
 	skipSteal, skipHelp := true, true
 	if b, e := json.Marshal(req); e == nil {
 		var probe struct {
@@ -328,7 +328,7 @@ func handleFriendRoute(w http.ResponseWriter, r *http.Request) {
 
 	switch act {
 	case "delete":
-		// 对齐 Node friend-api.js delFriend → FriendService/DelFriend（真实删除）
+		// （真实删除）
 		if derr := doDelFriend(c, gid); derr != nil {
 			writeError(w, 500, "删除好友失败: "+derr.Error())
 			return
@@ -347,7 +347,7 @@ func handleFriendRoute(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 400, "missing opType")
 			return
 		}
-		// 真实执行：进入→分析→RPC→离开（对齐 friend-visit.js doFriendOperation）
+		// 真实执行：进入→分析→RPC→离开
 		res := doFriendOperation(c, accountID, gid, "", req.OpType)
 		writeJSON(w, map[string]interface{}{
 			"ok":         res.OK,
@@ -374,7 +374,7 @@ func doDelFriend(c *gw.Client, gid int64) error {
 }
 
 // POST /api/friend/apply  body: { gid, openid, shareKey }
-// 主动加好友（分享卡 → UserService.ReportArkClick，对齐 Node admin-friend-routes.js /api/friend/apply + invite.js sendReportArkClick）
+// 主动加好友（分享卡 → UserService.ReportArkClick）
 func handleFriendApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "method not allowed")

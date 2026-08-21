@@ -1,7 +1,7 @@
 package main
 
 // fruitItem 果实静态配置：fruit_id -> 名称/稀有度/所需等级
-// 提取自 Node core/src/gameConfig/Plant.json + ItemInfo.json（对齐 getItemById/getFruitName）
+// 提取自 Node core/src/gameConfig/Plant.json + ItemInfo.json
 type fruitItem struct {
 	Name   string
 	Rarity int64

@@ -10,9 +10,9 @@ const app = useAppStore()
 const router = useRouter()
 const pwd = ref('')
 const loading = ref(false)
-const hasPwd = ref(true)   // 是否已设置后台密码（对齐 legacy initGate：status.hasPassword ? login : setup）
+const hasPwd = ref(true)   // 是否已设置后台密码
 
-// 对齐 legacy handleSubmit：无 token 先探测 status，决定走 设密(setup) 还是 登录(login)
+// 无 token 先探测 status，决定走 设密(setup) 还是 登录(login)
 onMounted(async () => {
   try {
     const { data } = await api.get('/api/admin/status')
@@ -32,7 +32,7 @@ async function onSubmit() {
   loading.value = true
   try {
     if (!hasPwd.value) {
-      // 首次设密：先 setup 再 login（对齐 legacy handleSubmit：doSetup → doLogin）
+      // 首次设密：先 setup 再 login
       const { data: sd } = await api.post('/api/admin/setup', { password: pwd.value })
       if (!(sd && sd.ok)) { app.error((sd && sd.error) || '设置失败'); return }
     }

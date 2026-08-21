@@ -1,6 +1,6 @@
 package ace
 
-// TSDK / ACE 常量，对齐 Node utils/tsdk-runtime.js
+// TSDK / ACE 常量，
 
 const (
 	OfficialVersion  = "v3.8.2.1783066265"

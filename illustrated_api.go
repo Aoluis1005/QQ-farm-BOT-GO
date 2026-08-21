@@ -12,7 +12,7 @@ import (
 )
 
 // ============================================================
-// 图鉴接口（对齐 Node admin-illustrated-routes.js / admin-illustrated-helpers.js / admin-illustrated-purchase-routes.js）
+// 图鉴接口
 // 覆盖：
 //   - GET  /api/illustrated            图鉴列表（refresh / illustrated_type）
 //   - POST /api/illustrated/buy        购买单个种子（goodsId/price）
@@ -22,8 +22,8 @@ import (
 //   - ShopService.ShopInfo (shop_id=2 种子商店) / ShopService.BuyGoods
 // ============================================================
 
-const seedShopType = 2   // 种子商店（对齐 Node SEED_SHOP_TYPE=2）
-const buyAllDelayMs = 200 // 一键购买间隔（对齐 Node BUY_ALL_DELAY_MS=200）
+const seedShopType = 2   // 种子商店
+const buyAllDelayMs = 200 // 一键购买间隔
 
 func registerIllustratedAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/illustrated", handleIllustratedGet)
@@ -37,7 +37,7 @@ type seedGoods struct {
 	price   int64
 }
 
-// getUserLevel 用户等级（对齐 Node getUserLevel：provider.getStatus(accountId)?.status?.level）
+// getUserLevel 用户等级（provider.getStatus(accountId)?.status?.level）
 func getUserLevel(c *gw.Client) int64 {
 	if c == nil {
 		return 0
@@ -45,7 +45,7 @@ func getUserLevel(c *gw.Client) int64 {
 	return c.Level()
 }
 
-// getSeedShopGoodsMap 拉种子商店商品，建立 item_id → {goodsId, price} 映射（对齐 Node getSeedShopGoodsMap）
+// getSeedShopGoodsMap 拉种子商店商品，建立 item_id → {goodsId, price} 映射
 func getSeedShopGoodsMap(ctx context.Context, c *gw.Client, tolerateFailure bool) map[int]seedGoods {
 	m := map[int]seedGoods{}
 	rep, err := c.Request(ctx, "gamepb.shoppb.ShopService", "ShopInfo",
@@ -64,7 +64,7 @@ func getSeedShopGoodsMap(ctx context.Context, c *gw.Client, tolerateFailure bool
 	return m
 }
 
-// resolveFruitDisplayName 果实显示名兜底（对齐 Node admin-illustrated-helpers resolveFruitDisplayName）
+// resolveFruitDisplayName 果实显示名兜底
 // 普通作物：fruitId = seedId + 20000，plantId = seedId + 1000000
 // 变异作物：fruitId = 1040000 + n，plantId = 1120000 + n
 func resolveFruitDisplayName(fruitID int) string {
@@ -80,7 +80,7 @@ func resolveFruitDisplayName(fruitID int) string {
 	return getPlantNameOrNull(int64(fruitID - 20000 + 1000000))
 }
 
-// buildIllustratedItem 构造图鉴条目（对齐 Node buildIllustratedItem）
+// buildIllustratedItem 构造图鉴条目
 func buildIllustratedItem(rawItem proto.IllustratedItem, seedGoodsMap map[int]seedGoods, userLevel int64) map[string]interface{} {
 	fruitID := int(rawItem.SeedID)
 	fruitConfig, _ := getItemByID(fruitID)
@@ -119,7 +119,7 @@ func buildIllustratedItem(rawItem proto.IllustratedItem, seedGoodsMap map[int]se
 	return item
 }
 
-// summarizeIllustratedItems 图鉴汇总（对齐 Node summarizeIllustratedItems）
+// summarizeIllustratedItems 图鉴汇总
 func summarizeIllustratedItems(items []map[string]interface{}) map[string]interface{} {
 	total := len(items)
 	unlocked := 0
@@ -140,7 +140,7 @@ func summarizeIllustratedItems(items []map[string]interface{}) map[string]interf
 	}
 }
 
-// collectBuyableIllustratedItems 收集可购买图鉴项目（对齐 Node collectBuyableIllustratedItems）
+// collectBuyableIllustratedItems 收集可购买图鉴项目
 func collectBuyableIllustratedItems(rawItems []proto.IllustratedItem, seedGoodsMap map[int]seedGoods, userLevel int64) []map[string]interface{} {
 	out := []map[string]interface{}{}
 	for _, rawItem := range rawItems {
@@ -171,7 +171,7 @@ func collectBuyableIllustratedItems(rawItems []proto.IllustratedItem, seedGoodsM
 	return out
 }
 
-// getItemNameByID 物品名（对齐 Node getItemById()?.name || `果实${id}`）
+// getItemNameByID 物品名（?.name || `果实${id}`）
 func getItemNameByID(itemID int) string {
 	if it, ok := getItemByID(itemID); ok {
 		return it.Name
@@ -316,7 +316,7 @@ func handleIllustratedBuyAll(w http.ResponseWriter, r *http.Request) {
 	successCount := 0
 	failCount := 0
 
-	// 对齐 Node：for 顺序逐个购买 + 200ms 间隔（非并发）
+	// for 顺序逐个购买 + 200ms 间隔（非并发）
 	for _, item := range buyableItems {
 		goodsID := item["goodsId"].(int64)
 		price := item["price"].(int64)
