@@ -526,10 +526,7 @@ func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	accountID := resolveAccountID(q.Get("accountId"))
-	id, _ := strconv.ParseInt(q.Get("id"), 10, 64)
-	if id == 0 {
-		id = actExchangeActID
-	}
+	id := int64(actExchangeActID)
 	slotID, _ := strconv.ParseInt(q.Get("slotId"), 10, 64)
 	if slotID <= 0 {
 		writeJSONMap(w, "ok", false, "error", "slotId required")
