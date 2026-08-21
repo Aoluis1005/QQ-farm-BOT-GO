@@ -30,14 +30,14 @@ async function loadAccounts() {
   }
 }
 
-/* ---------- 切换当前账号 ---------- */
+/* ---------- 切换当前账号（热切换：不整页刷新，广播事件让各页面重拉数据） ---------- */
 async function switchAcc(id) {
   if (String(id) === String(activeId.value)) return
   try {
     const { data } = await api.post('/api/accounts/active', { id })
     if (data?.ok) {
-      setAccountId(String(id))
-      location.reload()
+      account.switchAccount(id)
+      window.dispatchEvent(new CustomEvent('account-switched', { detail: { id: String(id) } }))
     } else app.error(data?.error || '切换失败')
   } catch (e) { app.error(e.response?.data?.error || '切换请求失败') }
 }
@@ -252,8 +252,10 @@ async function addByThirdpartyYyb() {
   } finally { t3rdBusy.value = false }
 }
 
-onMounted(() => loadAccounts())
-onUnmounted(() => stopQr())
+// 切号事件：刷新账号列表（在线状态/active 标记随新账号变化）
+const onAccountSwitched = () => loadAccounts()
+onMounted(() => { loadAccounts(); window.addEventListener('account-switched', onAccountSwitched) })
+onUnmounted(() => { stopQr(); window.removeEventListener('account-switched', onAccountSwitched) })
 </script>
 
 <template>

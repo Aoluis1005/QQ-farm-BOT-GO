@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import api from '@/api'
 import { getAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -123,7 +123,10 @@ function fmtTime(unix) {
   return ('0' + (dt.getMonth() + 1)).slice(-2) + '/' + ('0' + dt.getDate()).slice(-2) + ' ' + ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2)
 }
 
-onMounted(() => { loadSeed(); shopProfile() })
+// 切号事件：用新账号重拉种子/商品与商城资产（热切换）
+const onSwitched = () => { loadSeed(); shopProfile() }
+onMounted(() => { loadSeed(); shopProfile(); window.addEventListener('account-switched', onSwitched) })
+onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import api from '@/api'
 import { getAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -457,7 +457,10 @@ function fmtDay(s) {
   return (x.getMonth() + 1) + '月' + x.getDate() + '日'
 }
 
-onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000) })
+// 切号事件：用新账号重拉活动列表与鹊桥面板（热切换）
+const onSwitched = () => { loadActivity(); loadQiXi() }
+onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); window.addEventListener('account-switched', onSwitched) })
+onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>

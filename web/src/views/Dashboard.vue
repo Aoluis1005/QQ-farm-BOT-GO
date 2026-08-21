@@ -170,13 +170,15 @@ function rankBadge(idx) {
   return idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : 'rank-bronze'
 }
 
-// 首页日志/资产实时刷新：每 5s 拉一次，切换账号时 next 轮自动带新 accountId
+// 首页日志/资产实时刷新：每 5s 拉一次；切号事件立即用新账号重拉（热切换）
 let pollTimer = null
+function onSwitched() { load() }
 onMounted(() => {
   load()
   pollTimer = setInterval(load, 5000)
+  window.addEventListener('account-switched', onSwitched)
 })
-onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null } })
+onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>

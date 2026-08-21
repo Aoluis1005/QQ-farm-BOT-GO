@@ -57,7 +57,7 @@ onMounted(async () => {
 function go(to) {
   router.push(to)
 }
-// 右上角切换账号：弹出 bottom sheet，点击账号直接切换当前账号并整页刷新
+// 右上角切换账号：弹出 bottom sheet，点击账号热切换（不整页刷新，广播事件让各页面重拉数据）
 const showAcc = ref(false)
 function onSwitchAccount() {
   showAcc.value = true
@@ -65,7 +65,8 @@ function onSwitchAccount() {
 function pickAccount(id) {
   if (String(id) === String(account.currentId)) { showAcc.value = false; return }
   account.switchAccount(id)
-  location.reload()
+  window.dispatchEvent(new CustomEvent('account-switched', { detail: { id: String(id) } }))
+  showAcc.value = false
 }
 </script>
 

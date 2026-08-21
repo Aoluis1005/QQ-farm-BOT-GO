@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import api from '@/api'
 import { getAccountId } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -543,12 +543,16 @@ watch(active, (v) => {
   else if (v === 'm-analysis' && !anList.value.length) loadAnalysis()
 })
 
+// 切号事件：用新账号重拉账号资料/默认方案/种子数据（热切换）
+const onSwitched = () => { loadAccountMore(); loadDefaultPlan(); loadSeeds(); getSeedsCache() }
 onMounted(() => {
   loadAccountMore()
   loadDefaultPlan()
   loadSeeds()
   getSeedsCache()
+  window.addEventListener('account-switched', onSwitched)
 })
+onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>
