@@ -13,6 +13,9 @@ const notifyOn = ref(false)
 const notifyNick = ref('')
 const notifyCooldown = ref(10)
 const savingNotify = ref(false)
+const reportOn = ref(false)
+const reportTime = ref('21:00')
+const savingReport = ref(false)
 
 async function load() {
   try {
@@ -23,6 +26,8 @@ async function load() {
       notifyOn.value = !!data.data.offlineNotifyEnabled
       notifyNick.value = data.data.offlineNotifyNick || ''
       notifyCooldown.value = data.data.offlineNotifyCooldownMin || 10
+      reportOn.value = !!data.data.dailyReportEnabled
+      reportTime.value = data.data.dailyReportTime || '21:00'
     }
   } catch (e) {}
 }
@@ -50,6 +55,19 @@ async function saveNotify() {
     if (data?.ok) app.success('离线通知设置已保存')
     else app.error(data?.error || '保存失败')
   } catch (e) { app.error(e.response?.data?.error || '保存失败') } finally { savingNotify.value = false }
+}
+async function saveReport() {
+  const t = reportTime.value.trim()
+  if (reportOn.value && !/^\d{1,2}:\d{2}$/.test(t)) { app.error('请填写推送时间，格式 HH:MM（北京时间）'); return }
+  savingReport.value = true
+  try {
+    const { data } = await api.post('/api/admin/system-config', {
+      dailyReportEnabled: reportOn.value,
+      dailyReportTime: t || '21:00',
+    })
+    if (data?.ok) app.success('定时收益推送已保存')
+    else app.error(data?.error || '保存失败')
+  } catch (e) { app.error(e.response?.data?.error || '保存失败') } finally { savingReport.value = false }
 }
 
 onMounted(load)
@@ -88,6 +106,22 @@ onMounted(load)
           <span style="font-size:12px;color:var(--muted);">限流（分钟）</span>
         </div>
         <button :disabled="savingNotify" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;" @click="saveNotify">{{ savingNotify ? '保存中…' : '保存离线通知' }}</button>
+      </div>
+
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:12px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">定时收益推送</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6;">
+          每天北京时间指定时刻，通过 MeoW 推送一次今日收益汇总（账号金币收益 + 同气礼盒数量）。
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:13px;">启用定时推送</span>
+          <div class="switch" :class="{ on: reportOn }" @click="reportOn = !reportOn" style="flex:none;"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <input v-model="reportTime" class="field" type="time" :disabled="!reportOn" style="width:140px;box-sizing:border-box;flex-shrink:0;">
+          <span style="font-size:12px;color:var(--muted);">北京时间</span>
+        </div>
+        <button :disabled="savingReport" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;" @click="saveReport">{{ savingReport ? '保存中…' : '保存定时推送' }}</button>
       </div>
     </div>
   </div>

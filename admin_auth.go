@@ -248,6 +248,8 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 			OfflineNotifyEnabled   *bool  `json:"offlineNotifyEnabled"`
 			OfflineNotifyNick      string `json:"offlineNotifyNick"`
 			OfflineNotifyCooldownMin int  `json:"offlineNotifyCooldownMin"`
+			DailyReportEnabled     *bool  `json:"dailyReportEnabled"`
+			DailyReportTime        string `json:"dailyReportTime"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, 400, "参数错误")
@@ -260,9 +262,19 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 		if body.OfflineNotifyEnabled != nil {
 			sc.OfflineNotifyEnabled = *body.OfflineNotifyEnabled
 		}
-		sc.OfflineNotifyNick = body.OfflineNotifyNick
+		// 昵称仅非空才更新：两个保存入口（离线通知/定时推送）各自只带部分字段，
+		// 避免定时推送保存时把已存的昵称覆盖成空串
+		if nick := strings.TrimSpace(body.OfflineNotifyNick); nick != "" {
+			sc.OfflineNotifyNick = nick
+		}
 		if body.OfflineNotifyCooldownMin > 0 {
 			sc.OfflineNotifyCooldownMin = body.OfflineNotifyCooldownMin
+		}
+		if body.DailyReportEnabled != nil {
+			sc.DailyReportEnabled = *body.DailyReportEnabled
+		}
+		if t := strings.TrimSpace(body.DailyReportTime); t != "" {
+			sc.DailyReportTime = t
 		}
 		if err := models.SetSystemConfig(sc); err != nil {
 			writeError(w, 500, "保存失败: "+err.Error())

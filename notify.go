@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -110,4 +112,81 @@ func meowPush(nick, title, content string) {
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
+}
+
+// ============ 定时收益推送（每天北京时间指定时刻推一次今日收益） ============
+
+var (
+	reportMu      sync.Mutex
+	lastReportDay string // 上次已推送的日期（YYYY-MM-DD），跨日重置
+)
+
+// startDailyReportScheduler 启动每日收益推送调度（main 启动时调用一次）
+func startDailyReportScheduler() {
+	go func() {
+		for {
+			time.Sleep(30 * time.Second)
+			runDailyReportCheck()
+		}
+	}()
+}
+
+func runDailyReportCheck() {
+	sc := models.GetSystemConfig()
+	if !sc.DailyReportEnabled || sc.OfflineNotifyNick == "" {
+		return
+	}
+	now := time.Now().In(time.FixedZone("CST", 8*3600))
+	day := now.Format("2006-01-02")
+	reportMu.Lock()
+	if lastReportDay == day {
+		reportMu.Unlock()
+		return
+	}
+	reportMu.Unlock()
+	if now.Format("15:04") != sc.DailyReportTime {
+		return
+	}
+	reportMu.Lock()
+	lastReportDay = day
+	reportMu.Unlock()
+	// 组装日报：遍历所有账号，取今日金币收益 + 同气礼盒
+	var lines []string
+	for _, acc := range models.GetAccounts() {
+		inc := getTodayIncome(acc.ID)
+		gold := numOf(inc["totalGold"])
+		gifts := numOf(inc["dogGifts"])
+		name := acc.Name
+		if name == "" {
+			name = acc.ID
+		}
+		if gold <= 0 && gifts <= 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s 金币+%d 同气礼盒%d个", name, gold, gifts))
+	}
+	if len(lines) == 0 {
+		return
+	}
+	content := fmt.Sprintf("[%s] 今日收益：%s", now.Format("15:04"), strings.Join(lines, "；"))
+	go meowPush(sc.OfflineNotifyNick, "QQ农场收益日报", content)
+}
+
+// numOf 把接口值转成 int64（支持 int/int64/float64/string）
+func numOf(v interface{}) int64 {
+	switch n := v.(type) {
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	case float64:
+		return int64(n)
+	case float32:
+		return int64(n)
+	case string:
+		if s, err := strconv.ParseInt(strings.ReplaceAll(n, ",", ""), 10, 64); err == nil {
+			return s
+		}
+	}
+	return 0
 }

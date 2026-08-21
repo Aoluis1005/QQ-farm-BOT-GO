@@ -90,6 +90,9 @@ func main() {
 	// 启动神秘商人自动购买
 	startMysteryAutoBuyLoop(context.Background())
 
+	// 启动定时收益推送调度（每天北京时间指定时刻推一次）
+	startDailyReportScheduler()
+
 	// 启动时为所有已配置账号建立初始连接。
 	// 后台异步执行，不阻塞 HTTP 启动；失败仅记录（重连/懒连接兜底）。
 	go func() {

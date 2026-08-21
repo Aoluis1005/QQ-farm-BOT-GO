@@ -206,6 +206,9 @@ type SystemConfig struct {
 	OfflineNotifyEnabled   bool   `json:"offlineNotifyEnabled"`
 	OfflineNotifyNick      string `json:"offlineNotifyNick"`
 	OfflineNotifyCooldownMin int  `json:"offlineNotifyCooldownMin"`
+	// 定时收益推送（MeoW）：每天北京时间指定时刻推一次今日收益
+	DailyReportEnabled bool   `json:"dailyReportEnabled"`
+	DailyReportTime    string `json:"dailyReportTime"` // 格式 HH:MM（北京时间）
 }
 
 // CaptureConfig 抓包服务配置
@@ -283,6 +286,8 @@ func DefaultSystemConfig() SystemConfig {
 		OfflineNotifyEnabled: false,
 		OfflineNotifyNick:    "",
 		OfflineNotifyCooldownMin: 10,
+		DailyReportEnabled: false,
+		DailyReportTime:    "21:00",
 	}
 }
 
