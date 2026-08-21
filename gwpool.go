@@ -54,7 +54,7 @@ func gwConfig(platform string) gw.Config {
 	// 客户端版本号从系统配置读取（对齐 Node CONFIG.clientVersion），空则回退默认
 	cv := models.GetSystemConfig().ClientVersion
 	if cv == "" {
-		cv = "1.13.0.4_20260723"
+		cv = "1.13.2.10_20260723"
 	}
 	return gw.Config{
 		ServerURL:       "wss://gate-obt.nqf.qq.com/prod/ws",

@@ -48,7 +48,7 @@ onMounted(load)
           客户端版本号用于网关登录与心跳。保存后对所有已连接账号<strong style="color:#e8a23d;">秒级生效，无需重启</strong>。
           版本与服务器地址通常需成对调整，请勿随意改动，建议先在测试环境验证再同步生产。
         </div>
-        <input v-model="verInput" class="field" type="text" placeholder="1.13.0.4_20260723" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+        <input v-model="verInput" class="field" type="text" placeholder="1.13.2.10_20260723" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
         <button :disabled="saving" style="width:100%;padding:12px;border-radius:10px;background:var(--primary,#3b82f6);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;" @click="save">{{ saving ? '保存中…' : '保存客户端版本' }}</button>
       </div>
     </div>
