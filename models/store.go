@@ -345,6 +345,21 @@ func GetAccountByID(id string) *Account {
 	return nil
 }
 
+// FindAccountByOpenID 按 openid 查已有账号（扫码/应用宝重连去重用）
+func FindAccountByOpenID(openid string) *Account {
+	if openid == "" {
+		return nil
+	}
+	mu.RLock()
+	defer mu.RUnlock()
+	for i := range accounts {
+		if accounts[i].OpenID == openid {
+			return &accounts[i]
+		}
+	}
+	return nil
+}
+
 // AddOrUpdateAccount 添加或更新账号（对标 Node addOrUpdateAccount）
 func AddOrUpdateAccount(acc Account) ([]Account, error) {
 	mu.Lock()

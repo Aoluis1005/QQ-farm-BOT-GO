@@ -74,22 +74,38 @@ func handleAccounts(w http.ResponseWriter, r *http.Request) {
 		if body.Platform == "" {
 			body.Platform = "qq"
 		}
-		id := fmt.Sprintf("%d", time.Now().UnixNano())
-		acc := models.Account{
-			ID:        id,
-			Name:      body.Name,
-			Code:      body.Code,
-			Platform:  body.Platform,
-			QQ:       body.QQ,
-			UIN:      body.UIN,
-			GID:      body.GID,
-			OpenID:   body.OpenID,
-			Thirdparty: body.Thirdparty,
-			Status:   "offline",
-			CreatedAt: time.Now().Format(time.RFC3339),
+		// 去重：同一 openid 重扫（掉线重新扫码/应用宝）复用已有账号，避免重复添加
+		var acc models.Account
+		if body.OpenID != "" {
+			if exist := models.FindAccountByOpenID(body.OpenID); exist != nil {
+				acc = *exist
+				acc.Code = body.Code
+				acc.GID = body.GID
+				acc.Platform = body.Platform
+				acc.OpenID = body.OpenID
+				acc.Thirdparty = body.Thirdparty
+				if body.Name != "" {
+					acc.Name = body.Name
+				}
+			}
 		}
-		if acc.Name == "" {
-			acc.Name = "新账号"
+		if acc.ID == "" {
+			acc = models.Account{
+				ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+				Name:      body.Name,
+				Code:      body.Code,
+				Platform:  body.Platform,
+				QQ:       body.QQ,
+				UIN:      body.UIN,
+				GID:      body.GID,
+				OpenID:   body.OpenID,
+				Thirdparty: body.Thirdparty,
+				Status:   "offline",
+				CreatedAt: time.Now().Format(time.RFC3339),
+			}
+			if acc.Name == "" {
+				acc.Name = "新账号"
+			}
 		}
 		result, err := models.AddOrUpdateAccount(acc)
 		if err != nil {
