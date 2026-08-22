@@ -28,6 +28,7 @@ const qmState = reactive({ activity: {}, reward: {}, material: {}, err: '' })
 /* ---------- 鹊桥寄情（QiXi） ---------- */
 const QIXI_ROOT_ID = 2026081800
 const QIXI_INFO_ID = 2026081801
+const QIXI_END = new Date('2026-08-22T23:59:59+08:00').getTime() // 活动截止（北京时间）；到期后前端自动隐藏，不再硬塞进活动列表
 const qixi = reactive({
   tips: null, err: '',
   // 数据芯片（TODO: 08-18 接口活后从 GetGroup 子树动态获取）
@@ -241,8 +242,8 @@ async function loadActivity() {
     const { data } = await api.get('/api/activity/list', { params: { scope: 'ongoing' } })
     if (!(data && data.ok)) { err.value = (data && data.error) || '加载失败'; groups.value = []; panels.value = []; loading.value = false; return }
     const gs = (data.items || []).filter(i => i.group)
-    // 鹊桥寄情作为「活动子tab」常驻（未上线也可查看玩法框架；上线后正常由接口返回，避免重复）
-    if (!gs.some(g => String(g.id).indexOf('20260818') === 0)) {
+    // 鹊桥寄情兜底：仅活动期内，若接口未返回（开发期/接口缺失）才硬塞进列表；活动结束后不再插入，由接口决定生命周期
+    if (Date.now() < QIXI_END && !gs.some(g => String(g.id).indexOf('20260818') === 0)) {
       gs.unshift({ id: QIXI_ROOT_ID, title: '🌉 鹊桥寄情', group: true })
     }
     groups.value = gs
