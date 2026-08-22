@@ -321,6 +321,41 @@ async function claimGifts() {
   giftBusy.value = false
 }
 
+/* 好友检测（疑似外挂，基于访客行为统计；后端 /api/friends/bot-scan） */
+const botScan = ref([]); const botLoading = ref(false); const botHint = ref('')
+const botExpanded = ref({}); const botDelRange = ref('high'); const excludeGuardDog = ref(true); const botDelPwd = ref('')
+const botStats = computed(() => ({ high: botScan.value.filter(b => b.risk === 'high').length, mid: botScan.value.filter(b => b.risk === 'medium').length, low: botScan.value.filter(b => b.risk === 'low').length }))
+function botTargets() {
+  return botScan.value.filter(b => {
+    if (botDelRange.value === 'high' ? b.risk !== 'high' : !['high', 'medium'].includes(b.risk)) return false
+    if (excludeGuardDog.value && b.isGuardDog) return false
+    return true
+  })
+}
+const botDelCount = computed(() => botTargets().length)
+async function loadBotScan() {
+  if (!acc()) return
+  botLoading.value = true
+  try {
+    const { data } = await api.get('/api/friends/bot-scan')
+    botScan.value = Array.isArray(data?.data) ? data.data : []
+    botHint.value = data?.errorHint || ''
+  } catch (e) { botScan.value = []; botHint.value = '加载失败：' + (e?.response?.data?.error || e?.message || e) }
+  finally { botLoading.value = false }
+}
+function botRisk(r) { return { high: ['🔴 高嫌疑', 'var(--danger)'], medium: ['🟠 中嫌疑', 'var(--warn)'], low: ['🟡 低嫌疑', 'var(--warn)'], clean: ['🟢 正常', 'var(--good)'] }[r] || ['⚪ 未知', 'var(--muted)'] }
+function botScoreColor(s) { return s >= 75 ? 'var(--danger)' : s >= 50 ? 'var(--warn)' : 'var(--good)' }
+function toggleBotDetail(gid) { botExpanded.value[gid] = !botExpanded.value[gid] }
+async function botDeleteBatch() {
+  if (!acc()) return
+  const gids = botTargets().map(b => Number(b.gid))
+  if (!gids.length) { app.error('没有可删除的嫌疑好友'); return }
+  if (!confirm('确认删除 ' + gids.length + ' 名疑似外挂好友？此操作不可恢复')) return
+  const { data } = await api.post('/api/friend/batch-delete', { gids, password: botDelPwd.value || '' }).catch(e => e.response || { data: {} })
+  if (data?.ok) { app.success('成功 ' + (data.successCount || 0) + ' / 失败 ' + (data.failedCount || 0)); loadBotScan(); loadFriends() }
+  else app.error('失败：' + (data?.error || '未知'))
+}
+
 /* ---------------- 护主犬 ---------------- */
 const dogClaimable = ref('--'); const dogMsg = ref('')
 async function loadDog() {
@@ -348,6 +383,7 @@ async function onFsub(s) {
   if (s === 'list') await loadFriends()
   else if (s === 'blacklist') await loadBlacklist()
   else if (s === 'visitors') await loadVisitors()
+  else if (s === 'bot') await loadBotScan()
 }
 
 // 切号事件：按当前 tab 用新账号重拉数据（热切换）
@@ -430,11 +466,12 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
 
     <!-- 好友 -->
     <div v-show="tab === 'p-friends'">
-      <div class="seg seg-5" style="margin-bottom:10px">
+      <div class="seg seg-6" style="margin-bottom:10px">
         <button class="seg-btn" :class="{ active: fsub === 'list' }" @click="onFsub('list')">好友列表</button>
         <button class="seg-btn" :class="{ active: fsub === 'add' }" @click="fsub='add'">加好友</button>
         <button class="seg-btn" :class="{ active: fsub === 'blacklist' }" @click="onFsub('blacklist')">黑名单<span v-if="blk > 0" class="nb">{{ blk }}</span></button>
         <button class="seg-btn" :class="{ active: fsub === 'visitors' }" @click="onFsub('visitors')">访客</button>
+        <button class="seg-btn" :class="{ active: fsub === 'bot' }" @click="onFsub('bot')">🔍 好友检测</button>
         <button class="seg-btn" :class="{ active: fsub === 'del' }" @click="onFsub('del')">删除</button>
       </div>
 
@@ -545,6 +582,57 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
         <p v-if="!shownVisitors.length" style="text-align:center;color:var(--muted);padding:20px 0">暂无访客记录</p>
       </div>
 
+      <div v-if="fsub === 'bot'">
+        <div class="visitor-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0">
+          <div class="vstat" style="background:var(--card);border-radius:12px;padding:10px;text-align:center"><b style="font-size:18px;display:block;color:var(--danger)">{{ botStats.high }}</b><span style="font-size:11px;color:var(--muted)">高嫌疑</span></div>
+          <div class="vstat" style="background:var(--card);border-radius:12px;padding:10px;text-align:center"><b style="font-size:18px;display:block;color:var(--warn)">{{ botStats.mid }}</b><span style="font-size:11px;color:var(--muted)">中嫌疑</span></div>
+          <div class="vstat" style="background:var(--card);border-radius:12px;padding:10px;text-align:center"><b style="font-size:18px;display:block;color:var(--warn)">{{ botStats.low }}</b><span style="font-size:11px;color:var(--muted)">低嫌疑</span></div>
+          <div class="vstat" style="background:var(--card);border-radius:12px;padding:10px;text-align:center"><b style="font-size:18px;display:block">{{ botScan.length }}</b><span style="font-size:11px;color:var(--muted)">已检测</span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0">
+          <select v-model="botDelRange" class="field" style="width:auto;flex:none;padding:6px 8px">
+            <option value="high">仅高嫌疑</option>
+            <option value="midHigh">中+高嫌疑</option>
+          </select>
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" v-model="excludeGuardDog" checked> 🐕 排除护主犬</label>
+          <input v-model="botDelPwd" class="field" type="password" placeholder="二级密码(删除用)" style="width:130px;padding:6px 8px">
+          <button class="f-batch" @click="botDeleteBatch">🗑 一键删除 ({{ botDelCount }})</button>
+          <button class="chip" style="margin-left:auto" @click="loadBotScan">{{ botLoading ? '扫描中…' : '🔄 重扫' }}</button>
+        </div>
+        <p v-if="botHint" style="font-size:12px;color:var(--muted);text-align:center;margin:6px 0">{{ botHint }}</p>
+        <p v-else-if="!botLoading && !botScan.length" style="text-align:center;color:var(--muted);padding:20px 0">暂无检测结果</p>
+        <div v-for="b in botScan" :key="String(b.gid)" class="bot-card">
+          <div class="bc-row1" @click="toggleBotDetail(b.gid)">
+            <div class="bc-av">
+              <img v-if="/^(https?:)?\/\//i.test(b.avatar || '')" :src="b.avatar" alt="" @error="$event.target.classList.add('hide')" />
+              <span class="bc-fall">👤</span>
+            </div>
+            <div class="bc-name">{{ b.nick || ('GID:' + b.gid) }}</div>
+            <span class="bc-risk" :style="{ background: botRisk(b.risk)[1] }">{{ botRisk(b.risk)[0] }}</span>
+            <span v-if="b.isGuardDog" class="bc-guard">🐕护主犬</span>
+          </div>
+          <div class="bc-gid">GID {{ b.gid }}</div>
+          <div class="bc-tags">
+            <span v-for="r in (b.reasons || [])" :key="r" class="bc-tag">{{ r }}</span>
+          </div>
+          <div class="bc-row2">
+            <div class="bc-track"><div class="bc-fill" :style="{ width: b.score + '%', background: botScoreColor(b.score) }"></div></div>
+            <span class="bc-score" :style="{ color: botScoreColor(b.score) }">{{ b.score }}/100</span>
+          </div>
+          <div v-if="botExpanded[b.gid]" class="bc-expand">
+            样本 {{ b.recordCount }} 条 · 窗口 {{ b.sampleWindow }}h<br>
+            间隔均值 {{ b.signals.intervalMeanSec }}s ± {{ b.signals.intervalStdMs }}ms · 活跃 {{ b.signals.activeHours }}h · 凌晨 {{ b.signals.nightRatio }}%<br>
+            偷{{ b.signals.steal }} / 帮{{ b.signals.help }} / 捣{{ b.signals.bad }} · 日均 {{ b.signals.avgPerDay }} 次
+          </div>
+          <div class="bc-ops">
+            <button class="fa-mini" @click="friendOp(b.gid, 'black')">🚫 拉黑</button>
+            <button class="fa-mini" style="color:var(--danger)" @click="friendOp(b.gid, 'del')">🗑️ 删除</button>
+            <button class="fa-mini" style="margin-left:auto" @click="toggleBotDetail(b.gid)">{{ botExpanded[b.gid] ? '收起 ▴' : '展开明细 ▾' }}</button>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">* 基于访客行为统计，仅供参考，可能误报；删除不可恢复</p>
+      </div>
+
       <div v-if="fsub === 'del'">
         <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">按等级批量删除，或勾选下方好友（保留护主犬，二级密码）</p>
         <div class="del-form" style="display:flex;flex-direction:column;gap:8px">
@@ -646,4 +734,25 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
 .fa-mini { border: 1px solid var(--border); background: var(--card-strong); border-radius: 7px; font-size: 11px; color: var(--foreground); cursor: pointer; padding: 4px 8px; }
 .fa-mini:active { transform: scale(.96); }
 .fc-more-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.seg-6 .seg-btn { font-size: 11px; padding: 8px 2px; white-space: nowrap; }
+/* 好友检测卡片（紧凑排版） */
+.bot-card { background: var(--card-strong); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 8px; }
+.bc-row1 { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.bc-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; position: relative; background: var(--primary-soft); display: grid; place-items: center; flex: none; }
+.bc-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bc-av img.hide { display: none; }
+.bc-fall { font-size: 20px; color: var(--muted); }
+.bc-name { font-size: 14px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-risk { font-size: 10px; padding: 2px 6px; border-radius: 6px; color: #fff; font-weight: 600; flex: none; }
+.bc-guard { font-size: 10px; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 5px; flex: none; white-space: nowrap; }
+.bc-gid { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.bc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 6px; }
+.bc-tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: color-mix(in oklch, var(--danger) 8%, transparent); color: var(--danger); border: 1px solid color-mix(in oklch, var(--danger) 25%, transparent); }
+.bc-row2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bc-track { flex: 1; height: 5px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.bc-fill { height: 100%; border-radius: 999px; }
+.bc-score { font-size: 11px; font-weight: 600; flex: none; }
+.bc-expand { font-size: 11px; color: var(--muted); line-height: 1.8; padding: 8px 0 0; border-top: 1px dashed var(--border); margin-top: 8px; }
+.bc-ops { display: flex; gap: 6px; margin-top: 8px; }
+.bc-ops .fa-mini { padding: 4px 10px; }
 </style>

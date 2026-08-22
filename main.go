@@ -131,6 +131,7 @@ func main() {
 	registerAccountAPI(api)
 	registerFriendOpsAPI(api)
 	registerFriendExtraAPI(api)
+	registerFriendBotScanAPI(api)
 	registerReconnectAPI(api)
 	registerSettingsAPI(api)
 	registerIllustratedAPI(api)
