@@ -626,7 +626,12 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		}
 	}
 
-	sort.Slice(stealTargets, func(i, j int) bool { return stealTargets[i].level > stealTargets[j].level })
+	sort.Slice(stealTargets, func(i, j int) bool {
+		// 偷价值降序：实时可偷数(need)×10 + 历史偷TA产出/被偷/风险基础分（优先偷）
+		vi := getStealValue(accountID, stealTargets[i].gid) + int(stealTargets[i].need)*10
+		vj := getStealValue(accountID, stealTargets[j].gid) + int(stealTargets[j].need)*10
+		return vi > vj
+	})
 	sort.Slice(helpTargets, func(i, j int) bool { return helpTargets[i].need > helpTargets[j].need })
 	sort.Slice(badTargets, func(i, j int) bool { return badTargets[i].level > badTargets[j].level })
 	// 仅前 20 名空农场参与捣乱
@@ -657,6 +662,10 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 
 	// 2. 帮忙
 	if !onlySteal {
+		// 高价值好友优先：极速务农名额竞争 & 普通模式截断都先保高价值
+		sort.SliceStable(helpTargets, func(i, j int) bool {
+			return getFriendValue(accountID, helpTargets[i].gid) > getFriendValue(accountID, helpTargets[j].gid)
+		})
 		// 每轮帮忙农场数上限：极速务农 15，普通 24，剩余下一轮继续
 		limit := turboHelpRoundLimit
 		turboEff := computeEffectiveTurbo(cfg)
@@ -674,6 +683,10 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 		for _, t := range helpTargets {
 			if scanTimedOut() {
 				break // 整轮巡查超时
+			}
+			// 低价值好友（<30分）每 3 轮才参与一次名额（价值回升自动恢复）
+			if v := getFriendValue(accountID, t.gid); v < 30 && turboRoundIndex%3 != int(t.gid%3) {
+				continue
 			}
 			// 经验满判定可能在巡逻中途触发并翻转 canGetHelpExp=false。
 			// 对非护主犬好友实时复核，否则开关触发后本轮剩余普通好友仍会被无差别帮助。

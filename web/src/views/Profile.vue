@@ -343,8 +343,22 @@ async function loadBotScan() {
   } catch (e) { botScan.value = []; botHint.value = '加载失败：' + (e?.response?.data?.error || e?.message || e) }
   finally { botLoading.value = false }
 }
-function botRisk(r) { return { high: ['🔴 高嫌疑', 'var(--danger)'], medium: ['🟠 中嫌疑', 'var(--warn)'], low: ['🟡 低嫌疑', 'var(--warn)'], clean: ['🟢 正常', 'var(--good)'] }[r] || ['⚪ 未知', 'var(--muted)'] }
-function botScoreColor(s) { return s >= 75 ? 'var(--danger)' : s >= 50 ? 'var(--warn)' : 'var(--good)' }
+function botRisk(r, s) { return { high: ['🔴 高嫌疑 ' + s, '#e5484d'], medium: ['🟠 中嫌疑 ' + s, '#f59e0b'], low: ['🟡 低嫌疑 ' + s, '#f0c000'], clean: ['🟢 正常 ' + s, '#30a46c'] }[r] || ['⚪ ' + s, '#9ca3af'] }
+function valColor(v) { return v >= 45 ? '#16a34a' : v >= 25 ? '#f59e0b' : '#9ca3af' }
+// 好友检测筛选/排序（6 维度：全部/帮价值/偷价值/嫌疑分/低帮/清洗）
+const botSort = ref('all')
+const botSorts = [['all', '全部'], ['helpValue', '帮价值高'], ['stealValue', '偷价值高'], ['risk', '🔴 嫌疑高'], ['lowHelp', '低帮价值'], ['junk', '建议清洗']]
+const filteredBotScan = computed(() => {
+  const list = [...botScan.value]
+  switch (botSort.value) {
+    case 'helpValue': list.sort((a, b) => (b.value || 0) - (a.value || 0)); break
+    case 'stealValue': list.sort((a, b) => (b.stealValue || 0) - (a.stealValue || 0)); break
+    case 'risk': list.sort((a, b) => (b.score || 0) - (a.score || 0)); break
+    case 'lowHelp': return list.filter(b => b.valueLevel === 'low')
+    case 'junk': return list.filter(b => b.valueLevel === 'junk' || (b.value || 0) < 25)
+  }
+  return list
+})
 function toggleBotDetail(gid) { botExpanded.value[gid] = !botExpanded.value[gid] }
 async function botDeleteBatch() {
   if (!acc()) return
@@ -599,30 +613,33 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
           <button class="f-batch" @click="botDeleteBatch">🗑 一键删除 ({{ botDelCount }})</button>
           <button class="chip" style="margin-left:auto" @click="loadBotScan">{{ botLoading ? '扫描中…' : '🔄 重扫' }}</button>
         </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin:0 0 8px">
+          <button v-for="k in botSorts" :key="k[0]" class="chip" :class="{ on: botSort === k[0] }" @click="botSort = k[0]">{{ k[1] }}</button>
+        </div>
         <p v-if="botHint" style="font-size:12px;color:var(--muted);text-align:center;margin:6px 0">{{ botHint }}</p>
         <p v-else-if="!botLoading && !botScan.length" style="text-align:center;color:var(--muted);padding:20px 0">暂无检测结果</p>
-        <div v-for="b in botScan" :key="String(b.gid)" class="bot-card">
-          <div class="bc-row1" @click="toggleBotDetail(b.gid)">
+        <div v-for="b in filteredBotScan" :key="String(b.gid)" class="bot-card">
+          <div class="bc-row1">
             <div class="bc-av">
               <img v-if="/^(https?:)?\/\//i.test(b.avatar || '')" :src="b.avatar" alt="" @error="$event.target.classList.add('hide')" />
               <span class="bc-fall">👤</span>
             </div>
             <div class="bc-name">{{ b.nick || ('GID:' + b.gid) }}</div>
-            <span class="bc-risk" :style="{ background: botRisk(b.risk)[1] }">{{ botRisk(b.risk)[0] }}</span>
             <span v-if="b.isGuardDog" class="bc-guard">🐕护主犬</span>
+            <span class="bc-vbadge" style="background:#16a34a">帮 {{ b.value }}</span>
+            <span class="bc-vbadge" :style="{ background: b.stealValue > 0 ? '#059669' : '#9ca3af' }">偷 {{ b.stealValue }}</span>
           </div>
           <div class="bc-gid">GID {{ b.gid }}</div>
-          <div class="bc-tags">
-            <span v-for="r in (b.reasons || [])" :key="r" class="bc-tag">{{ r }}</span>
-          </div>
           <div class="bc-row2">
-            <div class="bc-track"><div class="bc-fill" :style="{ width: b.score + '%', background: botScoreColor(b.score) }"></div></div>
-            <span class="bc-score" :style="{ color: botScoreColor(b.score) }">{{ b.score }}/100</span>
+            <span class="bc-risk" :style="{ background: botRisk(b.risk, b.score)[1] }">{{ botRisk(b.risk, b.score)[0] }}</span>
+            <span v-for="r in (b.reasons || [])" :key="r" class="bc-tag">{{ r }}</span>
           </div>
           <div v-if="botExpanded[b.gid]" class="bc-expand">
             样本 {{ b.recordCount }} 条 · 窗口 {{ b.sampleWindow }}h<br>
             间隔均值 {{ b.signals.intervalMeanSec }}s ± {{ b.signals.intervalStdMs }}ms · 活跃 {{ b.signals.activeHours }}h · 凌晨 {{ b.signals.nightRatio }}%<br>
-            偷{{ b.signals.steal }} / 帮{{ b.signals.help }} / 捣{{ b.signals.bad }} · 日均 {{ b.signals.avgPerDay }} 次
+            偷{{ b.signals.steal }} / 帮{{ b.signals.help }} / 捣{{ b.signals.bad }} · 日均 {{ b.signals.avgPerDay }} 次<br>
+            帮价值 {{ b.value }}/100 = 护主犬{{ b.valueDetail.guardDog ? '+38' : '+0' }} + 帮{{ b.valueDetail.help }}×3(封顶32) + 活跃{{ b.valueDetail.activeHours }}×2(封顶20) − 偷{{ b.valueDetail.steal }}×2 − 捣{{ b.valueDetail.bad }}×5 − 风险{{ b.valueDetail.riskScore }}×0.5<br>
+            偷价值 {{ b.stealValue }}/100 = 我偷TA{{ b.valueDetail.stealTo }}×4(封顶40) + 实时可偷数×10（偷菜为单向行为，不受嫌疑分影响）
           </div>
           <div class="bc-ops">
             <button class="fa-mini" @click="friendOp(b.gid, 'black')">🚫 拉黑</button>
@@ -745,10 +762,12 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
 .bc-name { font-size: 14px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-risk { font-size: 10px; padding: 2px 6px; border-radius: 6px; color: #fff; font-weight: 600; flex: none; }
 .bc-guard { font-size: 10px; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 2px 5px; flex: none; white-space: nowrap; }
+.bc-val { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; flex: none; white-space: nowrap; border: 1px solid currentColor; }
+.bc-vbadge { font-size: 11px; padding: 3px 7px; border-radius: 6px; color: #fff; font-weight: 700; flex: none; white-space: nowrap; }
 .bc-gid { font-size: 10px; color: var(--muted); margin-top: 4px; }
 .bc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0 6px; }
 .bc-tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: color-mix(in oklch, var(--danger) 8%, transparent); color: var(--danger); border: 1px solid color-mix(in oklch, var(--danger) 25%, transparent); }
-.bc-row2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bc-row2 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .bc-track { flex: 1; height: 5px; border-radius: 999px; background: var(--border); overflow: hidden; }
 .bc-fill { height: 100%; border-radius: 999px; }
 .bc-score { font-size: 11px; font-weight: 600; flex: none; }

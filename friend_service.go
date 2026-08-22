@@ -395,6 +395,7 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		okCount = int64(len(analysis.Stealable))
 		if okCount > 0 {
 			recordOperation(accountID, "steal", okCount)
+			recordStealTo(accountID, gid, okCount) // 偷价值埋点：记录"我偷TA"块数
 			appendOpLog(accountID, "friend", fmt.Sprintf("偷取 %s 的 %s（共%d块）", displayName, stealCropSummary(lands, analysis.Stealable), okCount))
 		}
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: okCount, Message: fmt.Sprintf("偷取完成 %d 块", okCount)}

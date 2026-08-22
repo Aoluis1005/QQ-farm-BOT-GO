@@ -66,6 +66,7 @@ func main() {
 	homeDir, _ := os.UserHomeDir()
 	dataDir = homeDir + "/.qq-farm-bot"
 	models.InitStore(dataDir)
+	initStealToStore(dataDir + "/stealTo.json")
 
 	gwCfg := models.GetGatewayConfig()
 	adminPort := gwCfg.AdminPort

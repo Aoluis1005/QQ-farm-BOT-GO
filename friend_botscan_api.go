@@ -13,13 +13,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/Aoluis1005/go-farm-bot/models"
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
@@ -108,10 +111,188 @@ type botScanResult struct {
 	Score        int                    `json:"score"`
 	Risk         string                 `json:"risk"` // high|medium|low|clean
 	IsGuardDog   bool                   `json:"isGuardDog"`
+	Value        int                    `json:"value"`      // 好友帮价值 0-100
+	ValueLevel   string                 `json:"valueLevel"` // high|normal|low|junk
+	StealValue   int                    `json:"stealValue"` // 偷价值基础分（不含实时可偷数）
+	ValueDetail  map[string]interface{} `json:"valueDetail"`
 	Signals      map[string]interface{} `json:"signals"`
 	Reasons      []string               `json:"reasons"`
 	RecordCount  int                    `json:"recordCount"`
 	SampleWindow int                    `json:"sampleWindowHours"`
+}
+
+// ============================================================
+// 好友价值分（供自动化排序/前端展示；纯内存，无网络）
+// 构成：护主犬 +38 + 帮回报(封顶32) + 活跃度(封顶20) − 偷我 − 捣乱 − 挂嫌疑
+// ============================================================
+
+type friendValue struct {
+	GID        int64 `json:"gid"`
+	Value      int   `json:"value"`
+	Level      string `json:"level"`
+	StealValue int   `json:"stealValue"` // 偷价值（快照，供前端展示）
+	RiskScore  int   `json:"riskScore"`  // 挂嫌疑分（getStealValue 实时计算用）
+	HelpCount  int   `json:"helpCount"`
+	StealCount int   `json:"stealCount"`
+	BadCount   int   `json:"badCount"`
+	GuardDog   bool  `json:"guardDog"`
+}
+
+var (
+	friendValueMu sync.Mutex
+	friendValues  = map[string]map[int64]friendValue{} // accountID → gid → 价值
+	// "我偷 TA" 的成功块数埋点（偷菜成功处 recordStealTo 写入，纯内存零网络）
+	stealToMu    sync.Mutex
+	stealTo      = map[string]map[int64]int64{} // accountID → gid → 累计偷取块数
+	stealToDirty bool
+	stealToPath  string // 持久化路径（启动时由 main 注入 dataDir）
+)
+
+// recordStealTo 记录"我对某好友偷菜成功块数"（friend_service.go 偷菜成功处调用）
+func recordStealTo(accountID string, gid int64, n int64) {
+	if gid <= 0 || n <= 0 {
+		return
+	}
+	stealToMu.Lock()
+	m := stealTo[accountID]
+	if m == nil {
+		m = map[int64]int64{}
+	}
+	m[gid] += n
+	stealTo[accountID] = m
+	stealToDirty = true
+	stealToMu.Unlock()
+	// 异步落盘（防抖：变更后最多 2 秒写一次），保证重启不丢
+	go func() {
+		time.Sleep(2 * time.Second)
+		saveStealTo()
+	}()
+}
+
+func getStealTo(accountID string, gid int64) int64 {
+	stealToMu.Lock()
+	defer stealToMu.Unlock()
+	if m := stealTo[accountID]; m != nil {
+		return m[gid]
+	}
+	return 0
+}
+
+// initStealToStore 注入持久化路径并在启动时加载历史埋点（main 启动调用）
+func initStealToStore(path string) {
+	stealToPath = path
+	stealToMu.Lock()
+	defer stealToMu.Unlock()
+	if b, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(b, &stealTo); err == nil {
+			return
+		}
+		stealTo = map[string]map[int64]int64{}
+	}
+}
+
+// saveStealTo 把埋点写盘（线程安全，失败静默）
+func saveStealTo() {
+	stealToMu.Lock()
+	if !stealToDirty || stealToPath == "" {
+		stealToMu.Unlock()
+		return
+	}
+	data, err := json.Marshal(stealTo)
+	stealToDirty = false
+	stealToMu.Unlock()
+	if err != nil {
+		return
+	}
+	if err := os.WriteFile(stealToPath, data, 0644); err != nil {
+		// 写失败时恢复 dirty 标记，下轮再试
+		stealToMu.Lock()
+		stealToDirty = true
+		stealToMu.Unlock()
+	}
+}
+
+// getFriendValue 自动化读价值分（无缓存时给默认中值，不阻塞）
+func getFriendValue(accountID string, gid int64) int {
+	friendValueMu.Lock()
+	defer friendValueMu.Unlock()
+	if m := friendValues[accountID]; m != nil {
+		if fv, ok := m[gid]; ok {
+			return fv.Value
+		}
+	}
+	return 50
+}
+
+// computeFriendValue 计算单好友帮价值+偷价值并写入缓存（在 analyzeBotSamples 内顺带调用）
+func computeFriendValue(accountID string, gid int64, guard bool, helpCnt, stealCnt, badCnt, activeHours, riskScore int) int {
+	v := 0
+	if guard {
+		v += 38
+	}
+	v += minInt(helpCnt*3, 32)
+	v += minInt(activeHours*2, 20)
+	v -= stealCnt * 2
+	v -= badCnt * 5
+	v -= int(float64(riskScore) * 0.5)
+	if v < 0 {
+		v = 0
+	}
+	if v > 100 {
+		v = 100
+	}
+	level := valueLevel(v)
+	// 偷价值（不含实时可偷数加成，排序时另加 plantNum×10）。
+	// 只计正向产出（我偷TA）；不扣风险——偷菜是单向行为，TA 是否挂机不影响偷取产出
+	sv := minInt(int(getStealTo(accountID, gid))*4, 40)
+	if sv < 0 {
+		sv = 0
+	}
+	if sv > 100 {
+		sv = 100
+	}
+	friendValueMu.Lock()
+	m := friendValues[accountID]
+	if m == nil {
+		m = map[int64]friendValue{}
+	}
+	m[gid] = friendValue{GID: gid, Value: v, Level: level, StealValue: sv, RiskScore: riskScore, HelpCount: helpCnt, StealCount: stealCnt, BadCount: badCnt, GuardDog: guard}
+	friendValues[accountID] = m
+	friendValueMu.Unlock()
+	return v
+}
+
+// getStealValue 自动化读偷价值：实时计算（埋点 stealTo 变化立即反映，不依赖 bot-scan 缓存）
+func getStealValue(accountID string, gid int64) int {
+	sv := minInt(int(getStealTo(accountID, gid))*4, 40)
+	if sv < 0 {
+		sv = 0
+	}
+	if sv > 100 {
+		sv = 100
+	}
+	return sv
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// valueLevel 价值分等级
+func valueLevel(v int) string {
+	switch {
+	case v >= 70:
+		return "high"
+	case v >= 45:
+		return "normal"
+	case v >= 25:
+		return "low"
+	default:
+		return "junk"
+	}
 }
 
 func clamp01(v float64) float64 {
@@ -124,14 +305,12 @@ func clamp01(v float64) float64 {
 	return v
 }
 
-// analyzeBotSamples 对样本池按 gid 分组并计算嫌疑画像（纯内存，无网络）
-func analyzeBotSamples(accountID string) []botScanResult {
+// analyzeBotSamples 对样本池按 gid 分组计算嫌疑画像 + 价值分（纯内存，无网络）。
+// friends 为好友列表全集合：样本池提供行为分，好友列表提供全集（无互动好友也评估静态价值）。
+func analyzeBotSamples(accountID string, friends []*proto.GameFriend) []botScanResult {
 	botSampleMu.Lock()
 	pool := botSamples[accountID]
 	botSampleMu.Unlock()
-	if len(pool) == 0 {
-		return nil
-	}
 
 	// 按 gid 分组
 	byGID := map[int64][]interactSample{}
@@ -139,11 +318,14 @@ func analyzeBotSamples(accountID string) []botScanResult {
 		byGID[s.GID] = append(byGID[s.GID], s)
 	}
 
-	results := make([]botScanResult, 0, len(byGID))
+	results := make([]botScanResult, 0, len(byGID)+len(friends))
+	seen := map[int64]bool{}
 	for gid, samples := range byGID {
 		if len(samples) < botMinSamples {
-			continue // 样本不足，不判定
+			seen[gid] = true // 样本不足不判定，但标记防好友全集分支重复
+			continue
 		}
+		seen[gid] = true
 		// 时间升序
 		sort.Slice(samples, func(i, j int) bool { return samples[i].Time < samples[j].Time })
 
@@ -247,6 +429,21 @@ func analyzeBotSamples(accountID string) []botScanResult {
 			risk = "low"
 		}
 
+		// ---- 好友价值分（顺带计算并写入缓存，供自动化排序/前端展示） ----
+		value := computeFriendValue(accountID, gid, res.IsGuardDog, helpCnt, stealCnt, badCnt, activeHours, score)
+		res.Value = value
+		res.ValueLevel = valueLevel(value)
+		res.StealValue = getStealValue(accountID, gid)
+		res.ValueDetail = map[string]interface{}{
+			"guardDog":    res.IsGuardDog,
+			"help":        helpCnt,
+			"steal":       stealCnt,
+			"bad":         badCnt,
+			"activeHours": activeHours,
+			"riskScore":   score,
+			"stealTo":     getStealTo(accountID, gid),
+		}
+
 		// ---- 命中信号文案 ----
 		var reasons []string
 		if periodicity >= 0.6 && mean >= 30 {
@@ -283,6 +480,34 @@ func analyzeBotSamples(accountID string) []botScanResult {
 		res.Signals["bad"] = badCnt
 
 		results = append(results, res)
+	}
+
+	// 好友列表全集中无样本的好友：按静态价值评估（护主犬已知则加分，行为分缺失按 0）
+	for _, f := range friends {
+		if f == nil || f.GID <= 0 || seen[f.GID] {
+			continue
+		}
+		seen[f.GID] = true
+		guard := isGuardDogFriend(accountID, f.GID)
+		value := computeFriendValue(accountID, f.GID, guard, 0, 0, 0, 0, 0)
+		results = append(results, botScanResult{
+			GID:        f.GID,
+			Nick:       f.Name,
+			Avatar:     f.AvatarURL,
+			Level:      int32(f.Level),
+			Score:      0,
+			Risk:       "clean",
+			IsGuardDog: guard,
+			Value:      value,
+			ValueLevel: valueLevel(value),
+			StealValue: getStealValue(accountID, f.GID),
+			ValueDetail: map[string]interface{}{
+				"guardDog": guard, "help": 0, "steal": 0, "bad": 0, "activeHours": 0, "riskScore": 0, "stealTo": 0,
+			},
+			Signals:     map[string]interface{}{},
+			Reasons:     []string{"暂无互动记录"},
+			RecordCount: 0,
+		})
 	}
 
 	// 按嫌疑分降序
@@ -336,7 +561,19 @@ func handleFriendBotScan(w http.ResponseWriter, r *http.Request) {
 		mergeInteractSamples(accountID, recs)
 	}
 
-	results := analyzeBotSamples(accountID)
+	// 好友列表全集合（带 60s 展示缓存，命中零 RPC；未命中一次拉取）
+	var friends []*proto.GameFriend
+	acc := models.GetAccountByID(accountID)
+	platform := "qq"
+	if acc != nil && acc.Platform != "" {
+		platform = acc.Platform
+	}
+	cfg := models.GetAccountConfig(accountID)
+	if fl, ferr := getAllFriendsCached(c, accountID, platform, cfg.KnownFriendGIDs, false); ferr == nil {
+		friends = fl
+	}
+
+	results := analyzeBotSamples(accountID, friends)
 	hint := ""
 	if len(results) == 0 {
 		if lastErr != nil {
