@@ -276,6 +276,10 @@ func handleFriendBatchDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad json")
 		return
 	}
+	if req.Password == "" || !adminPasswordMatches(req.Password) {
+		writeError(w, 401, "登录密码错误")
+		return
+	}
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	c, cerr := clientPool.Get(accountID)
 	if cerr != nil {

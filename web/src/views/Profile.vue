@@ -251,20 +251,20 @@ const vname = v => v.nick || (v.visitorGid ? ('GID:' + v.visitorGid) : (v.name |
 const vdetail = v => v.actionDetail || v.actionLabel || v.action || ''
 const vtime = v => fmtInteract(Number(v.serverTimeMs || v.timeSec || 0))
 async function loadVisitors() { if (!acc()) return; try { const { data } = await api.get('/api/friends/visitors'); visitors.value = (Array.isArray(data?.data) ? data.data : []) } catch (e) {} }
-/* 批量删除 */
-const delLevel = ref(30); const delSkipGuard = ref(true); const delPwd = ref(''); const delSel = ref(new Set())
-const delSorted = computed(() => friends.value.slice())
-function toggleDel(id) { const s = new Set(delSel.value); s.has(id) ? s.delete(id) : s.add(id); delSel.value = s }
+/* 批量删除（登录密码验证，入口在好友列表内联面板） */
+const delOpen = ref(false); const delLevel = ref(30); const delSkipGuard = ref(true); const delPwd = ref('')
+const delMatchCount = computed(() => friends.value.filter(f => Number(f.level) <= (Number(delLevel.value) || 0) && (!delSkipGuard.value || Number(f.dogId) !== 90021)).length)
 async function delBatch() {
   if (!acc()) return
-  const lvl = Number(delLevel.value) || 0, skipGuard = delSkipGuard.value, pwd = delPwd.value || ''
+  if (!delPwd.value) { app.error('请输入登录密码'); return }
+  const lvl = Number(delLevel.value) || 0, skipGuard = delSkipGuard.value, pwd = delPwd.value
   const gids = []
   if (lvl > 0) friends.value.forEach(f => { if (Number(f.level) > lvl) return; if (skipGuard && isGuard(f)) return; if (gids.indexOf(Number(f.uid ?? f.gid)) === -1) gids.push(Number(f.uid ?? f.gid)) })
-  delSel.value.forEach(g => { if (g > 0 && gids.indexOf(g) === -1) gids.push(g) })
-  if (!gids.length) { app.error('请填写等级阈值或勾选好友'); return }
+  if (!gids.length) { app.error('请填写等级阈值'); return }
   if (!confirm('确认批量删除 ' + gids.length + ' 名好友？此操作不可恢复')) return
   const { data } = await api.post('/api/friend/batch-delete', { gids, password: pwd }).catch(e => e.response || { data: {} })
-  if (data?.ok) { app.success('成功 ' + (data.successCount || 0) + ' / 失败 ' + (data.failedCount || 0)); loadFriends() }
+  if (data?.ok) { app.success('成功 ' + (data.successCount || 0) + ' / 失败 ' + (data.failedCount || 0)); loadFriends(); delOpen.value = false }
+  else if (data?.error === '登录密码错误') app.error('登录密码错误')
   else app.error('失败：' + (data?.error || '未知'))
 }
 
@@ -362,11 +362,13 @@ const filteredBotScan = computed(() => {
 function toggleBotDetail(gid) { botExpanded.value[gid] = !botExpanded.value[gid] }
 async function botDeleteBatch() {
   if (!acc()) return
+  if (!botDelPwd.value) { app.error('请输入登录密码'); return }
   const gids = botTargets().map(b => Number(b.gid))
   if (!gids.length) { app.error('没有可删除的嫌疑好友'); return }
   if (!confirm('确认删除 ' + gids.length + ' 名疑似外挂好友？此操作不可恢复')) return
-  const { data } = await api.post('/api/friend/batch-delete', { gids, password: botDelPwd.value || '' }).catch(e => e.response || { data: {} })
+  const { data } = await api.post('/api/friend/batch-delete', { gids, password: botDelPwd.value }).catch(e => e.response || { data: {} })
   if (data?.ok) { app.success('成功 ' + (data.successCount || 0) + ' / 失败 ' + (data.failedCount || 0)); loadBotScan(); loadFriends() }
+  else if (data?.error === '登录密码错误') app.error('登录密码错误')
   else app.error('失败：' + (data?.error || '未知'))
 }
 
@@ -481,12 +483,11 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
     <!-- 好友 -->
     <div v-show="tab === 'p-friends'">
       <div class="seg seg-6" style="margin-bottom:10px">
-        <button class="seg-btn" :class="{ active: fsub === 'list' }" @click="onFsub('list')">好友列表</button>
-        <button class="seg-btn" :class="{ active: fsub === 'add' }" @click="fsub='add'">加好友</button>
-        <button class="seg-btn" :class="{ active: fsub === 'blacklist' }" @click="onFsub('blacklist')">黑名单<span v-if="blk > 0" class="nb">{{ blk }}</span></button>
-        <button class="seg-btn" :class="{ active: fsub === 'visitors' }" @click="onFsub('visitors')">访客</button>
+        <button class="seg-btn" :class="{ active: fsub === 'list' }" @click="onFsub('list')">👥 好友列表</button>
+        <button class="seg-btn" :class="{ active: fsub === 'add' }" @click="fsub='add'">➕ 加好友</button>
+        <button class="seg-btn" :class="{ active: fsub === 'blacklist' }" @click="onFsub('blacklist')">🚫 黑名单<span v-if="blk > 0" class="nb">{{ blk }}</span></button>
+        <button class="seg-btn" :class="{ active: fsub === 'visitors' }" @click="onFsub('visitors')">👁 访客</button>
         <button class="seg-btn" :class="{ active: fsub === 'bot' }" @click="onFsub('bot')">🔍 好友检测</button>
-        <button class="seg-btn" :class="{ active: fsub === 'del' }" @click="onFsub('del')">删除</button>
       </div>
 
       <div v-if="fsub === 'list'">
@@ -496,6 +497,7 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
           <button class="chip" :class="{ on: friendDogFilter === 'all' }" @click="friendDogFilter='all'">全部</button>
           <button class="chip" :class="{ on: friendDogFilter === 'noGuardDog' }" @click="friendDogFilter='noGuardDog'">无护主犬</button>
           <button class="chip" :class="{ on: friendDogFilter === 'guardDog' }" @click="friendDogFilter='guardDog'">有护主犬</button>
+          <button class="chip" style="border-color:var(--danger,#e54);color:var(--danger,#e54)" @click="delOpen = !delOpen">🗑 批量删除</button>
           <button class="chip" style="margin-left:auto" @click="knownOpen = !knownOpen; if (knownOpen) loadKnownGids()">📇 抓取GID</button>
           <button class="chip" @click="fetchDogInfo">🐶 获取狗信息</button>
           <button class="chip" @click="loadFriends">🔄 刷新</button>
@@ -508,6 +510,18 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
               {{ g }} <a @click="removeKnownGid(g)" style="color:var(--danger,#e54);cursor:pointer">✕</a>
             </span>
           </span>
+        </div>
+        <div v-if="delOpen" class="del-panel" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--card)">
+          <div style="font-size:12.5px;font-weight:700;margin-bottom:8px">批量删除（需登录密码）</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <label style="font-size:12.5px">等级 ≤ <input v-model.number="delLevel" class="field" type="number" placeholder="如30" style="width:90px;display:inline-block"></label>
+            <label style="font-size:12.5px"><input type="checkbox" v-model="delSkipGuard" checked> 保留护主犬</label>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <input v-model="delPwd" class="field" type="password" placeholder="登录密码（必填）" style="flex:1;min-width:140px">
+            <button class="f-batch" @click="delBatch">删除 {{ delMatchCount }} 名</button>
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-top:6px">匹配 {{ delMatchCount }} 名（等级≤阈值且非护主犬）</p>
         </div>
         <div>
           <div v-for="f in shownFriends" :key="String(f.uid ?? f.gid)" class="friend-card" :data-uid="String(f.uid ?? f.gid)">
@@ -609,7 +623,7 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
             <option value="midHigh">中+高嫌疑</option>
           </select>
           <label style="font-size:12.5px;display:flex;align-items:center;gap:4px"><input type="checkbox" v-model="excludeGuardDog" checked> 🐕 排除护主犬</label>
-          <input v-model="botDelPwd" class="field" type="password" placeholder="二级密码(删除用)" style="width:130px;padding:6px 8px">
+          <input v-model="botDelPwd" class="field" type="password" placeholder="登录密码（必填）" style="width:130px;padding:6px 8px">
           <button class="f-batch" @click="botDeleteBatch">🗑 一键删除 ({{ botDelCount }})</button>
           <button class="chip" style="margin-left:auto" @click="loadBotScan">{{ botLoading ? '扫描中…' : '🔄 重扫' }}</button>
         </div>
@@ -650,25 +664,7 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
         <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">* 基于访客行为统计，仅供参考，可能误报；删除不可恢复</p>
       </div>
 
-      <div v-if="fsub === 'del'">
-        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">按等级批量删除，或勾选下方好友（保留护主犬，二级密码）</p>
-        <div class="del-form" style="display:flex;flex-direction:column;gap:8px">
-          <label style="font-size:12.5px">等级 ≤ <input v-model.number="delLevel" class="field" type="number" placeholder="如30" style="width:90px;display:inline-block"></label>
-          <label style="font-size:12.5px"><input type="checkbox" v-model="delSkipGuard" checked> 保留护主犬</label>
-          <input v-model="delPwd" class="field" type="password" placeholder="二级密码（可选）">
-          <div style="display:flex;gap:8px;align-items:center"><button class="f-batch" @click="delBatch">批量删除</button><span style="font-size:11px;color:var(--muted)">匹配 {{ delSorted.filter(f => Number(f.level) <= (Number(delLevel.value)||0) && (!delSkipGuard.value || Number(f.dogId) !== 90021)).length + delSel.size }} 名</span></div>
-        </div>
-        <div style="margin-top:14px">
-          <div v-for="f in delSorted" :key="String(f.uid ?? f.gid)" class="friend-card">
-            <div class="fc-head">
-              <div class="f-av">{{ f.avatar || '👤' }}</div>
-              <div class="f-info"><h4>{{ f.name || '' }} <small class="fc-id">({{ f.uid ?? f.gid }})</small><span v-if="isGuard(f)" class="ripeness fc-dog">护主犬</span></h4><p>Lv.{{ f.level || '-' }}</p></div>
-              <label class="f-toggle"><input type="checkbox" class="del-pick" :checked="delSel.has(Number(f.uid ?? f.gid))" @change="toggleDel(Number(f.uid ?? f.gid))"> 选</label>
-            </div>
-          </div>
-          <p v-if="!delSorted.length" style="text-align:center;color:var(--muted);margin-top:24px">暂无好友</p>
-        </div>
-      </div>
+      <!-- 批量删除入口已并入好友列表（delOpen 面板） -->
     </div>
 
     <!-- 每日任务 -->
