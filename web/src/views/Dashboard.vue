@@ -260,7 +260,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 化肥容量 -->
-    <div class="sec-title"><span>化肥容量</span><span class="sub">满 {{ fert.cap }} 小时</span></div>
+    <div class="sec-title"><span>化肥容量</span></div>
     <div class="fert">
       <div class="orb" :class="{ full: fert.normal >= fert.cap }">
         <div class="orb-liquid" :style="{ height: fertPct(fert.normal) + '%' }"></div>
@@ -425,9 +425,12 @@ onUnmounted(() => {
 .cd-empty { padding: 26px 0; text-align: center; color: var(--muted); font-size: 13px; }
 
 /* ===== 化肥容量 玻璃球 ===== */
-.fert { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fert { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; justify-items: center;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.10); }
 .orb {
   position: relative;
+  width: 132px; max-width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   overflow: hidden;
@@ -436,8 +439,8 @@ onUnmounted(() => {
     radial-gradient(circle at 30% 24%, rgba(255,255,255,.6), rgba(255,255,255,.04) 46%),
     var(--card);
   border: 1px solid var(--border);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 16%, transparent),
-              0 8px 20px rgba(0,0,0,.18);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent),
+              0 6px 16px rgba(0,0,0,.15);
   display: flex; flex-direction: column; align-items: center;
 }
 .orb.organic {
@@ -469,19 +472,19 @@ onUnmounted(() => {
 }
 .orb-name {
   position: relative; z-index: 2;
-  font-size: 11px; font-weight: 600; color: #fff;
+  font-size: 10px; font-weight: 600; color: #fff;
   background: rgba(0,0,0,.30); padding: 2px 9px; border-radius: 999px;
   margin-top: 13%; margin-bottom: auto; backdrop-filter: blur(2px);
   white-space: nowrap;
 }
 .orb-val {
   position: relative; z-index: 2;
-  font-size: 30px; font-weight: 800; line-height: 1; color: #fff;
+  font-size: 26px; font-weight: 800; line-height: 1; color: #fff;
   text-shadow: 0 1px 4px rgba(0,0,0,.35);
 }
 .orb-unit {
   position: relative; z-index: 2;
-  font-size: 11px; color: rgba(255,255,255,.92); margin-top: 2px; margin-bottom: 12%;
+  font-size: 10px; color: rgba(255,255,255,.92); margin-top: 2px; margin-bottom: 12%;
   text-shadow: 0 1px 3px rgba(0,0,0,.35);
 }
 .orb.full {
@@ -494,5 +497,13 @@ onUnmounted(() => {
   font-size: 10px; font-weight: 800; color: #fff;
   background: var(--warn); padding: 1px 7px; border-radius: 999px;
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+@media (max-width: 600px) {
+  .fert { gap: 10px; }
+  .orb { width: 64px; }
+  .orb-name { font-size: 6px; margin-top: 9%; padding: 1px 5px; }
+  .orb-val { font-size: 13px; }
+  .orb-unit { font-size: 6px; margin-bottom: 8%; }
+  .orb-full-badge { font-size: 6px; top: 8%; right: 10%; padding: 0 5px; }
 }
 </style>
