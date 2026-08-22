@@ -26,6 +26,7 @@ func registerProfileAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/bag/seeds", handleBagSeeds)
 	mux.HandleFunc("/api/bag/use", handleBagUse)
 	mux.HandleFunc("/api/bag/sell", handleBagSell)
+	mux.HandleFunc("/api/farm/fertilizer-capacity", handleFertilizerCapacity)
 	mux.HandleFunc("/api/friends/list", handleFriendList)
 	mux.HandleFunc("/api/friends/clear-cache", handleFriendListCacheClear)
 	mux.HandleFunc("/api/friends/lands", handleFriendLandsRoute)
@@ -655,6 +656,31 @@ func handleBagItems(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, map[string]interface{}{"ok": true, "data": items})
+}
+
+// handleFertilizerCapacity GET /api/farm/fertilizer-capacity
+// 化肥容器剩余时间（背包 1011 普通 / 1012 有机，count 秒 → 小时）；cap 为显示上限 999 小时
+func handleFertilizerCapacity(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	c, err := clientPool.Get(accountID)
+	if err != nil {
+		writeError(w, 400, "网关未连接: "+err.Error())
+		return
+	}
+	rep, err := c.Request(r.Context(), "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		writeError(w, 500, "拉取背包失败: "+err.Error())
+		return
+	}
+	br := proto.DecodeBagReply(rep.Body)
+	h := getContainerHoursFromBagItems(br.Items)
+	writeJSON(w, map[string]interface{}{
+		"ok":      true,
+		"normal":  h.normal,
+		"organic": h.organic,
+		"cap":     999,
+	})
 }
 
 // handleBagSeeds GET /api/bag/seeds

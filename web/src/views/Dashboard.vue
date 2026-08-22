@@ -13,6 +13,7 @@ const incomeOpen = ref(false)
 const patrol = ref({ steal: {}, help: {}, farm: {} })
 const logs = ref([])
 const loading = ref(false)
+const fert = ref({ normal: 0, organic: 0, cap: 999 }) // 化肥容器（小时）
 
 const INC_MAP = {
   收获: 'harvest', 偷菜: 'steal', 种植: 'plant', 施肥: 'fertilize', 浇水: 'water',
@@ -170,15 +171,35 @@ function rankBadge(idx) {
   return idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : 'rank-bronze'
 }
 
+// 化肥容器：独立拉取（背包 RPC 较重，不进 5s 轮询），挂载/切号/每 30s 刷新
+let fertTimer = null
+async function loadFert() {
+  if (!acc()) return
+  try {
+    const { data } = await api.get('/api/farm/fertilizer-capacity').catch(() => null)
+    if (data) fert.value = { normal: data.normal || 0, organic: data.organic || 0, cap: data.cap || 999 }
+  } catch (e) {}
+}
+function fertPct(v) {
+  const cap = fert.value.cap || 999
+  return Math.max(0, Math.min(100, (v / cap) * 100))
+}
+
 // 首页日志/资产实时刷新：每 5s 拉一次；切号事件立即用新账号重拉（热切换）
 let pollTimer = null
-function onSwitched() { load() }
+function onSwitched() { load(); loadFert() }
 onMounted(() => {
   load()
+  loadFert()
   pollTimer = setInterval(load, 5000)
+  fertTimer = setInterval(loadFert, 30000)
   window.addEventListener('account-switched', onSwitched)
 })
-onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null }; window.removeEventListener('account-switched', onSwitched) })
+onUnmounted(() => {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (fertTimer) { clearInterval(fertTimer); fertTimer = null }
+  window.removeEventListener('account-switched', onSwitched)
+})
 </script>
 
 <template>
@@ -235,6 +256,27 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
       </div>
       <div class="income-stats">
         <div v-for="l in INC_ITEMS" :key="l" class="st"><i>{{ { 收获:'🌾',偷菜:'🕵️',种植:'🌱',施肥:'🧴',浇水:'🚿',除草:'🌿',除虫:'🐛',一键务农:'⚙️',帮忙:'🤝',清黄金虫:'🟡',放黄金虫:'🐞',任务:'📋' }[l] }}</i><span>{{ l }}</span><b>{{ incVal(l) }}</b></div>
+      </div>
+    </div>
+
+    <!-- 化肥容量 -->
+    <div class="sec-title"><span>化肥容量</span><span class="sub">满 {{ fert.cap }} 小时</span></div>
+    <div class="fert">
+      <div class="orb" :class="{ full: fert.normal >= fert.cap }">
+        <div class="orb-liquid" :style="{ height: fertPct(fert.normal) + '%' }"></div>
+        <div class="orb-glass"></div>
+        <div class="orb-name">普通化肥</div>
+        <div class="orb-val">{{ Math.round(fert.normal) }}</div>
+        <div class="orb-unit">小时</div>
+        <div v-if="fert.normal >= fert.cap" class="orb-full-badge">满</div>
+      </div>
+      <div class="orb organic" :class="{ full: fert.organic >= fert.cap }">
+        <div class="orb-liquid" :style="{ height: fertPct(fert.organic) + '%' }"></div>
+        <div class="orb-glass"></div>
+        <div class="orb-name">有机化肥</div>
+        <div class="orb-val">{{ Math.round(fert.organic) }}</div>
+        <div class="orb-unit">小时</div>
+        <div v-if="fert.organic >= fert.cap" class="orb-full-badge">满</div>
       </div>
     </div>
 
@@ -381,4 +423,76 @@ onUnmounted(() => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null 
 .cd-more { width: 100%; margin-top: 10px; padding: 9px; border: none; border-radius: 10px; background: var(--bg-hi); color: var(--muted); font-size: 12px; cursor: pointer; }
 .cd-more:active { opacity: .8; }
 .cd-empty { padding: 26px 0; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ===== 化肥容量 玻璃球 ===== */
+.fert { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.orb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255,255,255,.6), rgba(255,255,255,.04) 46%),
+    var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 16%, transparent),
+              0 8px 20px rgba(0,0,0,.18);
+  display: flex; flex-direction: column; align-items: center;
+}
+.orb.organic {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255,255,255,.6), rgba(255,255,255,.04) 46%),
+    var(--card);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--good) 16%, transparent),
+              0 8px 20px rgba(0,0,0,.18);
+}
+.orb-liquid {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 0;
+  background: linear-gradient(180deg, color-mix(in oklch, var(--primary) 78%, white), var(--primary));
+  transition: height .6s cubic-bezier(.4,0,.2,1);
+}
+.orb-liquid::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -5px; height: 10px;
+  background: color-mix(in oklch, var(--primary) 78%, white);
+  border-radius: 50% / 100%; opacity: .9;
+}
+.orb.organic .orb-liquid {
+  background: linear-gradient(180deg, color-mix(in oklch, var(--good) 78%, white), var(--good));
+}
+.orb.organic .orb-liquid::before { background: color-mix(in oklch, var(--good) 78%, white); }
+.orb-glass {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 50%;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,.45), rgba(255,255,255,0) 38%),
+    radial-gradient(circle at 76% 82%, rgba(255,255,255,.12), rgba(255,255,255,0) 40%);
+}
+.orb-name {
+  position: relative; z-index: 2;
+  font-size: 11px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.30); padding: 2px 9px; border-radius: 999px;
+  margin-top: 13%; margin-bottom: auto; backdrop-filter: blur(2px);
+  white-space: nowrap;
+}
+.orb-val {
+  position: relative; z-index: 2;
+  font-size: 30px; font-weight: 800; line-height: 1; color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.orb-unit {
+  position: relative; z-index: 2;
+  font-size: 11px; color: rgba(255,255,255,.92); margin-top: 2px; margin-bottom: 12%;
+  text-shadow: 0 1px 3px rgba(0,0,0,.35);
+}
+.orb.full {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn) 42%, transparent),
+              0 0 22px color-mix(in oklch, var(--warn) 35%, transparent),
+              0 8px 20px rgba(0,0,0,.18);
+}
+.orb-full-badge {
+  position: absolute; top: 9%; right: 11%; z-index: 3;
+  font-size: 10px; font-weight: 800; color: #fff;
+  background: var(--warn); padding: 1px 7px; border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
 </style>
