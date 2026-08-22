@@ -83,7 +83,7 @@ async function saveBark() {
   try {
     const { data } = await api.post('/api/admin/system-config', {
       barkEnabled: barkOn.value,
-      barkKey,
+      barkKey: key,
       offlineNotifyCooldownMin: Number(notifyCooldown.value) || 10,
     })
     if (data?.ok) app.success('Bark 设置已保存')
