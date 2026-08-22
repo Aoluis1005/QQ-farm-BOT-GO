@@ -117,8 +117,10 @@ func meowPush(nick, title, content string) {
 // ============ 定时收益推送（每天北京时间指定时刻推一次今日收益） ============
 
 var (
-	reportMu      sync.Mutex
-	lastReportDay string // 上次已推送的日期（YYYY-MM-DD），跨日重置
+	reportMu         sync.Mutex
+	lastReportTarget string // 上次已推送的"日期+时间"（YYYY-MM-DD HH:MM）
+	// 防重键含时间：改 DailyReportTime 后 target 变化，当天新时间点会重新开放推送；
+	// 跨日 day 变化同样失效。仅同一"日期+时间"重复检查时跳过（防一天多推）。
 )
 
 // startDailyReportScheduler 启动每日收益推送调度（main 启动时调用一次）
@@ -137,9 +139,9 @@ func runDailyReportCheck() {
 		return
 	}
 	now := time.Now().In(time.FixedZone("CST", 8*3600))
-	day := now.Format("2006-01-02")
+	target := now.Format("2006-01-02") + " " + sc.DailyReportTime
 	reportMu.Lock()
-	if lastReportDay == day {
+	if lastReportTarget == target {
 		reportMu.Unlock()
 		return
 	}
@@ -148,7 +150,7 @@ func runDailyReportCheck() {
 		return
 	}
 	reportMu.Lock()
-	lastReportDay = day
+	lastReportTarget = target
 	reportMu.Unlock()
 	// 组装日报：遍历所有账号，取今日金币收益 + 同气礼盒
 	var lines []string
