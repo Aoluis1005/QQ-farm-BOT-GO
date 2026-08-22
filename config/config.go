@@ -209,6 +209,9 @@ type SystemConfig struct {
 	// 定时收益推送（MeoW）：每天北京时间指定时刻推一次今日收益
 	DailyReportEnabled bool   `json:"dailyReportEnabled"`
 	DailyReportTime    string `json:"dailyReportTime"` // 格式 HH:MM（北京时间）
+	// Bark 推送（可选）：与 MeoW 并行，同一触发事件（掉线/重连/日报）推送到 iPhone
+	BarkEnabled bool   `json:"barkEnabled"`
+	BarkKey     string `json:"barkKey"`
 }
 
 // CaptureConfig 抓包服务配置

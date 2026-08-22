@@ -250,6 +250,8 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 			OfflineNotifyCooldownMin int  `json:"offlineNotifyCooldownMin"`
 			DailyReportEnabled     *bool  `json:"dailyReportEnabled"`
 			DailyReportTime        string `json:"dailyReportTime"`
+			BarkEnabled            *bool  `json:"barkEnabled"`
+			BarkKey                string `json:"barkKey"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeError(w, 400, "参数错误")
@@ -275,6 +277,13 @@ func handleAdminSystemConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if t := strings.TrimSpace(body.DailyReportTime); t != "" {
 			sc.DailyReportTime = t
+		}
+		if body.BarkEnabled != nil {
+			sc.BarkEnabled = *body.BarkEnabled
+		}
+		// key 仅非空才更新（对齐 MeoW 昵称防覆盖逻辑）
+		if key := strings.TrimSpace(body.BarkKey); key != "" {
+			sc.BarkKey = key
 		}
 		if err := models.SetSystemConfig(sc); err != nil {
 			writeError(w, 500, "保存失败: "+err.Error())

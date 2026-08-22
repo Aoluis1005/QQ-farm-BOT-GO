@@ -51,7 +51,9 @@ func notifyAccountName(accountID string) string {
 // 确保恢复通知一定发；限流只卡"离线推送"本身。
 func notifyOffline(accountID, reason string) {
 	sc := models.GetSystemConfig()
-	if !sc.OfflineNotifyEnabled || sc.OfflineNotifyNick == "" {
+	meowOK := sc.OfflineNotifyEnabled && sc.OfflineNotifyNick != ""
+	barkOK := sc.BarkEnabled && sc.BarkKey != ""
+	if !meowOK && !barkOK {
 		return
 	}
 	cooldown := sc.OfflineNotifyCooldownMin
@@ -72,13 +74,22 @@ func notifyOffline(accountID, reason string) {
 	lastOfflineAt[accountID] = time.Now()
 	name := notifyAccountName(accountID)
 	notifyMu.Unlock()
-	go meowPush(sc.OfflineNotifyNick, "QQ农场离线提醒", fmt.Sprintf("[%s] %s 掉线：%s", cstNow(), name, reason))
+	title := "QQ农场离线提醒"
+	content := fmt.Sprintf("[%s] %s 掉线：%s", cstNow(), name, reason)
+	if meowOK {
+		go meowPush(sc.OfflineNotifyNick, title, content)
+	}
+	if barkOK {
+		go barkPush(title, content)
+	}
 }
 
 // notifyRecovered 恢复通知：仅当此前推过离线才推（首次连接不会误推）
 func notifyRecovered(accountID string) {
 	sc := models.GetSystemConfig()
-	if !sc.OfflineNotifyEnabled || sc.OfflineNotifyNick == "" {
+	meowOK := sc.OfflineNotifyEnabled && sc.OfflineNotifyNick != ""
+	barkOK := sc.BarkEnabled && sc.BarkKey != ""
+	if !meowOK && !barkOK {
 		return
 	}
 	notifyMu.Lock()
@@ -99,12 +110,38 @@ func notifyRecovered(accountID string) {
 			dur = fmt.Sprintf("（掉线 %d 分钟）", m)
 		}
 	}
-	go meowPush(sc.OfflineNotifyNick, "QQ农场离线提醒", fmt.Sprintf("[%s] %s 已自动重连成功%s", cstNow(), name, dur))
+	title := "QQ农场离线提醒"
+	content := fmt.Sprintf("[%s] %s 已自动重连成功%s", cstNow(), name, dur)
+	if meowOK {
+		go meowPush(sc.OfflineNotifyNick, title, content)
+	}
+	if barkOK {
+		go barkPush(title, content)
+	}
 }
 
-// meowPush 实际推送：异步 goroutine 调用、5s 超时、失败静默
+// meowPush 实际推送（MeoW 通道）：异步 goroutine 调用、5s 超时、失败静默
 func meowPush(nick, title, content string) {
+	if nick == "" {
+		return
+	}
 	u := meowBase + url.PathEscape(nick) + "/" + url.PathEscape(title) + "/" + url.PathEscape(content)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(u)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+}
+
+// barkPush 实际推送（Bark 通道，与 MeoW 并行）：Bark 兼容三段式 GET，5s 超时、失败静默
+func barkPush(title, content string) {
+	sc := models.GetSystemConfig()
+	if !sc.BarkEnabled || sc.BarkKey == "" {
+		return
+	}
+	u := "https://api.day.app/" + url.PathEscape(sc.BarkKey) + "/" + url.PathEscape(title) + "/" + url.PathEscape(content)
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(u)
 	if err != nil {
@@ -135,7 +172,7 @@ func startDailyReportScheduler() {
 
 func runDailyReportCheck() {
 	sc := models.GetSystemConfig()
-	if !sc.DailyReportEnabled || sc.OfflineNotifyNick == "" {
+	if !sc.DailyReportEnabled {
 		return
 	}
 	now := time.Now().In(time.FixedZone("CST", 8*3600))
@@ -172,6 +209,7 @@ func runDailyReportCheck() {
 	}
 	content := fmt.Sprintf("[%s] 今日收益：%s", now.Format("15:04"), strings.Join(lines, "；"))
 	go meowPush(sc.OfflineNotifyNick, "QQ农场收益日报", content)
+	go barkPush("QQ农场收益日报", content)
 }
 
 // numOf 把接口值转成 int64（支持 int/int64/float64/string）
