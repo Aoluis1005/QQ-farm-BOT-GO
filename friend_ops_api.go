@@ -26,6 +26,10 @@ func registerFriendOpsAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/friend-blacklist/toggle", handleFriendBlacklistToggle)
 	mux.HandleFunc("/api/friend/", handleFriendRoute)
 	mux.HandleFunc("/api/friend/apply", handleFriendApply)
+	// 批量加好友：串行队列 + worker（更具体的路径优先于 /api/friend/ 兜底路由）
+	mux.HandleFunc("/api/friend/apply/batch", handleFriendApplyBatch)
+	mux.HandleFunc("/api/friend/apply/status", handleFriendApplyStatus)
+	mux.HandleFunc("/api/friend/apply/cancel", handleFriendApplyCancel)
 }
 
 // POST /api/farm/operate  body: { opType }

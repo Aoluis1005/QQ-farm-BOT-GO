@@ -190,29 +190,101 @@ async function removeKnownGid(gid) {
     await loadKnownGids(); loadFriends()
   } catch (e) {}
 }
-/* 加好友 */
-const addLink = ref(''); const addPreview = ref(''); const addMsg = ref('')
-function refreshPreview() {
-  const d = parseShare(addLink.value)
-  if (d.uid || d.openid || d.shareKey) addPreview.value = `解析：uid=${d.uid || '?'} openid=${d.openid || '?'} share_key=${(d.shareKey || '?').slice(0, 8)}…`
-  else addPreview.value = ''
-}
+/* 加好友：批量解析 + 串行队列 */
+const addText = ref('')
+const addItems = ref([])   // { uid, openid, shareKey, status, sel, err }
+const addMsg = ref('')
+let applyTimer = null
+
 function parseShare(raw) {
   const q = (raw || '').indexOf('?') >= 0 ? raw.slice(raw.indexOf('?') + 1) : raw
   const s = new URLSearchParams(q)
-  return { uid: s.get('uid'), openid: s.get('openid'), shareKey: s.get('share_key') }
+  let uid = s.get('uid'), openid = s.get('openid'), key = s.get('share_key') || s.get('sharekey')
+  if (!uid && !openid && !key) {
+    const parts = (raw || '').trim().split(/[\s,，]+/).filter(Boolean)
+    if (parts.length >= 3) { [uid, openid, key] = parts }
+  }
+  return { uid: (uid || '').trim(), openid: (openid || '').trim(), shareKey: (key || '').trim().toLowerCase() }
 }
-async function sendFriendApply() {
+function validItem(d) {
+  return /^\d+$/.test(d.uid) && d.openid && /^[0-9a-f]{32}$/.test(d.shareKey)
+}
+function addParsed(text) {
+  let n = 0
+  const have = new Set(addItems.value.map(i => i.uid))
+  ;(text || '').split(/\r?\n/).forEach(line => {
+    const t = line.trim(); if (!t) return
+    const d = parseShare(t)
+    if (validItem(d) && !have.has(d.uid)) {
+      have.add(d.uid)
+      addItems.value.push({ uid: d.uid, openid: d.openid, shareKey: d.shareKey, status: 'pending', sel: false })
+      n++
+    }
+  })
+  return n
+}
+function onAddInput(e) {
+  const added = addParsed(e.target.value)
+  if (added) { e.target.value = ''; addMsg.value = '自动解析 +' + added + ' 条'; startApplyPoll() }
+}
+function onAddFile(e) {
+  const f = e.target.files[0]; if (!f) return
+  const r = new FileReader()
+  r.onload = ev => { const n = addParsed(ev.target.result); addMsg.value = n ? ('已解析 ' + n + ' 条') : '未识别到有效数据'; if (n) startApplyPoll() }
+  r.readAsText(f); e.target.value = ''
+}
+/* 工具栏：全选 / 删除 / 发送 / 取消发送 */
+const selCount = computed(() => addItems.value.filter(i => i.sel).length)
+const allSel = computed(() => addItems.value.length > 0 && addItems.value.every(i => i.sel))
+function toggleAll() { const on = !allSel.value; addItems.value.forEach(i => i.sel = on) }
+function delSel() { const b = addItems.value.length; addItems.value = addItems.value.filter(i => !i.sel); addMsg.value = '已删除 ' + (b - addItems.value.length) + ' 条' }
+function delOne(uid) { addItems.value = addItems.value.filter(i => i.uid !== uid) }
+async function sendSel() {
   if (!acc()) { app.error('请先选择账号'); return }
-  const d = parseShare(addLink.value)
-  const uid = (d.uid || '').trim(), openid = (d.openid || '').trim(), share = ((d.shareKey || '').trim()).toLowerCase()
-  if (!/^\d+$/.test(uid) || !openid || !/^[0-9a-f]{32}$/.test(share)) { addMsg.value = '分享链接缺少有效 uid / openid / share_key（32位十六进制）'; return }
-  addMsg.value = '发送中…'
+  const pick = addItems.value.filter(i => i.sel && i.status !== 'sent' && i.status !== 'cancelled')
+  if (!pick.length) { addMsg.value = '请勾选待发送的数据'; return }
   try {
-    const { data } = await api.post('/api/friend/apply', { gid: Number(uid), openid, shareKey: share })
-    addMsg.value = data?.ok ? ('已发送好友申请：uid=' + uid) : ('失败：' + (data?.error || data?.rawError || '未知'))
-  } catch (e) { addMsg.value = '请求失败: ' + e.message }
+    await api.post('/api/friend/apply/batch', { items: pick.map(i => ({ gid: i.uid, openid: i.openid, shareKey: i.shareKey })) })
+    pick.forEach(i => { if (i.status !== 'sent' && i.status !== 'cancelled') i.status = 'sending' })
+    addMsg.value = '已提交 ' + pick.length + ' 条，后台串行发送中…'
+    startApplyPoll()
+  } catch (e) { addMsg.value = '提交失败: ' + e.message }
 }
+async function cancelSel() {
+  const pick = addItems.value.filter(i => i.sel && i.status !== 'sent' && i.status !== 'cancelled')
+  if (!pick.length) { addMsg.value = '没有可取消的发送'; return }
+  try {
+    await api.post('/api/friend/apply/cancel', { gids: pick.map(i => i.uid) })
+    pick.forEach(i => { i.status = 'cancelled' })
+    addMsg.value = '已取消 ' + pick.length + ' 条，发送已停止'
+    startApplyPoll()
+  } catch (e) { addMsg.value = '取消失败: ' + e.message }
+}
+/* 状态轮询：合并后端队列状态到卡片 */
+function startApplyPoll() {
+  if (applyTimer) return
+  applyTimer = setInterval(pollApply, 1500)
+  pollApply()
+}
+function stopApplyPoll() { if (applyTimer) { clearInterval(applyTimer); applyTimer = null } }
+async function pollApply() {
+  if (!acc() || !addItems.value.length) return
+  try {
+    const { data } = await api.get('/api/friend/apply/status')
+    const m = {}; (data?.items || []).forEach(it => m[String(it.gid)] = it)
+    let active = false
+    addItems.value.forEach(i => {
+      const st = m[String(i.uid)]
+      if (st) { i.status = st.status; if (st.error) i.err = st.error }
+      if (i.status === 'pending' || i.status === 'sending') active = true
+    })
+    if (!active) stopApplyPoll()
+  } catch (e) {}
+}
+/* 展示辅助 */
+function maskKey(k) { return !k ? '' : (k.length > 12 ? k.slice(0, 8) + '…' + k.slice(-4) : k) }
+function badgeText(s) { return { pending: '待发送', sending: '发送中', sent: '已发送', failed: '失败', cancelled: '已取消' }[s] || s }
+function badgeCls(s) { return { pending: 'b-pending', sending: 'b-sending', sent: 'b-sent', failed: 'b-failed', cancelled: 'b-cancelled' }[s] || 'b-pending' }
 /* 黑名单 */
 const blackList = ref([]); const blk = ref(0)
 async function loadBlacklist() { if (!acc()) return; try { const { data } = await api.get('/api/friends/blacklist'); blackList.value = data?.data || []; blk.value = blackList.value.length } catch (e) {} }
@@ -396,16 +468,18 @@ async function onTab(c) {
 }
 async function onFsub(s) {
   fsub.value = s
+  stopApplyPoll()
   if (s === 'list') await loadFriends()
   else if (s === 'blacklist') await loadBlacklist()
   else if (s === 'visitors') await loadVisitors()
   else if (s === 'bot') await loadBotScan()
+  else if (s === 'add') startApplyPoll()
 }
 
 // 切号事件：按当前 tab 用新账号重拉数据（热切换）
 const onSwitched = () => { if (!acc()) return; onTab(tab.value) }
 onMounted(() => { if (!acc()) return; loadLands(); landTimer = setInterval(landCountdown, 1000); window.addEventListener('account-switched', onSwitched) })
-onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('account-switched', onSwitched) })
+onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('account-switched', onSwitched); stopApplyPoll() })
 </script>
 
 <template>
@@ -562,11 +636,38 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
       </div>
 
       <div v-if="fsub === 'add'">
-        <p style="font-size:11px;color:var(--muted);margin:8px 2px 10px">粘贴游戏分享链接，自动解析后发送好友申请</p>
-        <textarea v-model="addLink" @input="refreshPreview" class="field" rows="2" placeholder="分享链接" style="margin-top:8px;min-height:52px;resize:vertical"></textarea>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">{{ addPreview }}</div>
-        <button class="close" style="margin-top:12px" @click="sendFriendApply">发送好友申请</button>
-        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">{{ addMsg }}</p>
+        <p class="add-hint">粘贴分享链接（每行一条，支持批量）或导入文件，自动解析 UID + OPENID + SHAREKEY，勾选后发送好友申请。</p>
+        <div class="add-input">
+          <textarea v-model="addText" @input="onAddInput" class="field" rows="3" placeholder="在此粘贴分享链接，每行一条，自动解析…"></textarea>
+          <div class="add-input-row">
+            <label class="chip add-file">📁 导入文件<input type="file" id="addFile" accept=".txt,.csv,.json,text/*" hidden @change="onAddFile"></label>
+            <span class="add-phint" v-if="addItems.length">已解析 {{ addItems.length }} 条</span>
+          </div>
+        </div>
+
+        <div class="add-tool">
+          <button class="chip" :class="{ on: allSel }" @click="toggleAll">☑ 全选</button>
+          <button class="chip add-del" @click="delSel">🗑 删除</button>
+          <button class="chip add-cancel" @click="cancelSel">✕ 取消发送</button>
+          <button class="f-batch" @click="sendSel">📤 发送</button>
+        </div>
+
+        <div class="add-head" v-if="addItems.length">
+          <span>解析结果</span>
+          <span class="add-cnt">共 {{ addItems.length }} 条 · 已选 {{ selCount }}</span>
+        </div>
+
+        <div v-for="it in addItems" :key="it.uid" class="add-card" :class="{ sent: it.status === 'sent', failed: it.status === 'failed', cancelled: it.status === 'cancelled' }">
+          <input type="checkbox" class="ck" v-model="it.sel">
+          <div class="ac-body">
+            <div class="ac-uid">UID {{ it.uid }}</div>
+            <div class="ac-kv">OPENID {{ maskKey(it.openid) }}</div>
+            <div class="ac-kv">SHAREKEY {{ maskKey(it.shareKey) }}</div>
+          </div>
+          <span class="badge" :class="badgeCls(it.status)">{{ badgeText(it.status) }}</span>
+          <button class="del-x" @click="delOne(it.uid)">✕</button>
+        </div>
+        <p v-if="!addItems.length" class="add-empty">暂无解析数据，粘贴链接或导入文件试试</p>
       </div>
 
       <div v-if="fsub === 'blacklist'">
@@ -770,4 +871,35 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
 .bc-expand { font-size: 11px; color: var(--muted); line-height: 1.8; padding: 8px 0 0; border-top: 1px dashed var(--border); margin-top: 8px; }
 .bc-ops { display: flex; gap: 6px; margin-top: 8px; }
 .bc-ops .fa-mini { padding: 4px 10px; }
+/* ── 加好友：批量解析 + 串行队列 ── */
+.add-hint { font-size: 11.5px; color: var(--muted); margin: 2px 4px 10px; line-height: 1.5; }
+.add-input { background: var(--card-strong); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-sm); }
+.add-input textarea { min-height: 64px; resize: vertical; }
+.add-input-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.add-file { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.add-phint { margin-left: auto; font-size: 11px; color: var(--good); }
+.add-tool { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 6px; }
+.add-tool .f-batch { margin-left: auto; }
+.add-del { color: var(--danger); border-color: color-mix(in oklch, var(--danger) 35%, transparent); background: color-mix(in oklch, var(--danger) 8%, transparent); }
+.add-cancel { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 35%, transparent); background: color-mix(in oklch, var(--warn) 10%, transparent); }
+.add-head { display: flex; align-items: center; margin: 10px 4px 8px; font-size: 11.5px; color: var(--muted); }
+.add-cnt { margin-left: auto; }
+.add-card { display: flex; align-items: flex-start; gap: 10px; background: var(--card-strong); border: 1px solid var(--border); border-radius: 14px; padding: 11px 12px; margin-bottom: 9px; box-shadow: var(--shadow-sm); position: relative; }
+.add-card.sent { border-color: color-mix(in oklch, var(--good) 50%, transparent); }
+.add-card.failed { border-color: color-mix(in oklch, var(--danger) 50%, transparent); }
+.add-card.cancelled { opacity: .6; border-color: color-mix(in oklch, var(--muted) 45%, transparent); }
+.b-cancelled { color: var(--muted); background: color-mix(in oklch, var(--muted) 16%, transparent); border: 1px solid color-mix(in oklch, var(--muted) 35%, transparent); }
+.ck { appearance: none; width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 6px; margin-top: 2px; cursor: pointer; flex: none; position: relative; background: oklch(1 0 0 / .5); }
+.ck:checked { background: var(--primary); border-color: var(--primary); }
+.ck:checked::after { content: "✓"; color: #fff; font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.ac-body { flex: 1; min-width: 0; }
+.ac-uid { font-size: 13.5px; font-weight: 700; }
+.ac-kv { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; flex: none; margin-top: 2px; }
+.b-pending { color: var(--muted); background: color-mix(in oklch, var(--muted) 14%, transparent); }
+.b-sending { color: var(--primary); background: var(--primary-soft); }
+.b-sent { color: var(--good); background: color-mix(in oklch, var(--good) 14%, transparent); }
+.b-failed { color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, transparent); }
+.del-x { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--danger); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.add-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 22px 0; }
 </style>
