@@ -37,6 +37,28 @@ var yuluAllItemIDs = []int64{
 	yuluItemWood, yuluItemGoldWood,
 }
 
+// yuluItemNameOf 活动物品中文名。活动物品不在游戏 itemInfoMap 内（itemDisplayName 返回空），
+// 故硬编码名称兜底（来源=用户提供的 ItemInfo 全量清单）。优先用硬编码名，其次回退通用 itemDisplayName。
+var yuluItemName = map[int64]string{
+	yuluItemCollect:  "天气采集瓶",
+	yuluItemSummon:   "雷雨召唤瓶",
+	yuluItemMutate:   "闪电变异瓶",
+	yuluItemThunder:  "霹雳引雷瓶",
+	yuluItemFrog:     "青蛙使坏瓶",
+	yuluItemCloud:    "乌云使坏瓶",
+	yuluItemSurprise: "百宝惊喜瓶",
+	yuluItemGiftBox:  "雷纹礼盒",
+	yuluItemWood:     "雷击木",
+	yuluItemGoldWood: "黄金雷击木",
+}
+
+func yuluItemNameOf(id int64) string {
+	if nm, ok := yuluItemName[id]; ok {
+		return nm
+	}
+	return itemDisplayName(id)
+}
+
 // yuluBagLookup 在背包回复里查某物品的持有数与实例 uid。
 func yuluBagLookup(br *proto.BagReply, id int64) (count, uid int64) {
 	if br == nil {
@@ -102,7 +124,7 @@ func handleYuluStatus(w http.ResponseWriter, r *http.Request) {
 		items[fmt.Sprintf("%d", id)] = map[string]interface{}{
 			"id":    id,
 			"count": cnt,
-			"name":  itemDisplayName(id),
+			"name":  yuluItemNameOf(id),
 			"image": GetItemImageURL(int(id)),
 		}
 	}

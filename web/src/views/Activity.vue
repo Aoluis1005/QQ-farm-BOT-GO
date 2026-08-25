@@ -227,7 +227,9 @@ const YULU_ONECLICK = { collect: 5001, frog: 5005, cloud: 5006, thunder: 5004 }
 
 function yuluImg(id) { const it = yulu.items[id]; return it ? it.image : '' }
 function yuluCount(id) { const it = yulu.items[id]; return it ? n(it.count) : 0 }
-function yuluName(id) { const it = yulu.items[id]; return it ? (it.name || ('物品' + id)) : ('物品' + id) }
+// 活动物品中文名（活动物品不在游戏 itemInfoMap 内，后端也兜底返回，这里再兜一层确保不显示纯 ID）
+const YULU_NAMES = { 5001:'天气采集瓶', 5002:'雷雨召唤瓶', 5003:'闪电变异瓶', 5004:'霹雳引雷瓶', 5005:'青蛙使坏瓶', 5006:'乌云使坏瓶', 5007:'百宝惊喜瓶', 5008:'雷纹礼盒', 5009:'雷击木', 5010:'黄金雷击木' }
+function yuluName(id) { const it = yulu.items[id]; return (it && it.name) || YULU_NAMES[id] || ('物品' + id) }
 
 // 倒计时
 const yuluCd = ref('')
@@ -476,7 +478,7 @@ async function renderPanel(p) {
   if (p.key === 'shop') await loadShop()
   else if (p.key === 'gift') await loadGift()
   else if (p.key === 'qingmei') await loadQingmei()
-  else if (p.key === 'yulu') await loadYulu()
+  else if (p.key === 'yulu') { await loadYulu(); refreshYuluFriends() }
 }
 
 /* ---------- 刷新获取新活动 ---------- */
@@ -927,9 +929,9 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
             <div class="yulu-s-name">{{ yuluName(id) }}</div>
             <div class="muted">库存 <b style="color:var(--good)">{{ yuluCount(id) }}</b></div>
             <div class="row" style="margin-top:8px">
-              <button v-if="id===5002" class="btn primary small" :disabled="yuluCount(id)<=0" @click="yuluUse(5002)">雷雨召唤</button>
-              <button v-else-if="id===5003" class="btn primary small" :disabled="yuluCount(id)<=0" @click="yuluMutate">闪电变异（自家）</button>
-              <button v-else-if="id===5007" class="btn gold small" :disabled="yuluCount(id)<=0" @click="yuluOpen(5007)">打开</button>
+              <button v-if="id===5002" class="btn primary small" @click="yuluUse(5002)">雷雨召唤</button>
+              <button v-else-if="id===5003" class="btn primary small" @click="yuluMutate">闪电变异（自家）</button>
+              <button v-else-if="id===5007" class="btn gold small" @click="yuluOpen(5007)">打开</button>
             </div>
           </div>
         </div>
@@ -945,7 +947,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
           <div class="yulu-onetab light" @click="yuluOneClick('thunder')"><div class="oi">⚡</div>一键引雷</div>
         </div>
         <div class="row" style="margin:4px 0">
-          <span class="muted">好友列表（手动刷新，避免进 tab 阻塞）</span>
+          <span class="muted">好友列表（进入自动加载，也可手动刷新）</span>
           <button class="btn small" @click="refreshYuluFriends" :disabled="yulu.friendsLoading">{{ yulu.friendsLoading ? '⏳ 刷新中…' : '🔄 刷新好友' }}</button>
         </div>
         <div class="yulu-flist" v-if="yulu.friends.length" @scroll="onYuluFriendScroll">
@@ -953,10 +955,10 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
             <div class="yulu-av">{{ f.name[0] }}</div>
             <div style="flex:1;min-width:0"><div class="yulu-fnm">{{ f.name }}</div><div class="st">好友农场</div></div>
             <div class="yulu-fbtns">
-              <button class="btn ghost small" :disabled="yuluCount(5001)<=0" @click="yuluUse(5001, f)">采集</button>
-              <button class="btn ghost small" :disabled="yuluCount(5004)<=0" @click="yuluUse(5004, f)">引雷</button>
-              <button class="btn ghost small" :disabled="yuluCount(5005)<=0" @click="yuluUse(5005, f)">青蛙</button>
-              <button class="btn ghost small" :disabled="yuluCount(5006)<=0" @click="yuluUse(5006, f)">乌云</button>
+              <button class="btn ghost small" @click="yuluUse(5001, f)">采集</button>
+              <button class="btn ghost small" @click="yuluUse(5004, f)">引雷</button>
+              <button class="btn ghost small" @click="yuluUse(5005, f)">青蛙</button>
+              <button class="btn ghost small" @click="yuluUse(5006, f)">乌云</button>
             </div>
           </div>
           <div v-if="yulu.friendsDisplayCount < yulu.allFriends.length" class="yulu-loadmore" @click="loadMoreYuluFriends">
@@ -975,7 +977,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
             <div class="yulu-s-name">{{ yuluName(id) }}</div>
             <div class="muted">库存 <b style="color:var(--good)">{{ yuluCount(id) }}</b></div>
             <div class="row" style="margin-top:8px">
-              <button v-if="id===5008" class="btn gold small" :disabled="yuluCount(id)<=0" @click="yuluOpen(5008)">打开</button>
+              <button v-if="id===5008" class="btn gold small" @click="yuluOpen(5008)">打开</button>
               <span v-else class="pill warn">产物 · 暂不支持一键出售</span>
             </div>
           </div>
