@@ -367,6 +367,45 @@ async function yuluOneClick(kind) {
   else app.success(`一键完成：成功 ${yulu.oneClickOk}/${yulu.oneClickTotal} 位好友`)
 }
 
+/* ---------- 公益小红花（占位面板，后端待 9/1 开服实现） ---------- */
+const HONGHUA_OPEN = 1788192000 * 1000                 // 2026-09-01 00:00 北京时间
+const honghuaCd = ref('')
+let honghuaCdTimer = null
+function honghuaTick() {
+  const diff = HONGHUA_OPEN - Date.now()
+  if (diff <= 0) { honghuaCd.value = '🟢 活动已开启'; if (honghuaCdTimer) { clearInterval(honghuaCdTimer); honghuaCdTimer = null } return }
+  const s = Math.floor(diff / 1000)
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60
+  honghuaCd.value = `⏳ 距开启 ${String(d).padStart(2, '0')}:${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+const honghua = reactive({
+  seeds: null, fruits: null, love: null, fund: null,
+  serverFund: null, claimed: false, note: '', err: '',
+  tiers: [
+    { i: 1, rw: [{ t: '🧪 有机化肥（8小时）×1' }] },
+    { i: 2, rw: [{ t: '🪙 点券 ×50' }] },
+    { i: 3, rw: [{ t: '🧪 有机化肥（8小时）×2' }] },
+    { i: 4, rw: [{ t: '🪙 点券 ×100', n: 2 }] },
+    { i: 5, rw: [{ t: '🖼️ 公益小红花做好事头像框 ×1' }] },
+  ],
+})
+// 占位：后端 /api/activity/honghua 未实现，成功后回填；失败仅记 note 不弹错
+async function loadHonghua() {
+  const a = acc(); if (!a) return
+  honghua.err = ''; honghua.note = ''
+  try {
+    const { data } = await api.get('/api/activity/honghua', { params: { accountId: a.gid } })
+    if (data && data.ok && data.data) {
+      const d = data.data
+      honghua.seeds = d.seeds; honghua.fruits = d.fruits
+      honghua.love = d.love; honghua.fund = d.fund
+      if (d.tiers && d.tiers.length) honghua.tiers = d.tiers
+      honghua.serverFund = d.serverFund; honghua.claimed = !!d.claimed
+    } else honghua.note = (data && data.error) || ''
+  } catch (e) { honghua.note = '后端接口待实现（9/1 开服后上线）' }
+}
+function honghuaTodo() { app.info('活动 9月1日 开启后接入真实协议') }
+
 const curPanel = computed(() => panels.value[panelIdx.value] || null)
 
 function n(v) { return v == null ? 0 : (Number(v) || 0) }
@@ -457,6 +496,13 @@ async function loadGroup(group) {
     loading.value = false
     return
   }
+  // 公益小红花：占位面板（后端待 9/1 开服实现）
+  if (String(group.id || '').indexOf('20260909') === 0 || (group.title || '').indexOf('小红花') >= 0 || (group.title || '').indexOf('公益') >= 0) {
+    panels.value = [{ key: 'honghua', title: '公益小红花', icon: '🌸' }]
+    panelIdx.value = 0
+    loading.value = false
+    return
+  }
   try {
     const [g, s, o] = await Promise.all([
       api.get('/api/activity/group', { params: { id: group.id } }),
@@ -506,6 +552,7 @@ async function renderPanel(p) {
   else if (p.key === 'gift') await loadGift()
   else if (p.key === 'qingmei') await loadQingmei()
   else if (p.key === 'yulu') { await loadYulu() }
+  else if (p.key === 'honghua') { await loadHonghua() }
 }
 
 /* ---------- 刷新获取新活动 ---------- */
@@ -638,7 +685,7 @@ function fmtDay(s) {
 
 // 切号事件：用新账号重拉活动列表与鹊桥/雨落面板（热切换）
 const onSwitched = () => { loadActivity(); loadQiXi(); loadYulu() }
-onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); window.addEventListener('account-switched', onSwitched) })
+onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); honghuaTick(); honghuaCdTimer = setInterval(honghuaTick, 1000); window.addEventListener('account-switched', onSwitched) })
 onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
@@ -1039,6 +1086,115 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
       </details>
     </div>
 
+    <!-- ===== 公益小红花（占位，后端待 9/1 开服实现） ===== -->
+    <div v-else-if="curPanel && curPanel.key === 'honghua'">
+      <!-- Hero -->
+      <div class="honghua-hero">
+        <div class="hh-flower">🌸</div>
+        <h1>公益小红花</h1>
+        <div class="honghua-sub">种下一朵小红花，帮助乡村学童吃上热腾腾的免费午餐。</div>
+        <div class="honghua-meta">
+          <span class="honghua-pill">活动时间</span>
+          <span class="honghua-date">2026.09.01 — 09.09</span>
+        </div>
+        <span class="honghua-cd">{{ honghuaCd }}</span>
+      </div>
+
+      <!-- 玩法链路 -->
+      <div class="hh-flow">
+        <div class="hh-step"><div class="fi">📋</div><div class="ft">每日任务/分享</div><div class="fd">获取小红花种子</div></div>
+        <div class="hh-arr">›</div>
+        <div class="hh-step"><div class="fi">🌱</div><div class="ft">种植收获</div><div class="fd">种下并收获果实</div></div>
+        <div class="hh-arr">›</div>
+        <div class="hh-step"><div class="fi">💖</div><div class="ft">获得爱心值</div><div class="fd">捐赠助力公益</div></div>
+        <div class="hh-arr">›</div>
+        <div class="hh-step"><div class="fi">🤝</div><div class="ft">送出公益金</div><div class="fd">1元公益助力</div></div>
+      </div>
+
+      <!-- 顶部数据 -->
+      <div class="hh-chips">
+        <div class="hh-chip"><div class="ci">🌱</div><div class="v">{{ honghua.seeds == null ? '—' : honghua.seeds }}</div><div class="k">小红花种子</div></div>
+        <div class="hh-chip"><div class="ci">🌸</div><div class="v">{{ honghua.fruits == null ? '—' : honghua.fruits }}</div><div class="k">小红花果实</div></div>
+        <div class="hh-chip"><div class="ci">💖</div><div class="v">{{ honghua.love == null ? '—' : honghua.love }}</div><div class="k">爱心值</div></div>
+        <div class="hh-chip"><div class="ci">🤝</div><div class="v">{{ honghua.fund == null ? '—' : honghua.fund }}</div><div class="k">公益金</div></div>
+      </div>
+
+      <!-- 爱心值 + 送出公益金 -->
+      <div class="hh-love">
+        <div class="row">
+          <div><div class="hh-lv">{{ honghua.love == null ? 0 : honghua.love }}<small> 爱心值</small></div></div>
+          <span class="pill warn" v-if="honghua.love == null">待开服</span>
+        </div>
+        <div class="bar"><i style="width:0%"></i></div>
+        <div class="muted" style="margin-bottom:10px">累计爱心值达到档位即可解锁领取奖励</div>
+        <button class="btn gold" @click="honghuaTodo">💛 送出公益金 · 1元助力</button>
+        <div class="note">单用户活动期仅可获得 1 次公益金资格；不支持提现、兑换、转让、售卖；全服公益金拨付总额上限 200 万元。</div>
+      </div>
+
+      <!-- 每日任务 + 公益礼包 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>每日任务 · 公益礼包</div>
+        <div class="banner">完成<b>每日任务</b>或<b>每日分享</b>即可获得<b>小红花种子</b>；种植并收获<b>小红花果实</b>可获得对应爱心值。</div>
+        <div class="hh-tier" style="margin-top:10px">
+          <div class="hh-tier-hd">🎁 公益礼包 <span class="pill">每日限领 1 次</span></div>
+          <div class="hh-tier-rw"><span class="hh-rw">🧪 化肥（1小时）×2</span></div>
+          <div class="row" style="margin-top:9px">
+            <span class="muted">每日收获小红花后可领取</span>
+            <button class="btn primary small" @click="honghuaTodo">领取</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 个人爱心值档位 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>个人爱心值档位奖励</div>
+        <div class="hh-tier" v-for="t in honghua.tiers" :key="t.i">
+          <div class="hh-tier-hd">档位 {{ t.i }} <template v-if="t.i === 5">🏆</template></div>
+          <div class="hh-tier-rw">
+            <span class="hh-rw" v-for="(r, ri) in t.rw" :key="ri">{{ r.t }}<template v-if="r.n > 1"> ×{{ r.n }}</template></span>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <span class="muted">爱心值达标</span>
+            <button class="btn small" :class="t.i === 5 ? 'primary' : 'ghost'" @click="honghuaTodo">领取</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全服公益目标 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>全服公益目标</div>
+        <div class="banner">全服玩家共同达成公益目标后，满足参与条件的玩家即可领取<b>全服公益结算礼包</b>（单角色限领 1 次）。</div>
+        <div class="bar" style="margin-top:12px"><i style="width:0%"></i></div>
+        <div class="muted" style="margin:0 0 10px">全服进度 · 待开服统计</div>
+        <div class="hh-tier" style="margin-top:0">
+          <div class="hh-tier-hd">🎁 全服公益结算礼包</div>
+          <div class="hh-tier-rw">
+            <span class="hh-rw">📦 化肥礼包 ×20</span>
+            <span class="hh-rw">🫘 金豆豆 ×20</span>
+            <span class="hh-rw">🪙 点券 ×300</span>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <span class="muted">全服目标达成后开放</span>
+            <button class="btn gold small" @click="honghuaTodo">领取</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 活动说明 -->
+      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+        <summary style="cursor:pointer;font-weight:700;font-size:14px;list-style:none">📜 活动说明</summary>
+        <ol style="margin:10px 0 0 18px;font-size:12.5px;color:var(--foreground)">
+          <li>QQ经典农场联合<b>腾讯公益</b>（运营方：腾讯公益慈善基金会）、腾讯成长守护、免费午餐基金推出，帮助乡村学童吃上免费午餐。</li>
+          <li>完成每日任务/每日分享获得<b>小红花种子</b>，种植收获<b>小红花果实</b>获得爱心值。</li>
+          <li>捐赠爱心值助力公益，获得<b>公益金资格</b>，点击「送出公益金」完成 1 元助力，公益金全额拨付至公益机构。</li>
+          <li>公益金不支持提现/兑换/转让/售卖，单用户仅 1 次资格，全服拨付总额上限 200 万元。</li>
+          <li>奖励分<b>公益礼包</b>、<b>个人爱心值档位</b>、<b>全服公益结算礼包</b>三类。</li>
+        </ol>
+        <div class="muted" style="margin-top:8px;font-size:11.5px" v-if="honghua.note">{{ honghua.note }}</div>
+        <div class="muted" style="margin-top:8px;font-size:11.5px">占位面板 · 后端接口待 9/1 开服实现，届时接入真实数据。</div>
+      </details>
+    </div>
+
     <div v-else-if="curPanel" class="act-empty">该活动暂无可展示的面板</div>
   </div>
 </template>
@@ -1272,4 +1428,35 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
 .yulu-fnm { font-size: 13.5px; font-weight: 600; }
 .yulu-fbtns { display: flex; gap: 5px; flex-shrink: 0; }
 .yulu-fbtns .btn { padding: 5px 8px; font-size: 11px; }
+/* ===== 公益小红花 ===== */
+.honghua-hero { border-radius: 18px; padding: 20px 18px; margin-bottom: 14px; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #f04e56 0%, #e8484f 45%, #c62f48 100%); color: #fff; }
+.honghua-hero .hh-flower { font-size: 30px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.18)); }
+.honghua-hero h1 { font-size: 23px; margin: 6px 0 0; letter-spacing: 1px; }
+.honghua-sub { opacity: .95; font-size: 12.5px; margin-top: 7px; line-height: 1.5; }
+.honghua-meta { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.honghua-pill { font-size: 11px; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.2); font-weight: 700; }
+.honghua-date { font-size: 12.5px; font-weight: 700; }
+.honghua-cd { display: inline-block; margin-top: 10px; background: rgba(255,255,255,.22); padding: 5px 12px;
+  border-radius: 999px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hh-flow { display: flex; align-items: stretch; gap: 4px; margin-bottom: 14px; }
+.hh-step { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 13px; padding: 10px 3px; text-align: center; }
+.hh-step .fi { font-size: 20px; }
+.hh-step .ft { font-size: 11px; font-weight: 700; margin-top: 4px; }
+.hh-step .fd { font-size: 9.5px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.hh-arr { align-self: center; color: var(--primary); font-weight: 800; font-size: 14px; padding: 0 1px; }
+.hh-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.hh-chip { border-radius: 13px; padding: 11px 4px; text-align: center; background: var(--card); border: 1px solid var(--border); }
+.hh-chip .ci { font-size: 20px; }
+.hh-chip .v { font-size: 16px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.hh-chip .k { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+.hh-love { background: linear-gradient(135deg, rgba(232,72,79,.10), rgba(255,180,0,.08));
+  border: 1px solid rgba(232,72,79,.35); border-radius: 16px; padding: 16px; margin-bottom: 13px; }
+.hh-lv { font-size: 34px; font-weight: 900; color: var(--primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.hh-lv small { font-size: 13px; font-weight: 700; color: var(--muted); }
+.note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.hh-tier { border: 1px solid var(--border); border-radius: 13px; padding: 11px 12px; margin-top: 9px; background: var(--card); }
+.hh-tier-hd { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.hh-tier-rw { margin-top: 7px; display: flex; gap: 7px; flex-wrap: wrap; }
+.hh-rw { font-size: 12px; background: rgba(127,127,127,.14); border-radius: 8px; padding: 3px 9px; color: var(--foreground); }
 </style>
