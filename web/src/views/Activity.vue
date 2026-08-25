@@ -369,6 +369,8 @@ async function yuluOneClick(kind) {
 
 /* ---------- 公益小红花（占位面板，后端待 9/1 开服实现） ---------- */
 const HONGHUA_OPEN = 1788192000 * 1000                 // 2026-09-01 00:00 北京时间
+const HONGHUA_ROOT_ID = 2026090900
+const HONGHUA_END = 1788969599 * 1000                  // 2026-09-09 23:59:59 北京时间
 const honghuaCd = ref('')
 let honghuaCdTimer = null
 function honghuaTick() {
@@ -454,6 +456,15 @@ async function loadActivity() {
       gs.unshift({ id: rep.id, title: '🌧️ 雨落成诗', group: true })
     } else if (Date.now() < YULU_END) {
       gs.unshift({ id: YULU_ROOT_ID, title: '🌧️ 雨落成诗', group: true })
+    }
+    // 公益小红花：未开始（upcoming）不进 ongoing 列表，开服前兜底插入便于预览占位面板
+    const honghuaMatched = gs.filter(g => String(g.id).indexOf('20260909') === 0 || (g.title || '').indexOf('小红花') >= 0)
+    if (honghuaMatched.length) {
+      const rep = honghuaMatched.find(g => String(g.id) === String(HONGHUA_ROOT_ID)) || honghuaMatched[0]
+      gs = gs.filter(g => !(String(g.id).indexOf('20260909') === 0 || (g.title || '').indexOf('小红花') >= 0))
+      gs.unshift({ id: rep.id, title: '🌸 公益小红花', group: true })
+    } else if (Date.now() < HONGHUA_END) {
+      gs.unshift({ id: HONGHUA_ROOT_ID, title: '🌸 公益小红花', group: true })
     }
     groups.value = gs
     if (!gs.length) { err.value = '当前没有进行中的活动'; panels.value = []; loading.value = false; return }
