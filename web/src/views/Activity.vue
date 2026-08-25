@@ -215,6 +215,7 @@ const yulu = reactive({
   items: {},                                   // {id: {count,name,image}}  全部来自背包实时
   research: { tiers: [], claimedAll: false, note: '' },
   friends: [], allFriends: [], friendsDisplayCount: 0, friendsPerPage: 5, friendsLoading: false,
+  oneClickRunning: false, oneClickTotal: 0, oneClickDone: 0, oneClickOk: 0,
   err: '',
 })
 // 天气瓶分组（id 取自 ItemInfo 实锤，非猜）
@@ -308,20 +309,26 @@ async function yuluMutate() {
     } else app.error((data && data.error) || '变异失败')
   } catch (e) { app.error('变异失败') }
 }
-async function yuluUse(itemId, friend) {
-  const a = acc(); if (!a) return
-  if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
+async function yuluUseOnce(itemId, friend) {
+  const a = acc(); if (!a) return null
   try {
     const body = { accountId: a.gid, itemId }
     if (friend) body.hostGid = friend.gid
     const { data } = await api.post('/api/activity/yulu/use', body)
-    if (data && data.ok) {
-      const cnt = (data.data && data.data.useCount) || 0
-      if (cnt > 0) app.success(`${yuluName(itemId)} 使用成功 ${cnt} 块地`)
-      else app.error((data.data && data.data.msg) || '无可作用地块')
-      loadYulu()
-    } else app.error((data && data.error) || '使用失败')
-  } catch (e) { app.error('使用失败') }
+    return data
+  } catch (e) { return { ok: false, error: '网络错误' } }
+}
+async function yuluUse(itemId, friend) {
+  const a = acc(); if (!a) return
+  if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
+  const data = await yuluUseOnce(itemId, friend)
+  if (!data) { app.error('使用失败'); return }
+  if (data.ok) {
+    const cnt = (data.data && data.data.useCount) || 0
+    if (cnt > 0) app.success(`${yuluName(itemId)} 使用成功 ${cnt} 块地`)
+    else app.error((data.data && data.data.msg) || '无可作用地块')
+    loadYulu()
+  } else app.error((data && data.error) || '使用失败')
 }
 async function yuluResearch() {
   const a = acc(); if (!a) return
@@ -331,13 +338,33 @@ async function yuluResearch() {
     else app.error((data && data.error) || '气象研究待开服抓包')
   } catch (e) { app.error('气象研究待开服抓包') }
 }
-function yuluOneClick(kind) {
-  if (!yulu.allFriends.length) { app.error('请先点击「🔄 刷新好友」'); return }
+// 一键：对该账号全部好友【顺序】逐个使用（单并发，避开同账号并发 Enter 多农场冲突）。
+// 全程 async await，不阻塞 UI 线程；按钮禁用 + 进度显示。
+async function yuluOneClick(kind) {
+  if (!yulu.allFriends.length) { app.error('请先点击「🔄 刷新好友」加载好友'); return }
   const itemId = YULU_ONECLICK[kind]
   if (!itemId) return
   if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
-  const friend = yulu.allFriends[Math.floor(Math.random() * yulu.allFriends.length)]
-  yuluUse(itemId, friend)
+  if (yulu.oneClickRunning) { app.error('上一次一键尚未完成'); return }
+  yulu.oneClickRunning = true
+  yulu.oneClickTotal = yulu.allFriends.length
+  yulu.oneClickDone = 0
+  yulu.oneClickOk = 0
+  let firstErr = ''
+  for (const f of yulu.allFriends) {
+    const data = await yuluUseOnce(itemId, f)
+    yulu.oneClickDone++
+    if (data && data.ok) {
+      const cnt = (data.data && data.data.useCount) || 0
+      if (cnt > 0) yulu.oneClickOk++
+    } else if (!firstErr && data) {
+      firstErr = data.error || '失败'
+    }
+  }
+  yulu.oneClickRunning = false
+  loadYulu()
+  if (firstErr && yulu.oneClickOk === 0) app.error('一键失败：' + firstErr)
+  else app.success(`一键完成：成功 ${yulu.oneClickOk}/${yulu.oneClickTotal} 位好友`)
 }
 
 const curPanel = computed(() => panels.value[panelIdx.value] || null)
@@ -478,7 +505,7 @@ async function renderPanel(p) {
   if (p.key === 'shop') await loadShop()
   else if (p.key === 'gift') await loadGift()
   else if (p.key === 'qingmei') await loadQingmei()
-  else if (p.key === 'yulu') { await loadYulu(); refreshYuluFriends() }
+  else if (p.key === 'yulu') { await loadYulu() }
 }
 
 /* ---------- 刷新获取新活动 ---------- */
@@ -941,13 +968,16 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
       <div class="card">
         <div class="ttl"><span class="dot"></span>好友互动 <span class="pill">雷雨好友农场</span></div>
         <div class="yulu-onetabs">
-          <div class="yulu-onetab collect" @click="yuluOneClick('collect')"><div class="oi">🫧</div>一键采集</div>
-          <div class="yulu-onetab frog" @click="yuluOneClick('frog')"><div class="oi">🐸</div>一键青蛙</div>
-          <div class="yulu-onetab cloud" @click="yuluOneClick('cloud')"><div class="oi">☁️</div>一键乌云</div>
-          <div class="yulu-onetab light" @click="yuluOneClick('thunder')"><div class="oi">⚡</div>一键引雷</div>
+          <div class="yulu-onetab collect" :class="{ busy: yulu.oneClickRunning }" @click="yuluOneClick('collect')"><div class="oi">🫧</div>一键采集</div>
+          <div class="yulu-onetab frog" :class="{ busy: yulu.oneClickRunning }" @click="yuluOneClick('frog')"><div class="oi">🐸</div>一键青蛙</div>
+          <div class="yulu-onetab cloud" :class="{ busy: yulu.oneClickRunning }" @click="yuluOneClick('cloud')"><div class="oi">☁️</div>一键乌云</div>
+          <div class="yulu-onetab light" :class="{ busy: yulu.oneClickRunning }" @click="yuluOneClick('thunder')"><div class="oi">⚡</div>一键引雷</div>
+        </div>
+        <div v-if="yulu.oneClickRunning" class="yulu-oc-progress">
+          ⏳ 一键进行中… {{ yulu.oneClickDone }}/{{ yulu.oneClickTotal }}（成功 {{ yulu.oneClickOk }}）
         </div>
         <div class="row" style="margin:4px 0">
-          <span class="muted">好友列表（进入自动加载，也可手动刷新）</span>
+          <span class="muted">好友列表（手动刷新；一键按钮对全部好友生效）</span>
           <button class="btn small" @click="refreshYuluFriends" :disabled="yulu.friendsLoading">{{ yulu.friendsLoading ? '⏳ 刷新中…' : '🔄 刷新好友' }}</button>
         </div>
         <div class="yulu-flist" v-if="yulu.friends.length" @scroll="onYuluFriendScroll">
@@ -955,10 +985,10 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
             <div class="yulu-av">{{ f.name[0] }}</div>
             <div style="flex:1;min-width:0"><div class="yulu-fnm">{{ f.name }}</div><div class="st">好友农场</div></div>
             <div class="yulu-fbtns">
-              <button class="btn ghost small" @click="yuluUse(5001, f)">采集</button>
-              <button class="btn ghost small" @click="yuluUse(5004, f)">引雷</button>
-              <button class="btn ghost small" @click="yuluUse(5005, f)">青蛙</button>
-              <button class="btn ghost small" @click="yuluUse(5006, f)">乌云</button>
+              <button class="btn ghost small" :disabled="yulu.oneClickRunning" @click="yuluUse(5001, f)">采集</button>
+              <button class="btn ghost small" :disabled="yulu.oneClickRunning" @click="yuluUse(5004, f)">引雷</button>
+              <button class="btn ghost small" :disabled="yulu.oneClickRunning" @click="yuluUse(5005, f)">青蛙</button>
+              <button class="btn ghost small" :disabled="yulu.oneClickRunning" @click="yuluUse(5006, f)">乌云</button>
             </div>
           </div>
           <div v-if="yulu.friendsDisplayCount < yulu.allFriends.length" class="yulu-loadmore" @click="loadMoreYuluFriends">
@@ -1232,6 +1262,8 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
 .yulu-onetab.frog { background: linear-gradient(135deg, rgba(79,208,127,.20), rgba(79,208,127,.07)); border-color: rgba(79,208,127,.35); }
 .yulu-onetab.cloud { background: linear-gradient(135deg, rgba(142,162,200,.22), rgba(142,162,200,.07)); border-color: rgba(142,162,200,.35); }
 .yulu-onetab.light { background: linear-gradient(135deg, rgba(207,255,0,.18), rgba(207,255,0,.06)); border-color: rgba(207,255,0,.3); }
+.yulu-onetab.busy { opacity: .55; cursor: progress; pointer-events: none; }
+.yulu-oc-progress { font-size: 12px; color: var(--primary); margin: 0 0 8px; font-weight: 600; }
 /* 好友列表 */
 .yulu-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .yulu-loadmore { text-align: center; padding: 10px; font-size: 12px; color: var(--muted); cursor: pointer; border-top: 1px solid var(--border); }
