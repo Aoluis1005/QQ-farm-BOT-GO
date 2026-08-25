@@ -206,6 +206,138 @@ async function loadQiXi() {
   } catch (e) { qixi.err = '玩法加载失败' }
 }
 
+/* ---------- 雨落成诗（YuLu / WeatherBottleUI） ---------- */
+const YULU_ROOT_ID = 2026070300
+const YULU_OPEN = 1787709600 * 1000                 // 2026-08-26 10:00 北京时间
+const YULU_END = new Date('2026-09-08T23:59:59+08:00').getTime()
+const yulu = reactive({
+  badge: null, badgeNote: '',
+  items: {},                                   // {id: {count,name,image}}  全部来自背包实时
+  research: { tiers: [], claimedAll: false, note: '' },
+  friends: [], allFriends: [], friendsDisplayCount: 0, friendsPerPage: 5, friendsLoading: false,
+  err: '',
+})
+// 天气瓶分组（id 取自 ItemInfo 实锤，非猜）
+const YULU_SELF = [5002, 5003, 5007]              // 给自己用：召唤/变异/开箱
+const YULU_FRIEND = [5001, 5004, 5005, 5006]      // 好友向：采集/引雷/青蛙/乌云
+const YULU_PRODUCT = [5008, 5009, 5010]           // 产出与奖励
+const YULU_TOP = [5001, 5002, 5003, 5004, 5005, 5006, 5007] // 顶部 7 瓶统计
+// 一键 tab → 物品 id
+const YULU_ONECLICK = { collect: 5001, frog: 5005, cloud: 5006, thunder: 5004 }
+
+function yuluImg(id) { const it = yulu.items[id]; return it ? it.image : '' }
+function yuluCount(id) { const it = yulu.items[id]; return it ? n(it.count) : 0 }
+function yuluName(id) { const it = yulu.items[id]; return it ? (it.name || ('物品' + id)) : ('物品' + id) }
+
+// 倒计时
+const yuluCd = ref('')
+let yuluCdTimer = null
+function yuluTick() {
+  const diff = YULU_OPEN - Date.now()
+  if (diff <= 0) { yuluCd.value = '🟢 活动已开启'; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null } return }
+  const s = Math.floor(diff / 1000)
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60
+  yuluCd.value = `⏳ 距开启 ${String(d).padStart(2, '0')}:${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+// 加载状态（顶部 8 统计 + 气象研究占位）
+async function loadYulu() {
+  const a = acc(); if (!a) return
+  yulu.err = ''
+  try {
+    const { data } = await api.get('/api/activity/yulu', { params: { accountId: a.gid } })
+    if (data && data.ok && data.data) {
+      const d = data.data
+      yulu.badge = d.badge
+      yulu.badgeNote = d.badgeNote || ''
+      yulu.items = d.items || {}
+      yulu.research = d.research || { tiers: [], claimedAll: false, note: '' }
+    }
+  } catch (e) { yulu.err = '加载失败' }
+}
+
+// 好友列表（手动刷新，避免进 tab 阻塞）
+async function refreshYuluFriends() {
+  yulu.friendsLoading = true
+  try {
+    const fd = (await api.get('/api/friends/list')).data
+    const list = (fd && fd.ok && fd.data && fd.data.friends) || []
+    yulu.allFriends = list.filter(f => f.gid).map(f => ({
+      gid: f.gid,
+      name: f.nickname || f.name || String(f.gid),
+      lands: '?',
+      hasCrops: true,
+    }))
+    yulu.friendsDisplayCount = Math.min(yulu.friendsPerPage, yulu.allFriends.length)
+    yulu.friends = yulu.allFriends.slice(0, yulu.friendsDisplayCount)
+  } catch (e) { app.error('好友列表加载失败') }
+  yulu.friendsLoading = false
+}
+function loadMoreYuluFriends() {
+  if (yulu.friendsDisplayCount >= yulu.allFriends.length) return
+  yulu.friendsDisplayCount = Math.min(yulu.friendsDisplayCount + yulu.friendsPerPage, yulu.allFriends.length)
+  yulu.friends = yulu.allFriends.slice(0, yulu.friendsDisplayCount)
+}
+function onYuluFriendScroll(e) {
+  const el = e.target
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) loadMoreYuluFriends()
+}
+
+// 动作
+async function yuluOpen(itemId) {
+  const a = acc(); if (!a) return
+  if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
+  try {
+    const { data } = await api.post('/api/activity/yulu/open', { accountId: a.gid, itemId })
+    if (data && data.ok) { app.success(`打开成功：${yuluName(itemId)}`); loadYulu() }
+    else app.error((data && data.error) || '打开失败')
+  } catch (e) { app.error('打开失败') }
+}
+async function yuluMutate() {
+  const a = acc(); if (!a) return
+  if (yuluCount(5003) <= 0) { app.error('闪电变异瓶库存为空'); return }
+  try {
+    const { data } = await api.post('/api/activity/yulu/mutate', { accountId: a.gid })
+    if (data && data.ok) {
+      const cnt = (data.data && data.data.mutateCount) || 0
+      if (cnt > 0) app.success(`闪电变异 ${cnt} 块地`)
+      else app.error((data.data && data.data.msg) || '无可变异地块')
+      loadYulu()
+    } else app.error((data && data.error) || '变异失败')
+  } catch (e) { app.error('变异失败') }
+}
+async function yuluUse(itemId, friend) {
+  const a = acc(); if (!a) return
+  if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
+  try {
+    const body = { accountId: a.gid, itemId }
+    if (friend) body.hostGid = friend.gid
+    const { data } = await api.post('/api/activity/yulu/use', body)
+    if (data && data.ok) {
+      const cnt = (data.data && data.data.useCount) || 0
+      if (cnt > 0) app.success(`${yuluName(itemId)} 使用成功 ${cnt} 块地`)
+      else app.error((data.data && data.data.msg) || '无可作用地块')
+      loadYulu()
+    } else app.error((data && data.error) || '使用失败')
+  } catch (e) { app.error('使用失败') }
+}
+async function yuluResearch() {
+  const a = acc(); if (!a) return
+  try {
+    const { data } = await api.post('/api/activity/yulu/research', { accountId: a.gid })
+    if (data && data.ok) app.success('领取成功')
+    else app.error((data && data.error) || '气象研究待开服抓包')
+  } catch (e) { app.error('气象研究待开服抓包') }
+}
+function yuluOneClick(kind) {
+  if (!yulu.allFriends.length) { app.error('请先点击「🔄 刷新好友」'); return }
+  const itemId = YULU_ONECLICK[kind]
+  if (!itemId) return
+  if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
+  const friend = yulu.allFriends[Math.floor(Math.random() * yulu.allFriends.length)]
+  yuluUse(itemId, friend)
+}
+
 const curPanel = computed(() => panels.value[panelIdx.value] || null)
 
 function n(v) { return v == null ? 0 : (Number(v) || 0) }
@@ -241,10 +373,19 @@ async function loadActivity() {
   try {
     const { data } = await api.get('/api/activity/list', { params: { scope: 'ongoing' } })
     if (!(data && data.ok)) { err.value = (data && data.error) || '加载失败'; groups.value = []; panels.value = []; loading.value = false; return }
-    const gs = (data.items || []).filter(i => i.group)
+    let gs = (data.items || []).filter(i => i.group)
     // 鹊桥寄情兜底：仅活动期内，若接口未返回（开发期/接口缺失）才硬塞进列表；活动结束后不再插入，由接口决定生命周期
     if (Date.now() < QIXI_END && !gs.some(g => String(g.id).indexOf('20260818') === 0)) {
       gs.unshift({ id: QIXI_ROOT_ID, title: '🌉 鹊桥寄情', group: true })
+    }
+    // 雨落成诗：列表返回 根+5子（均 20260703xx），折叠成单条入口；开服前则兜底插入便于预览
+    const yuluMatched = gs.filter(g => String(g.id).indexOf('20260703') === 0 || (g.title || '').indexOf('雨落') >= 0)
+    if (yuluMatched.length) {
+      const rep = yuluMatched.find(g => String(g.id) === '2026070300') || yuluMatched[0]
+      gs = gs.filter(g => !(String(g.id).indexOf('20260703') === 0 || (g.title || '').indexOf('雨落') >= 0))
+      gs.unshift({ id: rep.id, title: '🌧️ 雨落成诗', group: true })
+    } else if (Date.now() < YULU_END) {
+      gs.unshift({ id: YULU_ROOT_ID, title: '🌧️ 雨落成诗', group: true })
     }
     groups.value = gs
     if (!gs.length) { err.value = '当前没有进行中的活动'; panels.value = []; loading.value = false; return }
@@ -277,6 +418,13 @@ async function loadGroup(group) {
       panels.value = [{ key: 'qixi', title: '鹊桥寄情', icon: '🌉' }]
       panelIdx.value = 0
     } catch (e) { err.value = '加载失败'; panels.value = [] }
+    loading.value = false
+    return
+  }
+  // 雨落成诗：只加载状态（不参与常规 season/shop/gift/solar 解析）
+  if (String(group.id || '').indexOf('20260703') === 0 || (group.title || '').indexOf('雨落') >= 0) {
+    panels.value = [{ key: 'yulu', title: '雨落成诗', icon: '🌧️' }]
+    panelIdx.value = 0
     loading.value = false
     return
   }
@@ -328,6 +476,7 @@ async function renderPanel(p) {
   if (p.key === 'shop') await loadShop()
   else if (p.key === 'gift') await loadGift()
   else if (p.key === 'qingmei') await loadQingmei()
+  else if (p.key === 'yulu') await loadYulu()
 }
 
 /* ---------- 刷新获取新活动 ---------- */
@@ -458,10 +607,10 @@ function fmtDay(s) {
   return (x.getMonth() + 1) + '月' + x.getDate() + '日'
 }
 
-// 切号事件：用新账号重拉活动列表与鹊桥面板（热切换）
-const onSwitched = () => { loadActivity(); loadQiXi() }
-onMounted(() => { loadActivity(); loadQiXi(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); window.addEventListener('account-switched', onSwitched) })
-onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; window.removeEventListener('account-switched', onSwitched) })
+// 切号事件：用新账号重拉活动列表与鹊桥/雨落面板（热切换）
+const onSwitched = () => { loadActivity(); loadQiXi(); loadYulu() }
+onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); window.addEventListener('account-switched', onSwitched) })
+onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>
@@ -747,6 +896,117 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
       <div class="foot" style="text-align:center;font-size:11px;color:var(--muted);margin-top:4px">数据为占位示意 · 协议桩 cmd 待 08-18 抓号回填</div>
     </div>
 
+    <!-- ===== 雨落成诗 ===== -->
+    <div v-else-if="curPanel && curPanel.key === 'yulu'">
+      <!-- Hero -->
+      <div class="yulu-hero">
+        <h1>🌧️ 雨落成诗</h1>
+        <div class="yulu-sub">雷雨限定活动 · 2026-08-26 ~ 09-08</div>
+        <span class="yulu-cd">{{ yuluCd }}</span>
+      </div>
+
+      <!-- 顶部 8 统计 chip（雷电徽章 + 5001~5007） -->
+      <div class="yulu-chips">
+        <div class="yulu-chip badge">
+          <div class="v">{{ yulu.badge == null ? '—' : yulu.badge }}</div>
+          <div class="k">雷电徽章</div>
+        </div>
+        <div class="yulu-chip" v-for="id in YULU_TOP" :key="id">
+          <img class="yulu-chip-ico" v-if="yuluImg(id)" :src="yuluImg(id)" alt="" @error="$event.target.remove()">
+          <div class="v">{{ yuluCount(id) }}</div>
+          <div class="k">{{ yuluName(id) }}</div>
+        </div>
+      </div>
+
+      <!-- 给自己用的天气瓶 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>给自己用的天气瓶</div>
+        <div class="yulu-self" v-for="id in YULU_SELF" :key="id">
+          <img class="yulu-s-ico" v-if="yuluImg(id)" :src="yuluImg(id)" alt="" @error="$event.target.remove()">
+          <div class="yulu-s-body">
+            <div class="yulu-s-name">{{ yuluName(id) }}</div>
+            <div class="muted">库存 <b style="color:var(--good)">{{ yuluCount(id) }}</b></div>
+            <div class="row" style="margin-top:8px">
+              <button v-if="id===5002" class="btn primary small" :disabled="yuluCount(id)<=0" @click="yuluUse(5002)">雷雨召唤</button>
+              <button v-else-if="id===5003" class="btn primary small" :disabled="yuluCount(id)<=0" @click="yuluMutate">闪电变异（自家）</button>
+              <button v-else-if="id===5007" class="btn gold small" :disabled="yuluCount(id)<=0" @click="yuluOpen(5007)">打开</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 好友互动 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>好友互动 <span class="pill">雷雨好友农场</span></div>
+        <div class="yulu-onetabs">
+          <div class="yulu-onetab collect" @click="yuluOneClick('collect')"><div class="oi">🫧</div>一键采集</div>
+          <div class="yulu-onetab frog" @click="yuluOneClick('frog')"><div class="oi">🐸</div>一键青蛙</div>
+          <div class="yulu-onetab cloud" @click="yuluOneClick('cloud')"><div class="oi">☁️</div>一键乌云</div>
+          <div class="yulu-onetab light" @click="yuluOneClick('thunder')"><div class="oi">⚡</div>一键引雷</div>
+        </div>
+        <div class="row" style="margin:4px 0">
+          <span class="muted">好友列表（手动刷新，避免进 tab 阻塞）</span>
+          <button class="btn small" @click="refreshYuluFriends" :disabled="yulu.friendsLoading">{{ yulu.friendsLoading ? '⏳ 刷新中…' : '🔄 刷新好友' }}</button>
+        </div>
+        <div class="yulu-flist" v-if="yulu.friends.length" @scroll="onYuluFriendScroll">
+          <div v-for="(f, i) in yulu.friends" :key="i" class="yulu-frow">
+            <div class="yulu-av">{{ f.name[0] }}</div>
+            <div style="flex:1;min-width:0"><div class="yulu-fnm">{{ f.name }}</div><div class="st">好友农场</div></div>
+            <div class="yulu-fbtns">
+              <button class="btn ghost small" :disabled="yuluCount(5001)<=0" @click="yuluUse(5001, f)">采集</button>
+              <button class="btn ghost small" :disabled="yuluCount(5004)<=0" @click="yuluUse(5004, f)">引雷</button>
+              <button class="btn ghost small" :disabled="yuluCount(5005)<=0" @click="yuluUse(5005, f)">青蛙</button>
+              <button class="btn ghost small" :disabled="yuluCount(5006)<=0" @click="yuluUse(5006, f)">乌云</button>
+            </div>
+          </div>
+          <div v-if="yulu.friendsDisplayCount < yulu.allFriends.length" class="yulu-loadmore" @click="loadMoreYuluFriends">
+            📜 下滑加载更多（{{ yulu.friendsDisplayCount }}/{{ yulu.allFriends.length }}）
+          </div>
+        </div>
+        <div v-else class="empty" style="text-align:center;padding:14px;color:var(--muted);font-size:12.5px">👥 点击「🔄 刷新好友」加载好友</div>
+      </div>
+
+      <!-- 产出与奖励 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>产出与奖励</div>
+        <div class="yulu-self" v-for="id in YULU_PRODUCT" :key="id">
+          <img class="yulu-s-ico" v-if="yuluImg(id)" :src="yuluImg(id)" alt="" @error="$event.target.remove()">
+          <div class="yulu-s-body">
+            <div class="yulu-s-name">{{ yuluName(id) }}</div>
+            <div class="muted">库存 <b style="color:var(--good)">{{ yuluCount(id) }}</b></div>
+            <div class="row" style="margin-top:8px">
+              <button v-if="id===5008" class="btn gold small" :disabled="yuluCount(id)<=0" @click="yuluOpen(5008)">打开</button>
+              <span v-else class="pill warn">产物 · 暂不支持一键出售</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 气象研究（占位） -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>气象研究 <span class="pill warn">待开服</span></div>
+        <div class="banner">⚡ 使用天气瓶 / 收获闪电变异作物得<b>雷电徽章</b>，推进气象研究领奖（档位待开服抓包）。</div>
+        <div class="muted" style="margin:6px 0" v-if="yulu.research.note">{{ yulu.research.note }}</div>
+        <div class="act-actions">
+          <button class="btn primary block" @click="yuluResearch">领取气象研究奖励（待开服）</button>
+        </div>
+      </div>
+
+      <!-- 活动说明 -->
+      <details style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+        <summary style="cursor:pointer;font-weight:700;font-size:14px;list-style:none">📜 活动说明</summary>
+        <ol style="margin:10px 0 0 18px;font-size:12.5px;color:var(--foreground)">
+          <li>雷雨天气下，作物可<b>闪电变异</b>（1/2 品除外），变异后售价 ×4。</li>
+          <li>完成「使用天气采集瓶 / 雷雨召唤瓶 / 收获闪电变异作物」得<b>雷电徽章</b>，推进气象研究领奖。</li>
+          <li>天气采集瓶去<b>雷雨好友农场</b>使用，必得雷雨召唤瓶 ×1。</li>
+          <li>雷雨召唤瓶：自己农场召唤 20 分钟雷雨。</li>
+          <li>霹雳引雷瓶 / 青蛙使坏瓶 / 乌云使坏瓶：在<b>好友农场</b>使用触发互动（引雷双方得雷纹礼盒、使坏得经验）。</li>
+          <li>天气瓶限时，活动结束后可出售换金币。</li>
+        </ol>
+        <div class="muted" style="margin-top:8px;font-size:11.5px">数据芯片实时读背包；雷电徽章与气象研究档位待 8/26 开服抓包回填。</div>
+      </details>
+    </div>
+
     <div v-else-if="curPanel" class="act-empty">该活动暂无可展示的面板</div>
   </div>
 </template>
@@ -930,4 +1190,52 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
 .st { font-size: 11px; color: var(--muted); }
 .empty { text-align: center; padding: 14px; color: var(--muted); font-size: 12.5px; }
 .foot { text-align: center; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ===== 雨落成诗 ===== */
+.yulu-hero {
+  background: linear-gradient(135deg, #3194CB 0%, #1f5e9e 55%, #2a3f8f 100%);
+  color: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 14px;
+}
+[data-theme="dark"] .yulu-hero {
+  background: linear-gradient(135deg, #1c5a82 0%, #143f6e 55%, #1d2c63 100%);
+}
+.yulu-hero h1 { font-size: 22px; display: flex; align-items: center; gap: 8px; }
+.yulu-sub { opacity: 0.92; font-size: 13px; margin-top: 6px; }
+.yulu-cd {
+  display: inline-block; margin-top: 10px;
+  background: rgba(255,255,255,.22); padding: 3px 10px;
+  border-radius: 999px; font-size: 12px; font-weight: 600;
+}
+/* 顶部 chip */
+.yulu-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.yulu-chip { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 4px; text-align: center; }
+.yulu-chip.badge { background: linear-gradient(135deg, rgba(49,148,203,.22), rgba(207,255,0,.10)); border-color: rgba(49,148,203,.4); }
+.yulu-chip .v { font-size: 17px; font-weight: 800; color: var(--primary-2); font-variant-numeric: tabular-nums; }
+.yulu-chip .k { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.2; }
+.yulu-chip-ico { width: 24px; height: 24px; object-fit: contain; margin: 0 auto 4px; display: block; }
+/* 给自己用 / 产出 */
+.yulu-self { display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.yulu-self:last-child { border-bottom: none; }
+.yulu-s-ico { width: 38px; height: 38px; border-radius: 10px; background: rgba(127,127,127,.14); object-fit: contain; flex-shrink: 0; }
+.yulu-s-body { flex: 1; min-width: 0; }
+.yulu-s-name { font-size: 13.5px; font-weight: 700; }
+/* 一键 tab */
+.yulu-onetabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 4px 0 12px; }
+.yulu-onetab { border: 1px solid var(--border); border-radius: 11px; padding: 9px 2px; text-align: center; cursor: pointer; background: var(--card); color: var(--foreground); font-size: 12px; font-weight: 700; }
+.yulu-onetab .oi { width: 22px; height: 22px; line-height: 22px; font-size: 16px; margin: 0 auto 2px; }
+.yulu-onetab.collect { background: linear-gradient(135deg, rgba(49,148,203,.22), rgba(49,148,203,.08)); border-color: rgba(49,148,203,.35); }
+.yulu-onetab.frog { background: linear-gradient(135deg, rgba(79,208,127,.20), rgba(79,208,127,.07)); border-color: rgba(79,208,127,.35); }
+.yulu-onetab.cloud { background: linear-gradient(135deg, rgba(142,162,200,.22), rgba(142,162,200,.07)); border-color: rgba(142,162,200,.35); }
+.yulu-onetab.light { background: linear-gradient(135deg, rgba(207,255,0,.18), rgba(207,255,0,.06)); border-color: rgba(207,255,0,.3); }
+/* 好友列表 */
+.yulu-flist { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.yulu-loadmore { text-align: center; padding: 10px; font-size: 12px; color: var(--muted); cursor: pointer; border-top: 1px solid var(--border); }
+.yulu-frow { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.yulu-av { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-2), var(--primary)); color: var(--on-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: none; }
+.yulu-fnm { font-size: 13.5px; font-weight: 600; }
+.yulu-fbtns { display: flex; gap: 5px; flex-shrink: 0; }
+.yulu-fbtns .btn { padding: 5px 8px; font-size: 11px; }
 </style>

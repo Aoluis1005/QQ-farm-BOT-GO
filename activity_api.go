@@ -50,6 +50,13 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/qixi/spray", handleQiXiSpray)   // 灵露喷洒（ItemService.Use + land_ids）
 	api.HandleFunc("/api/activity/qixi/bridge", handleQiXiBridge) // 筑建鹊桥（Operate id=2026081801 cmd=25）
 	api.HandleFunc("/api/activity/qixi/gift", handleQiXiGift)     // 赠送鹊羽香囊（Enter 好友 + Operate）
+
+	// 雨落成诗（WeatherBottleUI）：状态读背包、开箱/召唤/使用/变异、气象研究占位
+	api.HandleFunc("/api/activity/yulu", handleYuluStatus)
+	api.HandleFunc("/api/activity/yulu/open", handleYuluOpen)       // 5007/5008 开箱
+	api.HandleFunc("/api/activity/yulu/mutate", handleYuluMutate)   // 5003 闪电变异（自家）
+	api.HandleFunc("/api/activity/yulu/use", handleYuluUse)         // 5001/5002/5004/5005/5006 使用
+	api.HandleFunc("/api/activity/yulu/research", handleYuluResearch) // 气象研究领奖（占位）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 }
 
