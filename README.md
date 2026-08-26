@@ -153,7 +153,7 @@ sudo systemctl enable --now go-farm-bot
 ├── proto/             # Protobuf 编解码（对齐 Node proto/*.proto）
 ├── automation.go      # 自动化调度（种植 / 好友 / 任务循环）
 ├── task_auto.go       # 每日任务自动领取
-├── activity_api.go    # 活动接口（雨落成诗 / 公益小红花等占位路由）
+├── activity_api.go    # 活动接口（雨落成诗已实现 / 公益小红花占位路由）
 ├── shop_api.go        # 商城（种子 / 宠物 / 道具）
 ├── home_api.go        # 首页数据（资料卡 / 今日收益 / 日志）
 ├── stats.go           # 今日收益统计
