@@ -211,7 +211,8 @@ const YULU_ROOT_ID = 2026070300
 const YULU_OPEN = 1787709600 * 1000                 // 2026-08-26 10:00 北京时间
 const YULU_END = new Date('2026-09-08T23:59:59+08:00').getTime()
 const yulu = reactive({
-  badge: null, badgeNote: '',
+  badge: null, badgeNote: '', badgeImage: '',
+  weather: null,                                   // {id,name,active} 当前农场天气
   items: {},                                   // {id: {count,name,image}}  全部来自背包实时
   research: { tiers: [], claimedAll: false, note: '', claimed: new Set() }, // claimed 记录已领取的 nodeId
   exchangedOn: null, dayTick: 0, // 最近一次兑换天气瓶的日期字符串 / 跨0点刷新触发
@@ -254,6 +255,8 @@ async function loadYulu() {
       const d = data.data
       yulu.badge = d.badge
       yulu.badgeNote = d.badgeNote || ''
+      yulu.badgeImage = d.badgeImage || ''
+      yulu.weather = d.weather || null
       yulu.items = d.items || {}
       yulu.research = Object.assign({ claimed: new Set() }, d.research || {})
     }
@@ -1058,13 +1061,14 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
       <!-- Hero -->
       <div class="yulu-hero">
         <h1>🌧️ 雨落成诗</h1>
-        <div class="yulu-sub">雷雨限定活动 · 2026-08-26 ~ 09-08</div>
+        <div class="yulu-sub">雷雨限定活动 · 2026-08-26 ~ 09-08 · 当前天气：{{ (yulu.weather && yulu.weather.name) || '--' }}</div>
         <span class="yulu-cd">{{ yuluCd }}</span>
       </div>
 
       <!-- 顶部 8 统计 chip（雷电徽章 + 5001~5007） -->
       <div class="yulu-chips">
         <div class="yulu-chip badge">
+          <img class="yulu-chip-ico" v-if="yulu.badgeImage" :src="yulu.badgeImage" alt="" @error="$event.target.remove()">
           <div class="v">{{ yulu.badge == null ? '—' : yulu.badge }}</div>
           <div class="k">雷电徽章</div>
         </div>

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Aoluis1005/go-farm-bot/gw"
 	"github.com/Aoluis1005/go-farm-bot/proto"
 )
 
@@ -83,6 +84,15 @@ const (
 	yuluExchCostCount = 200        // 消耗 200 金豆
 	yuluExchGetItem   = 5001       // 天气采集瓶（获得）
 	yuluExchGetCount  = 1          // 每自然日 1 个
+)
+
+// ===== 采集瓶（5001）：进好友农场后 ActivityService.Operate（雷雨好友才可收集，服务端校验） =====
+// Operate(id=2026070303, cmd=9, weather_task_operate_params{ target_gid=好友gid })；
+// 回包 ActivityOperateReply field108=weather_task_result{ field2=gained, field3=consumed }。
+const (
+	yuluTaskNodeID   = 2026070303 // 天气采集任务子节点 id
+	yuluTaskCmd      = 9          // 采集命令（operate_type=9）
+	yuluTaskExtField = 107        // weather_task_operate_params
 )
 
 // yuluResearchTier 一个气象研究档位（研究树节点）。
@@ -215,6 +225,11 @@ func handleYuluStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	badgeCnt, _ := yuluBagLookup(br, yuluBadgeID)
+	wid, wact := yuluGetWeather(ctx, c)
+	weatherName := "无"
+	if wid != 0 {
+		weatherName = "雷雨"
+	}
 	tiers := make([]map[string]interface{}, 0, len(yuluResearchTree))
 	for _, t := range yuluResearchTree {
 		tiers = append(tiers, map[string]interface{}{
@@ -230,9 +245,13 @@ func handleYuluStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
-			"badge":     badgeCnt,
-			"badgeNote": "雷电徽章：气象研究/换天气瓶消耗",
-			"items":       items,
+			"badge":      badgeCnt,
+			"badgeNote":  "雷电徽章：气象研究/换天气瓶消耗",
+			"badgeImage": GetItemImageURL(yuluBadgeID),
+			"weather": map[string]interface{}{
+				"id": wid, "name": weatherName, "active": wact,
+			},
+			"items": items,
 			"research": map[string]interface{}{
 				"tiers":      tiers,
 				"claimedAll": false,
@@ -402,6 +421,11 @@ func handleYuluUse(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	isSelf := req.ItemID == yuluItemSummon
 	if isSelf {
+		// 自家召唤：当前已有特殊天气（雷雨）时不可召唤
+		if wid, _ := yuluGetWeather(ctx, c); wid != 0 {
+			writeJSONMap(w, "ok", false, "error", "当前已有特殊天气，无法召唤雷雨")
+			return
+		}
 		// 自家召唤：plain Use（无 land），对齐 /api/bag/use
 		_, e := c.Request(ctx, "gamepb.itempb.ItemService", "Use",
 			proto.EncodeUseRequest(req.ItemID, 1), 12*time.Second)
@@ -426,11 +450,28 @@ func handleYuluUse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer leaveFriendFarm(c, req.HostGID)
-	// 采集瓶(5001)：需进好友农场后对目标好友发 Operate，且雷雨天气才可收集。
-	// 协议 cmd/ext 尚未定位，避免盲扫触发掉线。
+	// 采集瓶(5001)：进好友农场后对目标好友发 Operate 收集（雷雨好友才可收集，服务端校验）。
+	// 请求 {activity_id=2026070303, operate_type=9, params{target_gid}}。
 	if req.ItemID == yuluItemCollect {
-		writeJSONMap(w, "ok", false,
-			"error", "采集瓶使用协议待确定（需客户端报文），已停止探测避免掉线")
+		sub := proto.NewBuilder()
+		sub.FieldInt64(3, req.HostGID) // weather_task_operate_params.target_gid
+		b := proto.NewBuilder()
+		b.FieldInt64(1, yuluTaskNodeID)
+		b.FieldInt64(2, yuluTaskCmd)
+		b.FieldMessage(yuluTaskExtField, sub.Bytes())
+		body, e2 := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 15*time.Second)
+		if e2 != nil {
+			writeJSONMap(w, "ok", false, "error", actErrMsg(e2))
+			return
+		}
+		gained, consumed := decodeYuluTaskResult(body)
+		writeJSON(w, map[string]interface{}{
+			"ok": true, "account": accountID, "itemId": req.ItemID,
+			"data": map[string]interface{}{
+				"used": []int64{req.HostGID}, "useCount": 1,
+				"gained": gained, "consumed": consumed,
+			},
+		})
 		return
 	}
 	rep, err := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(req.HostGID), 15*time.Second)
@@ -584,4 +625,82 @@ func handleYuluExchange(w http.ResponseWriter, r *http.Request) {
 			"getItem": yuluExchGetItem, "getCount": yuluExchGetCount,
 		},
 	})
+}
+
+// decodeYuluTaskResult 解析采集回包：ActivityOperateReply field108=WeatherTaskOperateResult
+// { field2=gained(Item{id,count}), field3=consumed(Item) }，无法解析时返回 nil。
+func decodeYuluTaskResult(body []byte) (gained, consumed map[string]interface{}) {
+	var res []byte
+	proto.NewReader(body).EachField(func(field, wire int, r *proto.Reader) bool {
+		if field == 108 && wire == proto.WireLen {
+			res = r.ReadBytes()
+		} else {
+			r.Skip(wire)
+		}
+		return true
+	})
+	if res == nil {
+		return nil, nil
+	}
+	parseItem := func(buf []byte) map[string]interface{} {
+		var id, cnt int64
+		proto.NewReader(buf).EachField(func(field, wire int, r *proto.Reader) bool {
+			switch field {
+			case 1:
+				id = r.ReadInt64()
+			case 2:
+				cnt = r.ReadInt64()
+			default:
+				r.Skip(wire)
+			}
+			return true
+		})
+		if id <= 0 {
+			return nil
+		}
+		return map[string]interface{}{"id": id, "count": cnt}
+	}
+	proto.NewReader(res).EachField(func(field, wire int, r *proto.Reader) bool {
+		if wire != proto.WireLen {
+			r.Skip(wire)
+			return true
+		}
+		sub := r.ReadBytes()
+		switch field {
+		case 2:
+			gained = parseItem(sub)
+		case 3:
+			consumed = parseItem(sub)
+		}
+		return true
+	})
+	return
+}
+
+// yuluGetWeather 查询当前农场天气状态（weatherpb.WeatherService.GetWeatherStatus）。
+// 回包 field1=WeatherStatus{ field1=weather_id(0无/1雷雨), field5=active }；失败返回 (0,false)。
+func yuluGetWeather(ctx context.Context, c *gw.Client) (id int64, active bool) {
+	rep, err := c.Request(ctx, "gamepb.weatherpb.WeatherService", "GetWeatherStatus", []byte{}, 12*time.Second)
+	if err != nil {
+		return 0, false
+	}
+	proto.NewReader(rep.Body).EachField(func(field, wire int, r *proto.Reader) bool {
+		if field != 1 || wire != proto.WireLen {
+			r.Skip(wire)
+			return true
+		}
+		proto.NewReader(r.ReadBytes()).EachField(func(f2, w2 int, r2 *proto.Reader) bool {
+			switch f2 {
+			case 1:
+				id = r2.ReadInt64()
+			case 5:
+				active = r2.ReadInt64() != 0
+			default:
+				r2.Skip(w2)
+			}
+			return true
+		})
+		return true
+	})
+	return
 }
