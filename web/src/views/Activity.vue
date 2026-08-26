@@ -213,7 +213,8 @@ const YULU_END = new Date('2026-09-08T23:59:59+08:00').getTime()
 const yulu = reactive({
   badge: null, badgeNote: '',
   items: {},                                   // {id: {count,name,image}}  全部来自背包实时
-  research: { tiers: [], claimedAll: false, note: '' },
+  research: { tiers: [], claimedAll: false, note: '', claimed: new Set() }, // claimed 记录已领取的 nodeId
+  exchangedOn: null, dayTick: 0, // 最近一次兑换天气瓶的日期字符串 / 跨0点刷新触发
   friends: [], allFriends: [], friendsDisplayCount: 0, friendsPerPage: 5, friendsLoading: false,
   oneClickRunning: false, oneClickTotal: 0, oneClickDone: 0, oneClickOk: 0,
   err: '',
@@ -254,7 +255,7 @@ async function loadYulu() {
       yulu.badge = d.badge
       yulu.badgeNote = d.badgeNote || ''
       yulu.items = d.items || {}
-      yulu.research = d.research || { tiers: [], claimedAll: false, note: '' }
+      yulu.research = Object.assign({ claimed: new Set() }, d.research || {})
     }
   } catch (e) { yulu.err = '加载失败' }
 }
@@ -330,40 +331,108 @@ async function yuluUse(itemId, friend) {
     loadYulu()
   } else app.error((data && data.error) || '使用失败')
 }
-async function yuluResearch() {
+// 气象研究：研究节点图标（按 nodeId）
+const YULU_RES_ICON = { 1000:'🌦️', 1001:'🎁', 1002:'🐸', 1003:'☁️', 1004:'🌩️', 1005:'🧪', 1006:'⚡', 1007:'⚡', 1008:'🖼️' }
+// 研究树分层（按前置 prevs 计算层级，起点 1000 = 深度0）
+function rsLevels() {
+  const tiers = yulu.research.tiers || []
+  const depth = {}
+  depth[1000] = 0
+  let changed = true, guard = 0
+  while (changed && guard++ < 20) {
+    changed = false
+    tiers.forEach(t => {
+      const ps = t.prevs || []
+      if (ps.every(p => depth[p] !== undefined)) {
+        const d = Math.max(0, ...ps.map(p => depth[p] + 1))
+        if (depth[t.nodeId] === undefined || d > depth[t.nodeId]) { depth[t.nodeId] = d; changed = true }
+      }
+    })
+  }
+  const max = Math.max(0, ...Object.values(depth))
+  const levels = Array.from({ length: max + 1 }, () => [])
+  tiers.forEach(t => { levels[depth[t.nodeId] ?? 0].push(t) })
+  return levels
+}
+function rsClaimed(nodeId) { return !!(yulu.research.claimed && yulu.research.claimed.has(nodeId)) }
+function rsUnlockable(nodeId) {
+  const t = (yulu.research.tiers || []).find(x => x.nodeId === nodeId)
+  if (!t) return false
+  return (t.prevs || []).every(p => rsClaimed(p))
+}
+function rsClick(t) {
+  if (rsClaimed(t.nodeId)) return
+  if (!rsUnlockable(t.nodeId)) { app.error('需先领取前置档位'); return }
+  yuluResearch(t.nodeId)
+}
+function nodeStyle(t) {
+  if (rsClaimed(t.nodeId)) return { borderColor: '#4caf7a', opacity: 1 }
+  if (!rsUnlockable(t.nodeId)) return { opacity: .5 }
+  return { borderColor: '#6ea8ff' }
+}
+// 兑换收集天气瓶：金豆(1005)×200 → 天气采集瓶(5001)×1，每自然日限 1 个
+function yuluToday() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() }
+function yuluExchangedToday() { void yulu.dayTick; return yulu.exchangedOn === yuluToday() }
+async function yuluExchange() {
   const a = acc(); if (!a) return
   try {
-    const { data } = await api.post('/api/activity/yulu/research', { accountId: a.gid })
-    if (data && data.ok) app.success('领取成功')
-    else app.error((data && data.error) || '气象研究待开服抓包')
-  } catch (e) { app.error('气象研究待开服抓包') }
+    const { data } = await api.post('/api/activity/yulu/exchange', null, { params: { accountId: a.gid } })
+    if (data && data.ok) { yulu.exchangedOn = yuluToday(); app.success('兑换成功：天气采集瓶 ×1'); loadYulu() }
+    else {
+      const e = (data && data.error) || '兑换失败'
+      if (e.includes('今日已兑换')) yulu.exchangedOn = yuluToday()
+      app.error(e)
+    }
+  } catch (e) { app.error('兑换失败') }
+}
+async function yuluResearch(nodeId) {
+  const a = acc(); if (!a) return
+  try {
+    const { data } = await api.post('/api/activity/yulu/research', { accountId: a.gid, nodeId })
+    if (data && data.ok) {
+      const nm = data.data && data.data.reward ? `${data.data.reward}×${data.data.count}` : '研究奖励'
+      app.success('领取成功：' + nm)
+      if (!yulu.research.claimed) yulu.research.claimed = new Set()
+      yulu.research.claimed.add(nodeId)
+      loadYulu()
+    } else {
+      app.error((data && data.error) || '领取失败')
+    }
+  } catch (e) { app.error('领取失败') }
 }
 // 一键：对该账号全部好友【顺序】逐个使用（单并发，避开同账号并发 Enter 多农场冲突）。
 // 全程 async await，不阻塞 UI 线程；按钮禁用 + 进度显示。
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const YULU_ONECLICK_MAX = 5    // 一次最多进好友农场数（防掉线）
+const YULU_ONECLICK_GAP = 400  // 好友间间隔 ms（顺序降频，对齐 Node 顺延时）
+// 一键：每次最多处理 5 位好友，好友间加间隔防掉线，道具使用完立即停止。
 async function yuluOneClick(kind) {
+  if (yulu.oneClickRunning) { app.error('上一次一键尚未完成'); return }
   if (!yulu.allFriends.length) { app.error('请先点击「🔄 刷新好友」加载好友'); return }
   const itemId = YULU_ONECLICK[kind]
   if (!itemId) return
   if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
-  if (yulu.oneClickRunning) { app.error('上一次一键尚未完成'); return }
   yulu.oneClickRunning = true
-  yulu.oneClickTotal = yulu.allFriends.length
+  const target = yulu.allFriends.slice(0, YULU_ONECLICK_MAX)
+  yulu.oneClickTotal = target.length
   yulu.oneClickDone = 0
   yulu.oneClickOk = 0
-  let firstErr = ''
-  for (const f of yulu.allFriends) {
+  let stopped = ''
+  for (const f of target) {
+    if (yuluCount(itemId) <= 0) { stopped = `${yuluName(itemId)} 已用完，停止`; break }
     const data = await yuluUseOnce(itemId, f)
     yulu.oneClickDone++
     if (data && data.ok) {
       const cnt = (data.data && data.data.useCount) || 0
       if (cnt > 0) yulu.oneClickOk++
-    } else if (!firstErr && data) {
-      firstErr = data.error || '失败'
     }
+    await loadYulu()                       // 刷新背包，判断道具剩余
+    await sleep(YULU_ONECLICK_GAP)         // 好友间间隔防掉线
+    if (yuluCount(itemId) <= 0) { stopped = `${yuluName(itemId)} 已用完，停止`; break }
   }
   yulu.oneClickRunning = false
-  loadYulu()
-  if (firstErr && yulu.oneClickOk === 0) app.error('一键失败：' + firstErr)
+  if (stopped) app.error(stopped)
+  else if (yulu.oneClickOk === 0) app.error('一键完成：无可作用地块或使用失败')
   else app.success(`一键完成：成功 ${yulu.oneClickOk}/${yulu.oneClickTotal} 位好友`)
 }
 
@@ -696,8 +765,9 @@ function fmtDay(s) {
 
 // 切号事件：用新账号重拉活动列表与鹊桥/雨落面板（热切换）
 const onSwitched = () => { loadActivity(); loadQiXi(); loadYulu() }
-onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); honghuaTick(); honghuaCdTimer = setInterval(honghuaTick, 1000); window.addEventListener('account-switched', onSwitched) })
-onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null }; window.removeEventListener('account-switched', onSwitched) })
+let yuluDayTimer = null
+onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); honghuaTick(); honghuaCdTimer = setInterval(honghuaTick, 1000); yuluDayTimer = setInterval(() => { yulu.dayTick = Date.now() }, 60000); window.addEventListener('account-switched', onSwitched) })
+onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null }; if (honghuaCdTimer) { clearInterval(honghuaCdTimer); honghuaCdTimer = null }; if (yuluDayTimer) { clearInterval(yuluDayTimer); yuluDayTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
 <template>
@@ -1072,13 +1142,49 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
         </div>
       </div>
 
-      <!-- 气象研究（占位） -->
+      <!-- 气象研究 -->
       <div class="card">
-        <div class="ttl"><span class="dot"></span>气象研究 <span class="pill warn">待开服</span></div>
-        <div class="banner">⚡ 使用天气瓶 / 收获闪电变异作物得<b>雷电徽章</b>，推进气象研究领奖（档位待开服抓包）。</div>
-        <div class="muted" style="margin:6px 0" v-if="yulu.research.note">{{ yulu.research.note }}</div>
+        <div class="ttl"><span class="dot"></span>气象研究
+          <span class="pill" style="float:right;margin-top:2px">⚡ 雷电徽章 {{ yulu.badge ?? 0 }}</span>
+        </div>
+        <div class="muted" style="margin:0 0 8px">每档需先把前置档位领取后才解锁，点击档位解锁兑换奖励。</div>
+        <div style="display:flex;flex-direction:row;align-items:center;overflow-x:auto;padding-bottom:2px">
+          <template v-for="(lv, li) in rsLevels()" :key="li">
+            <div v-if="li>0" style="color:var(--muted,#888);padding:0 4px;font-size:13px">➜</div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+              <button v-for="t in lv" :key="t.nodeId"
+                :style="Object.assign({display:'flex',flexDirection:'column',alignItems:'center',width:'76px',padding:'7px 4px',borderRadius:'12px',border:'1.5px solid var(--border,#3a3f55)',background:'var(--card,#1c2238)',cursor:'pointer'}, nodeStyle(t))"
+                @click="rsClick(t)">
+                <span style="font-size:22px;line-height:1">{{ YULU_RES_ICON[t.nodeId] || '🎁' }}</span>
+                <b style="font-size:10px;color:var(--foreground,#eee);margin-top:3px">{{ t.reward }}</b>
+                <span style="font-size:9px;color:var(--good,#5ad18a);margin-top:2px">×{{ t.count }}</span>
+                <span v-if="rsClaimed(t.nodeId)" style="font-size:9px;color:var(--good,#5ad18a);margin-top:3px">✅ 已领取</span>
+                <span v-else-if="!rsUnlockable(t.nodeId)" style="font-size:9px;color:var(--muted,#999);margin-top:3px">🔒 未解锁</span>
+                <span v-else style="font-size:9px;color:var(--primary,#6ea8ff);margin-top:3px">⚡{{ t.cost }} 解锁</span>
+              </button>
+            </div>
+          </template>
+        </div>
+        <div class="muted" style="margin:8px 0 0;font-size:11.5px">使用天气瓶 / 收获闪电变异作物得雷电徽章，推进研究领奖；天气瓶活动结束后可出售换金币。</div>
+      </div>
+
+      <!-- 兑换收集天气瓶 -->
+      <div class="card">
+        <div class="ttl"><span class="dot"></span>兑换收集天气瓶</div>
+        <div style="display:flex;align-items:center;gap:10px;margin:2px 0 8px">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:64px;height:64px;border-radius:14px;background:var(--card,#1c2238);border:1.5px solid var(--border,#3a3f55)">
+            <span style="font-size:26px;line-height:1">🌦️</span>
+            <b style="font-size:10px;color:var(--foreground,#eee);margin-top:4px">天气采集瓶</b>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <div style="font-size:12.5px;color:var(--foreground,#eee)">消耗 <b style="color:var(--warn,#ffb547)">金豆 ×200</b> → 天气采集瓶 ×1</div>
+            <div class="muted" style="font-size:11px">每自然日限兑 1 个，兑换后可在好友雷雨农场使用。</div>
+          </div>
+        </div>
         <div class="act-actions">
-          <button class="btn primary block" @click="yuluResearch">领取气象研究奖励（待开服）</button>
+          <button class="btn primary block" :disabled="yuluExchangedToday()"
+            :style="yuluExchangedToday() ? { opacity: .6 } : {}"
+            @click="yuluExchange">{{ yuluExchangedToday() ? '✅ 今日已兑换 · 0点后恢复' : '💰 兑换天气采集瓶（金豆×200）' }}</button>
         </div>
       </div>
 

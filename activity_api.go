@@ -56,7 +56,8 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/yulu/open", handleYuluOpen)       // 5007/5008 开箱
 	api.HandleFunc("/api/activity/yulu/mutate", handleYuluMutate)   // 5003 闪电变异（自家）
 	api.HandleFunc("/api/activity/yulu/use", handleYuluUse)         // 5001/5002/5004/5005/5006 使用
-	api.HandleFunc("/api/activity/yulu/research", handleYuluResearch) // 气象研究领奖（占位）
+	api.HandleFunc("/api/activity/yulu/research", handleYuluResearch)  // 气象研究领奖
+	api.HandleFunc("/api/activity/yulu/exchange", handleYuluExchange)  // 兑换收集天气瓶（金豆→5001，每日1个）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 }
 
@@ -1112,6 +1113,79 @@ func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "cmd": cmd, "hex": fmt.Sprintf("%X", body), "fields": fields})
+}
+
+func dbgPrintable(b []byte) bool {
+	for _, c := range b {
+		if c == 0 || c == '\n' || c == '\r' || c == '\t' {
+			continue
+		}
+		if c < 0x20 || c > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+// dbgDumpFields 递归打印字段列表；对 length-delimited 块字段递归展开子字段（限 depth）。
+func dbgDumpFields(fs []actField, depth, maxDepth int) []map[string]interface{} {
+	return dbgDumpFieldsSkip(fs, depth, maxDepth, true) // 顶层跳过 children(f2)，避免整树重复
+}
+
+func dbgDumpFieldsSkip(fs []actField, depth, maxDepth int, skipF2 bool) []map[string]interface{} {
+	if depth > maxDepth {
+		return []map[string]interface{}{{"note": "depth-limited"}}
+	}
+	out := []map[string]interface{}{}
+	for _, f := range fs {
+		m := map[string]interface{}{"field": f.No, "wire": f.Wire}
+		switch f.Wire {
+		case 0:
+			m["varint"] = f.Varint
+		case 1:
+			m["fixed64"] = true
+		case 5:
+			m["fixed32"] = true
+		case 2:
+			m["bytesLen"] = len(f.Bytes)
+			if len(f.Bytes) > 0 && f.No != 2 && len(f.Bytes) <= 600 && dbgPrintable(f.Bytes) {
+				m["str"] = string(f.Bytes)
+			}
+			// 子树块：仅当非"本层作为活动树 children 的 f2"时才展开（深层块内 f2 是商品/档位条目，需展开）
+			if len(f.Bytes) > 0 && (f.No != 2 || !skipF2) {
+				sub := readActFields(f.Bytes)
+				if len(sub) > 0 {
+					m["sub"] = dbgDumpFieldsSkip(sub, depth+1, maxDepth, false)
+				}
+			}
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// dbgDumpNode 递归打印活动树节点：info 关键字段 + 完整字段树 + children。
+func dbgDumpNode(raw []byte, depth, maxDepth int) map[string]interface{} {
+	if depth > maxDepth {
+		return map[string]interface{}{"note": "node-depth-limited"}
+	}
+	fs := readActFields(raw)
+	node := map[string]interface{}{"fields": dbgDumpFields(fs, depth, maxDepth)}
+	if infoRaw := actBytes(fs, 1); len(infoRaw) > 0 {
+		ifs := readActFields(infoRaw)
+		node["info"] = map[string]interface{}{
+			"id": actNum(ifs, 1), "parent_id": actNum(ifs, 2), "type": actNum(ifs, 3),
+			"title": actStr(ifs, 4), "status": actNum(ifs, 21), "enabled": actNum(ifs, 22),
+		}
+	}
+	var children []interface{}
+	for _, c := range actBytesAll(fs, 2) {
+		children = append(children, dbgDumpNode(c, depth+1, maxDepth))
+	}
+	if len(children) > 0 {
+		node["children"] = children
+	}
+	return node
 }
 
 // ===== 临时调试：PlantService 方法探测（鹊桥灵露喷洒方法名定位，探测后删除） =====

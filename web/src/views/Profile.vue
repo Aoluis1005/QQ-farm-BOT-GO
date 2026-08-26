@@ -534,7 +534,6 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
       </div>
       <div class="bag-grid">
         <div v-for="it in bagShown" :key="it.id" class="bag-item">
-          <span class="bi-id">{{ it.id }}</span>
           <div class="bi-icon"><img v-if="it.img" :src="it.img" style="width:34px;height:34px;object-fit:contain;border-radius:8px"><span v-else style="font-size:20px">{{ it.icon || '📦' }}</span></div>
           <div class="bi-name">{{ it.name }}</div>
           <div class="bi-meta">数量 ×{{ it.count }}</div>
