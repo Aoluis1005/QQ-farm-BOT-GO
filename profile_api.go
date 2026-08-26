@@ -897,7 +897,7 @@ func classifyBagCategory(id int64) (category, name string) {
 		}
 		return "fertilizer", n
 	}
-	n := itemDisplayName(id)
+	n := yuluItemNameOf(id)
 	if n == "" {
 		n = "物品" + itoa(id)
 	}
