@@ -120,7 +120,20 @@ async function startQrLogin() {
     const name = (cfa && (cfa.nickname || cfa.alias || cfa.name)) || '新账号'
     const add = (await api.post('/api/accounts', { name, code, platform, openId: openid })).data
     qrBusy.value = false
-    if (add.ok) { stopQr(); sheet.value = ''; app.success('扫码登录成功'); location.reload() }
+    if (add.ok) {
+      // 把扫码弹窗里的重连配置应用到新账号（默认开启/3分钟/3次，用户可在弹窗内先改）
+      const newId = add.activeAccountId || (Array.isArray(add.data) && add.data.length && add.data[add.data.length - 1].id)
+      if (newId) {
+        try {
+          await api.post(`/api/reconnect/config?accountId=${encodeURIComponent(newId)}`, {
+            enabled: rcfg.enabled,
+            reconnectDelayMin: Math.max(1, Number(rcfg.delay) || 3),
+            reconnectMaxAttempts: Math.max(1, Number(rcfg.max) || 3),
+          })
+        } catch (_) { /* rc 配置失败不影响账号添加 */ }
+      }
+      stopQr(); sheet.value = ''; app.success('扫码登录成功'); location.reload()
+    }
     else { _qrStatus('添加账号失败: ' + (add.error || '未知')) }
   } catch (e) { qrBusy.value = false; _qrStatus('扫码登录失败'); console.error(e) }
 }
@@ -135,9 +148,9 @@ function _fmtRc(st) {
   if (st && st.attempts) t += ' · 已重连' + st.attempts + '次'
   return t
 }
-async function loadRc() {
+async function loadRc(accountId) {
   try {
-    const { data } = await api.get('/api/reconnect/config')
+    const { data } = await api.get('/api/reconnect/config', { params: accountId ? { accountId } : {} })
     const d = data && data.data
     if (!d) return
     rcfg.enabled = !!d.enabled
@@ -146,19 +159,21 @@ async function loadRc() {
     if (d.state) rcState.value = _fmtRc(d.state)
   } catch (e) {}
 }
-async function saveRc() {
+async function saveRc(accountId) {
   try {
-    const { data } = await api.post('/api/reconnect/config', { enabled: rcfg.enabled, reconnectDelayMin: Number(rcfg.delay) || 3, reconnectMaxAttempts: Number(rcfg.max) || 3 })
-    if (data?.ok) { app.success('设置已保存'); await loadRc() }
+    const url = accountId ? `/api/reconnect/config?accountId=${encodeURIComponent(accountId)}` : '/api/reconnect/config'
+    const { data } = await api.post(url, { enabled: rcfg.enabled, reconnectDelayMin: Number(rcfg.delay) || 3, reconnectMaxAttempts: Number(rcfg.max) || 3 })
+    if (data?.ok) { app.success('设置已保存'); await loadRc(accountId) }
     else app.error('保存失败：' + (data?.error || '未知'))
   } catch (e) { app.error('保存失败') }
 }
 const rcRetryBusy = ref(false)
-async function retryRc() {
+async function retryRc(accountId) {
   rcRetryBusy.value = true
   try {
-    const { data } = await api.post('/api/reconnect/retry', {})
-    if (data?.ok) { app.success('已触发重连，将在后台执行'); setTimeout(loadRc, 2000) }
+    const url = accountId ? `/api/reconnect/retry?accountId=${encodeURIComponent(accountId)}` : '/api/reconnect/retry'
+    const { data } = await api.post(url, {})
+    if (data?.ok) { app.success('已触发重连，将在后台执行'); setTimeout(() => loadRc(accountId), 2000) }
     else app.error('触发失败' + (data?.error ? '：' + data.error : ''))
   } catch (e) { app.error('触发失败') } finally { rcRetryBusy.value = false }
 }
@@ -292,13 +307,46 @@ onUnmounted(() => { stopQr(); window.removeEventListener('account-switched', onA
         <div class="a-info"><b>{{ a.name }}</b><span>{{ a.platform }} · {{ a.status }}</span></div>
         <div style="display:flex;gap:6px;margin-left:auto">
           <button class="bi-use" @click="switchAcc(a.id)">切换</button>
-          <button class="bi-use" @click="editing = { id: a.id, name: a.name, code: a.code || '' }">编辑</button>
+          <button class="bi-use" @click="editing = { id: a.id, name: a.name, code: a.code || '' }; loadRc(a.id)">编辑</button>
           <button class="bi-sell" @click="delAcc(a.id)">删除</button>
         </div>
-        <div v-if="editing && editing.id === a.id" style="width:100%;margin-top:8px;display:flex;gap:6px">
-          <input v-model="editing.name" class="field" placeholder="备注名" style="flex:1">
-          <input v-model="editing.code" class="field" placeholder="code（留空不变）" style="flex:2">
-          <button class="bi-use" @click="saveEdit">保存</button>
+        <div v-if="editing && editing.id === a.id" style="width:100%;margin-top:8px">
+          <div style="display:flex;gap:6px">
+            <input v-model="editing.name" class="field" placeholder="备注名" style="flex:1">
+            <input v-model="editing.code" class="field" placeholder="code（留空不变）" style="flex:2">
+            <button class="bi-use" @click="saveEdit">保存</button>
+          </div>
+          <!-- 掉线自动重连（账号级，登录后也可改） -->
+          <div class="rc-panel" style="margin-top:10px">
+            <div class="rc-head">📡 掉线自动重连 <small>该账号断线后延迟换 code 自动重连</small></div>
+            <div class="rc-row">
+              <span>开启自动重连</span>
+              <div class="switch" :class="{ on: rcfg.enabled }" @click="rcfg.enabled = !rcfg.enabled"></div>
+            </div>
+            <div class="rc-grid">
+              <div class="rc-col">
+                <label class="rc-label">离线多久重连</label>
+                <div class="sec-field">
+                  <input type="number" v-model.number="rcfg.delay" class="field" min="1">
+                  <span class="unit">分钟</span>
+                </div>
+              </div>
+              <div class="rc-col">
+                <label class="rc-label">失败几次停止</label>
+                <div class="sec-field">
+                  <input type="number" v-model.number="rcfg.max" class="field" min="1">
+                  <span class="unit">次</span>
+                </div>
+              </div>
+            </div>
+            <div class="rc-foot">
+              <span class="rc-state">{{ rcState }}</span>
+              <div class="rc-btns">
+                <button class="chip" :disabled="rcRetryBusy" @click="retryRc(editing.id)">{{ rcRetryBusy ? '重连中…' : '🔁 立即重连' }}</button>
+                <button class="chip" @click="saveRc(editing.id)">💾 保存</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <p v-if="!accounts.length" style="text-align:center;color:var(--muted);padding:20px 0">暂无账号</p>

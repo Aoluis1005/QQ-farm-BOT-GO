@@ -86,36 +86,47 @@ func (p *ClientPool) store(accountID string, c *gw.Client) {
 }
 
 // onKick 被踢下线后的自动重连：
-// 优先用 YYB openid 刷新 code 再连；带防抖避免与“别处登录”互踢形成自旋。
-// 仅当距上次重连超过冷却窗才执行，否则跳过（交给用户自行解决冲突端）。
+// 自动重连开启时**不立即重连**——记录离线时间，交给 scanAutoReconnect 按
+// ReconnectDelayMin 延迟调度（避免被踢后秒级重连、与别处登录互踢自旋）；
+// 自动重连关闭时维持原行为：用 YYB openid 刷新 code 立即重连。
 func (p *ClientPool) onKick(accountID string) {
 	// 被踢下线日志
-	appendOpLog(accountID, "掉线", "账号在别处登录被踢下线（自动重连中）")
+	appendOpLog(accountID, "掉线", "账号在别处登录被踢下线")
 	notifyOffline(accountID, "账号在别处登录被踢下线")
 	p.mu.Lock()
 	if until, ok := p.kickBackoffUntil[accountID]; ok && time.Now().Before(until) {
 		p.mu.Unlock()
 		return
 	}
-	p.kickBackoffUntil[accountID] = time.Now().Add(8 * time.Second) // 冷却 8s，防止互踢自旋
-	p.reconnectAttempts[accountID]++
+	p.kickBackoffUntil[accountID] = time.Now().Add(8 * time.Second) // 防抖，防止互踢自旋
+	// 记录离线时间（若尚未记录）；被踢是主动侧，非超时型
+	if _, ok := p.offlineSince[accountID]; !ok {
+		p.offlineSince[accountID] = time.Now()
+	}
+	delete(p.transientClose, accountID)
 	p.mu.Unlock()
 
 	acc := models.GetAccountByID(accountID)
 	if acc == nil {
 		return
 	}
-	// 优先 YYB 刷新 code（账号须有 openid）；刷新失败则用旧 code 尝试
-	if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
-		acc.Code = newCode
-		models.AddOrUpdateAccount(*acc)
-	}
-	// 单飞连接：若此刻已有其他路径在连同一账号，复用其结果，避免自踢
-	if _, err := p.connectLocked(acc); err != nil {
-		log.Printf("[pool] 账号 %s 被踢后重连失败: %v", accountID, err)
+	cfg := models.GetAutoReconnect(accountID)
+	if !cfg.Enabled || cfg.ReconnectDelayMin <= 0 {
+		// 自动重连未开启：维持原行为，立即用 YYB 刷新 code 重连
+		if newCode, cerr := refreshCodeFromYyb(acc); cerr == nil && newCode != "" {
+			acc.Code = newCode
+			models.AddOrUpdateAccount(*acc)
+		}
+		// 单飞连接：若此刻已有其他路径在连同一账号，复用其结果，避免自踢
+		if _, err := p.connectLocked(acc); err != nil {
+			log.Printf("[pool] 账号 %s 被踢后重连失败: %v", accountID, err)
+			return
+		}
+		log.Printf("[pool] 账号 %s 被踢后已重连", accountID)
 		return
 	}
-	log.Printf("[pool] 账号 %s 被踢后已重连（第 %d 次）", accountID, p.reconnectAttempts[accountID])
+	// 自动重连开启：交给扫描线程按延迟调度
+	log.Printf("[pool] 账号 %s 被踢下线，%d 分钟后自动重连", accountID, cfg.ReconnectDelayMin)
 }
 
 // connect 用账号 code 连接并登录
@@ -228,9 +239,19 @@ func resolveAccountID(accountID string) string {
 	return accountID
 }
 
-// Get 获取账号的活跃网关连接；无连接时用 code 连接；
-// code 过期失败时尝试用 openid 自动刷新 code 后重连
+// Get 获取账号的活跃网关连接；无连接时按自动重连策略决定是否立即连接。
+// - 首次连接（本进程内从未建连）：立即连接；
+// - 自动重连开启且是断线重连：**不**立即连接，交给 scanAutoReconnect 按
+//   ReconnectDelayMin 延迟调度（返回明确离线错误，避免前端轮询把延迟顶成秒级重连、
+//   同时绕过 ReconnectMaxAttempts 上限）；
+// - 自动重连关闭 / 超时型断连（服务端抖动）：立即连接（快速恢复）。
+// code 过期失败时尝试用 openid 自动刷新 code 后重连。
 func (p *ClientPool) Get(accountID string) (*gw.Client, error) {
+	return p.get(accountID, false)
+}
+
+// get force=true 时无视自动重连延迟/停止态立即连接（手动更新 code / 手动重连等主动路径）。
+func (p *ClientPool) get(accountID string, force bool) (*gw.Client, error) {
 	accountID = resolveAccountID(accountID)
 	if accountID == "" {
 		return nil, fmt.Errorf("没有可用的账号，请先在账号页添加/切换")
@@ -245,6 +266,37 @@ func (p *ClientPool) Get(accountID string) (*gw.Client, error) {
 	}
 	if acc.Code == "" {
 		return nil, fmt.Errorf("账号 %s 未配置登录 code", accountID)
+	}
+
+	if !force {
+		cfg := models.GetAutoReconnect(accountID)
+		if cfg.Enabled && cfg.ReconnectDelayMin > 0 {
+			p.mu.Lock()
+			_, hadConn := p.m[accountID]   // 之前是否建过连接（断线重连 vs 首次连接）
+			transient := p.transientClose[accountID]
+			stopped := p.stopped[accountID]
+			since, hasSince := p.offlineSince[accountID]
+			p.mu.Unlock()
+			if hadConn && !transient {
+				// 断线重连：按延迟调度，不抢连
+				if stopped {
+					return nil, fmt.Errorf("账号 %s 自动重连已停止（达到最大重连次数），请在账号页手动重试", accountID)
+				}
+				if !hasSince {
+					appendOpLog(accountID, "掉线", "连接已断开（等待自动重连）")
+					p.mu.Lock()
+					p.offlineSince[accountID] = time.Now()
+					p.mu.Unlock()
+					return nil, fmt.Errorf("账号 %s 离线，自动重连将于 %d 分钟后执行", accountID, cfg.ReconnectDelayMin)
+				}
+				left := int(time.Until(since.Add(time.Duration(cfg.ReconnectDelayMin) * time.Minute)).Seconds())
+				if left > 0 {
+					return nil, fmt.Errorf("账号 %s 离线，自动重连剩余 %d 秒", accountID, left)
+				}
+				// 已过延迟窗口：重连由扫描线程调度（30s 内触发），这里不抢连保证计数一致
+				return nil, fmt.Errorf("账号 %s 离线，自动重连调度中", accountID)
+			}
+		}
 	}
 
 	// 单飞连接：并发的 Get 调用共享这一次登录，避免自踢
@@ -267,7 +319,7 @@ func (p *ClientPool) UpdateCodeAndRelink(accountID, code string) (*gw.Client, er
 		delete(p.m, accountID)
 	}
 	p.mu.Unlock()
-	return p.Get(accountID)
+	return p.get(accountID, true)
 }
 
 // evict 移除并关闭某账号的连接（踢下线/删除账号：清零重连状态）
