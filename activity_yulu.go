@@ -93,6 +93,7 @@ const (
 	yuluTaskNodeID   = 2026070303 // 天气采集任务子节点 id
 	yuluTaskCmd      = 9          // 采集命令（operate_type=9）
 	yuluTaskExtField = 107        // weather_task_operate_params
+	yuluGroupRootID  = 2026070300 // 活动根节点 id（GetGroup 用根查子活动状态）
 )
 
 // yuluResearchTier 一个气象研究档位（研究树节点）。
@@ -715,15 +716,15 @@ func yuluGetWeather(ctx context.Context, c *gw.Client) (id int64, active bool) {
 	return
 }
 
-// yuluResearchState 从 GetGroup(2026070304) 解析气象研究真实进度：
-// 研究节点 field118=weather_research{state(field1){nodes(field2 重复)}}，
+// yuluResearchState 从 GetGroup(活动根 2026070300) 解析气象研究真实进度：
+// 找到研究子节点(2026070304)的 field118=weather_research{state(field1){nodes(field2 重复)}}，
 // 每节点 {1=node_id, 3=status(2 可领取), 4=claimed}。
 // 返回 nodeId -> {status, claimed}；解析失败返回 nil。
 func yuluResearchState(ctx context.Context, accountID string) map[int64]map[string]interface{} {
 	b := proto.NewBuilder()
-	b.FieldInt64(1, yuluResearchNodeID)
+	b.FieldInt64(1, yuluGroupRootID)
 	b.FieldString(2, "")
-	key := actGroupCacheKey(accountID, yuluResearchNodeID)
+	key := actGroupCacheKey(accountID, yuluGroupRootID)
 	body, ok := actCacheGet(key, 30*time.Second)
 	if !ok {
 		var err error
