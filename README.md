@@ -4,7 +4,7 @@
 
 > **正式版 v1.0.1**——遇到问题请 [提 Issue](https://github.com/Aoluis1005/QQ-farm-BOT-GO/issues)，我会尽快修复。
 >
-> ✅ **雨落成诗**活动接口已实现（采集瓶接口晚点抓包实现）。
+> ✅ **雨落成诗**活动已完全实现（采集瓶 / 召唤 / 变异 / 气象研究 / 天气状态全链路可用）。
 >
 > 🚧 **公益小红花**活动前端占位面板已上线，后端接口待 **2026-09-01 开服后**抓包实现（当前按钮返回「待 9/1 开服接入」提示，属预期行为）。
 
@@ -153,7 +153,7 @@ sudo systemctl enable --now go-farm-bot
 ├── proto/             # Protobuf 编解码（对齐 Node proto/*.proto）
 ├── automation.go      # 自动化调度（种植 / 好友 / 任务循环）
 ├── task_auto.go       # 每日任务自动领取
-├── activity_api.go    # 活动接口（雨落成诗已实现 / 公益小红花占位路由）
+├── activity_api.go    # 活动接口（雨落成诗完全实现 / 公益小红花占位路由）
 ├── shop_api.go        # 商城（种子 / 宠物 / 道具）
 ├── home_api.go        # 首页数据（资料卡 / 今日收益 / 日志）
 ├── stats.go           # 今日收益统计
