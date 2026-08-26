@@ -299,19 +299,20 @@ function seedDragStart(which, seedId) {
   window.addEventListener('pointermove', seedDragMove)
   window.addEventListener('pointerup', seedDragEnd)
   window.addEventListener('pointercancel', seedDragEnd)
+  window.addEventListener('blur', seedDragEnd)
 }
 function seedDragMove(e) {
   if (!drag.on) return
   const el = document.elementFromPoint(e.clientX, e.clientY)
   const row = el && el.closest('.seed-row')
-  if (row && row.dataset.which === drag.which && row.dataset.sid) drag.over = row.dataset.sid
+  if (row && row.dataset.which === drag.which && row.dataset.sid) drag.over = Number(row.dataset.sid)
 }
 function seedDragEnd() {
   if (!drag.on) return
   const list = drag.which === 'm' ? mPriority.value : dPriority.value
   const rows = seedRows(list).map(r => r.s.seedId)
   const from = rows.indexOf(drag.id)
-  const to = rows.indexOf(drag.over)
+  const to = rows.indexOf(Number(drag.over))
   if (from >= 0 && to >= 0 && from !== to) {
     const items = rows.slice()
     const [moved] = items.splice(from, 1)
@@ -323,6 +324,7 @@ function seedDragEnd() {
   window.removeEventListener('pointermove', seedDragMove)
   window.removeEventListener('pointerup', seedDragEnd)
   window.removeEventListener('pointercancel', seedDragEnd)
+  window.removeEventListener('blur', seedDragEnd)
 }
 
 /* ================= 收集 + 保存 ================= */
