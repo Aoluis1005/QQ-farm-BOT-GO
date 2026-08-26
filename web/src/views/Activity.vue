@@ -258,7 +258,11 @@ async function loadYulu() {
       yulu.badgeImage = d.badgeImage || ''
       yulu.weather = d.weather || null
       yulu.items = d.items || {}
-      yulu.research = Object.assign({ claimed: new Set() }, d.research || {})
+      // 保留本地已领取记录（不重置），并用服务端返回的 claimed 状态补齐
+      const prevClaimed = (yulu.research && yulu.research.claimed) || new Set()
+      yulu.research = Object.assign({ claimed: prevClaimed }, d.research || {})
+      yulu.research.claimed = prevClaimed
+      ;(d.research && d.research.tiers || []).forEach(t => { if (t.claimed) prevClaimed.add(t.nodeId) })
     }
   } catch (e) { yulu.err = '加载失败' }
 }
@@ -357,7 +361,11 @@ function rsLevels() {
   tiers.forEach(t => { levels[depth[t.nodeId] ?? 0].push(t) })
   return levels
 }
-function rsClaimed(nodeId) { return !!(yulu.research.claimed && yulu.research.claimed.has(nodeId)) }
+function rsClaimed(nodeId) {
+  if (yulu.research.claimed && yulu.research.claimed.has(nodeId)) return true
+  const t = (yulu.research.tiers || []).find(x => x.nodeId === nodeId)
+  return !!(t && t.claimed)
+}
 function rsUnlockable(nodeId) {
   const t = (yulu.research.tiers || []).find(x => x.nodeId === nodeId)
   if (!t) return false
@@ -397,6 +405,10 @@ async function yuluResearch(nodeId) {
       app.success('领取成功：' + nm)
       if (!yulu.research.claimed) yulu.research.claimed = new Set()
       yulu.research.claimed.add(nodeId)
+      // 服务端回带已解锁节点列表（含本次），一并并入本地记录
+      if (data.data && data.data.unlockedNodeIds && data.data.unlockedNodeIds.length) {
+        data.data.unlockedNodeIds.forEach(id => yulu.research.claimed.add(Number(id)))
+      }
       loadYulu()
     } else {
       app.error((data && data.error) || '领取失败')
@@ -407,7 +419,7 @@ async function yuluResearch(nodeId) {
 // 全程 async await，不阻塞 UI 线程；按钮禁用 + 进度显示。
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const YULU_ONECLICK_MAX = 5    // 一次最多进好友农场数（防掉线）
-const YULU_ONECLICK_GAP = 400  // 好友间间隔 ms（顺序降频，对齐 Node 顺延时）
+const YULU_ONECLICK_GAP = 400  // 好友间间隔 ms（顺序降频防掉线）
 // 一键：每次最多处理 5 位好友，好友间加间隔防掉线，道具使用完立即停止。
 async function yuluOneClick(kind) {
   if (yulu.oneClickRunning) { app.error('上一次一键尚未完成'); return }
@@ -416,7 +428,13 @@ async function yuluOneClick(kind) {
   if (!itemId) return
   if (yuluCount(itemId) <= 0) { app.error(`${yuluName(itemId)} 库存为空`); return }
   yulu.oneClickRunning = true
-  const target = yulu.allFriends.slice(0, YULU_ONECLICK_MAX)
+  // 每次随机打乱好友顺序再取前 N 位，避免永远只打同一批好友
+  const shuffled = yulu.allFriends.slice()
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  const target = shuffled.slice(0, YULU_ONECLICK_MAX)
   yulu.oneClickTotal = target.length
   yulu.oneClickDone = 0
   yulu.oneClickOk = 0

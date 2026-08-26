@@ -133,7 +133,7 @@ func yuluResearchTierByID(id int64) *yuluResearchTier {
 
 // handleYuluResearchClaim 领取气象研究档位：
 // Operate(id=2026070304, cmd=40, field140{ node_id })，错误映射为可读提示。
-func handleYuluResearchClaim(ctx context.Context, accountID string, nodeID int64) (rewards []map[string]interface{}, errMsg string) {
+func handleYuluResearchClaim(ctx context.Context, accountID string, nodeID int64) (rewards []map[string]interface{}, body []byte, errMsg string) {
 	sub := proto.NewBuilder()
 	sub.FieldInt64(1, nodeID) // TechTreeSubmitNodeReq.node_id
 	b := proto.NewBuilder()
@@ -145,14 +145,14 @@ func handleYuluResearchClaim(ctx context.Context, accountID string, nodeID int64
 		e := err.Error()
 		switch {
 		case strings.Contains(e, "雷电徽章不足"):
-			return nil, "雷电徽章不足"
+			return nil, nil, "雷电徽章不足"
 		case strings.Contains(e, "节点未解锁"):
-			return nil, "节点未解锁（需先领取前置档位）"
+			return nil, nil, "节点未解锁（需先领取前置档位）"
 		default:
-			return nil, e
+			return nil, nil, e
 		}
 	}
-	return parseActRewardField(body, 126), ""
+	return parseActRewardField(body, 126), body, ""
 }
 
 // yuluBagLookup 在背包回复里查某物品的持有数与实例 uid。
@@ -230,8 +230,15 @@ func handleYuluStatus(w http.ResponseWriter, r *http.Request) {
 	if wid != 0 {
 		weatherName = "雷雨"
 	}
+	researchState := yuluResearchState(ctx, accountID)
 	tiers := make([]map[string]interface{}, 0, len(yuluResearchTree))
 	for _, t := range yuluResearchTree {
+		st := researchState[t.NodeID]
+		claimed, status := false, int64(0)
+		if st != nil {
+			claimed, _ = st["claimed"].(bool)
+			status, _ = st["status"].(int64)
+		}
 		tiers = append(tiers, map[string]interface{}{
 			"nodeId":   t.NodeID,
 			"name":     t.Reward,
@@ -240,6 +247,8 @@ func handleYuluStatus(w http.ResponseWriter, r *http.Request) {
 			"count":    t.Count,
 			"cost":     t.Cost,
 			"prevs":    t.Prevs,
+			"claimed":  claimed,
+			"status":   status,
 		})
 	}
 	writeJSON(w, map[string]interface{}{
@@ -569,7 +578,7 @@ func handleYuluResearch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	rewards, errMsg := handleYuluResearchClaim(ctx, accountID, req.NodeID)
+	rewards, body, errMsg := handleYuluResearchClaim(ctx, accountID, req.NodeID)
 	if errMsg != "" {
 		writeJSONMap(w, "ok", false, "error", errMsg, "nodeId", req.NodeID)
 		return
@@ -580,10 +589,11 @@ func handleYuluResearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
-			"nodeId":  req.NodeID,
-			"reward":  tier.Reward,
-			"count":   tier.Count,
-			"rewards": rewards,
+			"nodeId":         req.NodeID,
+			"reward":         tier.Reward,
+			"count":          tier.Count,
+			"rewards":        rewards,
+			"unlockedNodeIds": yuluResearchUnlocked(body),
 		},
 	})
 }
@@ -703,4 +713,92 @@ func yuluGetWeather(ctx context.Context, c *gw.Client) (id int64, active bool) {
 		return true
 	})
 	return
+}
+
+// yuluResearchState 从 GetGroup(2026070304) 解析气象研究真实进度：
+// 研究节点 field118=weather_research{state(field1){nodes(field2 重复)}}，
+// 每节点 {1=node_id, 3=status(2 可领取), 4=claimed}。
+// 返回 nodeId -> {status, claimed}；解析失败返回 nil。
+func yuluResearchState(ctx context.Context, accountID string) map[int64]map[string]interface{} {
+	b := proto.NewBuilder()
+	b.FieldInt64(1, yuluResearchNodeID)
+	b.FieldString(2, "")
+	key := actGroupCacheKey(accountID, yuluResearchNodeID)
+	body, ok := actCacheGet(key, 30*time.Second)
+	if !ok {
+		var err error
+		body, err = rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 20*time.Second)
+		if err != nil {
+			return nil
+		}
+		actCacheSet(key, body, 30*time.Second)
+	}
+	reply := readActFields(body)
+	groupRaw := actBytes(reply, 1)
+	if len(groupRaw) == 0 {
+		return nil
+	}
+	out := map[int64]map[string]interface{}{}
+	var walk func(raw []byte) bool
+	walk = func(raw []byte) bool {
+		fs := readActFields(raw)
+		if infoRaw := actBytes(fs, 1); len(infoRaw) > 0 {
+			if actNum(readActFields(infoRaw), 1) == yuluResearchNodeID {
+				if wr := actBytes(fs, 118); len(wr) > 0 {
+					if stateRaw := actBytes(readActFields(wr), 1); len(stateRaw) > 0 {
+						for _, nRaw := range actBytesAll(readActFields(stateRaw), 2) {
+							nf := readActFields(nRaw)
+							nid := actNum(nf, 1)
+							if nid <= 0 {
+								continue
+							}
+							out[nid] = map[string]interface{}{
+								"status":  actNum(nf, 3),
+								"claimed": actNum(nf, 4) != 0,
+							}
+						}
+					}
+				}
+				return true
+			}
+		}
+		for _, c := range actBytesAll(fs, 2) {
+			if walk(c) {
+				return true
+			}
+		}
+		return false
+	}
+	walk(groupRaw)
+	return out
+}
+
+// yuluResearchUnlocked 解析研究领取回包 field140=weather_research_result{field3=unlocked_node_ids(packed)}。
+func yuluResearchUnlocked(body []byte) []int64 {
+	fs := readActFields(body)
+	resRaw := actBytes(fs, 140)
+	if len(resRaw) == 0 {
+		return nil
+	}
+	for _, f := range readActFields(resRaw) {
+		if f.No == 3 && f.Wire == 2 {
+			var out []int64
+			for i := 0; i < len(f.Bytes); {
+				var v uint64
+				var shift uint
+				for i < len(f.Bytes) {
+					x := f.Bytes[i]
+					i++
+					v |= uint64(x&0x7f) << shift
+					if x < 0x80 {
+						break
+					}
+					shift += 7
+				}
+				out = append(out, int64(v))
+			}
+			return out
+		}
+	}
+	return nil
 }
