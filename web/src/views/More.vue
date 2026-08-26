@@ -291,6 +291,40 @@ function resetSeeds(which) {
   else dPriority.value = order
 }
 
+/* ================= 拖拽重排（Pointer Events：鼠标 + 触屏通用，无依赖） ================= */
+const drag = reactive({ on: false, which: '', id: null, over: null })
+function seedDragStart(which, seedId) {
+  if (drag.on) return
+  drag.on = true; drag.which = which; drag.id = seedId; drag.over = seedId
+  window.addEventListener('pointermove', seedDragMove)
+  window.addEventListener('pointerup', seedDragEnd)
+  window.addEventListener('pointercancel', seedDragEnd)
+}
+function seedDragMove(e) {
+  if (!drag.on) return
+  const el = document.elementFromPoint(e.clientX, e.clientY)
+  const row = el && el.closest('.seed-row')
+  if (row && row.dataset.which === drag.which && row.dataset.sid) drag.over = row.dataset.sid
+}
+function seedDragEnd() {
+  if (!drag.on) return
+  const list = drag.which === 'm' ? mPriority.value : dPriority.value
+  const rows = seedRows(list).map(r => r.s.seedId)
+  const from = rows.indexOf(drag.id)
+  const to = rows.indexOf(drag.over)
+  if (from >= 0 && to >= 0 && from !== to) {
+    const items = rows.slice()
+    const [moved] = items.splice(from, 1)
+    items.splice(to, 0, moved)
+    if (drag.which === 'm') mPriority.value = items
+    else dPriority.value = items
+  }
+  drag.on = false; drag.which = ''; drag.id = null; drag.over = null
+  window.removeEventListener('pointermove', seedDragMove)
+  window.removeEventListener('pointerup', seedDragEnd)
+  window.removeEventListener('pointercancel', seedDragEnd)
+}
+
 /* ================= 收集 + 保存 ================= */
 function collectAuto() {
   const aut = { ...autCfg }
@@ -720,13 +754,14 @@ onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) }
         </div>
 
         <div class="auto-item col" style="border:none;padding:12px 9px 14px">
-          <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+          <div class="f-label">背包种子优先顺序<small>按住行首 ≡ 手柄拖到目标位置排序（鼠标/触屏均可），顺序即种植优先级；也可用 ↑↓ 按钮微调。</small></div>
           <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
             <button class="chip" @click="resetSeeds('m')">↺ 重置顺序</button>
           </div>
           <div class="menu">
             <p v-if="!mSeeds.length" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">背包中暂无种子</p>
-            <div v-for="row in seedRows(mPriority)" :key="row.s.seedId" class="seed-row" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
+            <div v-for="row in seedRows(mPriority)" :key="row.s.seedId" class="seed-row" :data-which="'m'" :data-sid="row.s.seedId" :class="{ dragging: drag.on && drag.id === row.s.seedId, over: drag.on && drag.over === row.s.seedId }" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
+              <span class="seed-handle" @pointerdown.prevent.stop="seedDragStart('m', row.s.seedId)">≡</span>
               <span style="color:var(--muted-2);font-size:10px;width:16px;flex:none">{{ row.i + 1 }}</span>
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.s.name || ('种子' + row.s.seedId) }}<span v-if="row.twoX2" style="color:var(--accent,#10b981);font-size:10px"> 2×2</span></span>
               <span style="flex:none;color:var(--muted);font-size:10px">×{{ row.s.count || 0 }} · {{ row.s.requiredLevel || 0 }}级</span>
@@ -866,13 +901,14 @@ onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) }
               <div style="display:flex;justify-content:flex-end;margin-top:4px"><div class="switch" :class="{ on: dS.twoX2 }" @click="dS.twoX2 = !dS.twoX2"></div></div>
             </div>
             <div class="auto-item col" style="border:none;padding:12px 9px 14px">
-              <div class="f-label">背包种子优先顺序<small>先按下方顺序消耗背包种子；开启 2×2 优先时，四格种子会先用于预留区域，其余空地再按第二优先策略补种。</small></div>
+              <div class="f-label">背包种子优先顺序<small>按住行首 ≡ 手柄拖到目标位置排序（鼠标/触屏均可），顺序即种植优先级；也可用 ↑↓ 按钮微调。</small></div>
               <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
                 <button class="chip" @click="resetSeeds('d')">↺ 重置顺序</button>
               </div>
               <div class="menu">
                 <p v-if="!mSeeds.length" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0">背包中暂无种子</p>
-                <div v-for="row in seedRows(dPriority)" :key="row.s.seedId" class="seed-row" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
+                <div v-for="row in seedRows(dPriority)" :key="row.s.seedId" class="seed-row" :data-which="'d'" :data-sid="row.s.seedId" :class="{ dragging: drag.on && drag.id === row.s.seedId, over: drag.on && drag.over === row.s.seedId }" style="display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12px">
+                  <span class="seed-handle" @pointerdown.prevent.stop="seedDragStart('d', row.s.seedId)">≡</span>
                   <span style="color:var(--muted-2);font-size:10px;width:16px;flex:none">{{ row.i + 1 }}</span>
                   <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.s.name || ('种子' + row.s.seedId) }}<span v-if="row.twoX2" style="color:var(--accent,#10b981);font-size:10px"> 2×2</span></span>
                   <span style="flex:none;color:var(--muted);font-size:10px">×{{ row.s.count || 0 }} · {{ row.s.requiredLevel || 0 }}级</span>
@@ -1147,3 +1183,10 @@ onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) }
     <p style="margin-top:20px;text-align:center;font-size:11.5px;color:var(--muted-2)">qq farm bot go v1.0.1</p>
   </div>
 </template>
+
+<style scoped>
+.seed-handle{ flex:none; cursor:grab; touch-action:none; user-select:none; color:var(--muted); font-size:13px; width:16px; text-align:center; }
+.seed-handle:active{ cursor:grabbing }
+.seed-row.dragging{ opacity:.4 }
+.seed-row.over{ box-shadow:inset 0 2px 0 0 var(--primary) }
+</style>
