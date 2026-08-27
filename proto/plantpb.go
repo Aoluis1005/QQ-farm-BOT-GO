@@ -182,6 +182,11 @@ type LandInfo struct {
 	LandSize     int64   // plantpb.proto land_size=15
 	LandsLevel   int64   // plantpb.proto lands_level=16
 	Plant        *PlantInfo
+	// 土地 buff（field 9 Buff 子消息：1=plant_yield_bonus 产量加成、2=planting_time_reduction 种植减时、3=plant_exp_bonus 经验加成）
+	// 紫晶共鸣 = Level==5（紫金/紫晶土地）&& 有变异时，经验加成 = PlantExpBonus（参考项目 land-analysis.ts L323-327）
+	PlantYieldBonus       int64
+	PlantingTimeReduction int64
+	PlantExpBonus         int64
 }
 
 func (l *LandInfo) decode(buf []byte) {
@@ -208,6 +213,26 @@ func (l *LandInfo) decode(buf []byte) {
 			l.LandSize = r.ReadInt64()
 		case 16:
 			l.LandsLevel = r.ReadInt64()
+		case 9:
+			if wire == WireLen {
+				sub := r.ReadBytes()
+				rb := NewReader(sub)
+				rb.EachField(func(field, wire int, r *Reader) bool {
+					switch field {
+					case 1:
+						l.PlantYieldBonus = r.ReadInt64()
+					case 2:
+						l.PlantingTimeReduction = r.ReadInt64()
+					case 3:
+						l.PlantExpBonus = r.ReadInt64()
+					default:
+						r.Skip(wire)
+					}
+					return true
+				})
+			} else {
+				r.Skip(wire)
+			}
 		case 10:
 			if wire == WireLen {
 				sub := r.ReadBytes()

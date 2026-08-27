@@ -199,6 +199,11 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 			item["name"] = nm
 			me = append(me, item)
 		}
+		// 紫晶共鸣：紫金土地（level==5）+ 有变异 时的经验加成（参考项目 land-analysis.ts L323-327）
+		var purpleCrystalResonanceExpBonus int64
+		if level == 5 && len(plant.MutantConfigIDs) > 0 && l.PlantExpBonus > 0 {
+			purpleCrystalResonanceExpBonus = l.PlantExpBonus
+		}
 
 		details = append(details, map[string]interface{}{
 			"id": landID, "unlocked": true, "status": status,
@@ -213,6 +218,7 @@ func handleFarmLands(w http.ResponseWriter, r *http.Request) {
 			"occupiedByMaster": ctx.OccupiedByMaster, "masterLandId": ctx.MasterLandID,
 			"occupiedLandIds": ctx.OccupiedLandIDs,
 			"plantSize":       plantSize, "mutantEffects": me,
+			"purpleCrystalResonanceExpBonus": purpleCrystalResonanceExpBonus,
 		})
 	}
 

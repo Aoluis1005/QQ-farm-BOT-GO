@@ -506,6 +506,7 @@ onUnmounted(() => { clearInterval(landTimer); window.removeEventListener('accoun
         <div v-for="l in lands" :key="l.id" :class="landCls(l)">
           <span class="lc-id">#{{ l.id }}</span>
           <span v-if="Number(l.plantSize) > 1" class="lc-merged-badge">合种 {{ l.plantSize }}x{{ l.plantSize }}</span>
+          <span v-if="Number(l.purpleCrystalResonanceExpBonus) > 0" class="lc-mutants" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#c39bf3;margin-left:4px" title="紫金土地+变异 经验加成"><span style="font-size:11px">💎</span>紫晶共鸣 +{{ l.purpleCrystalResonanceExpBonus }}%</span>
           <div class="lc-mutants"><img v-for="m in (l.mutantEffects||[]).filter(x=>x&&x.icon)" :key="m.icon" :src="'/game-config/seed_images_named/mutant/' + m.icon + '.png'" :alt="m.name||'变异'" :title="m.name" loading="lazy" style="width:18px;height:18px"></div>
           <div class="lc-img"><img v-if="l.seedImage" :src="l.seedImage" loading="lazy" referrerpolicy="no-referrer" style="width:52px;height:52px;object-fit:contain"><span v-else style="font-size:22px">🌱</span></div>
           <div class="lc-name" :title="l.plantName">{{ l.plantName || '-' }}</div>
