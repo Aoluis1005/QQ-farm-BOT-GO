@@ -305,7 +305,7 @@
     "name": "晶辉",
     "description": "晶辉·紫晶土地上随机出现",
     "fruit_name": null,
-    "icon": "crystal",
+    "icon": "jinghui",
     "sort": 20,
     "tips": "紫晶土地上随机出现",
     "effect_res_type": 3,
