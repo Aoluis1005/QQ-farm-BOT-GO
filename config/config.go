@@ -250,7 +250,7 @@ type DeviceProtocol struct {
 // GatewayConfig 网关连接配置（对标 Node config.js）
 type GatewayConfig struct {
 	WsURL             string `json:"wsUrl"`             // wss://gate-obt.nqf.qq.com/prod/ws
-	ClientVersion      string `json:"clientVersion"`      // 1.13.2.10_20260723
+	ClientVersion      string `json:"clientVersion"`      // 1.13.3.14_20260827
 	HeartbeatIntervalMs int    `json:"heartbeatIntervalMs"` // 25000
 	FarmCheckIntervalMs int    `json:"farmCheckIntervalMs"` // 3000
 	FriendCheckIntervalMs int   `json:"friendCheckIntervalMs"` // 8000
@@ -266,7 +266,7 @@ type GatewayConfig struct {
 func DefaultGatewayConfig() GatewayConfig {
 	return GatewayConfig{
 		WsURL:              "wss://gate-obt.nqf.qq.com/prod/ws",
-		ClientVersion:       "1.13.2.10_20260723",
+		ClientVersion:       "1.13.3.14_20260827",
 		HeartbeatIntervalMs: 25000,
 		FarmCheckIntervalMs: 3000,
 		FriendCheckIntervalMs: 8000,
@@ -283,7 +283,7 @@ func DefaultGatewayConfig() GatewayConfig {
 func DefaultSystemConfig() SystemConfig {
 	return SystemConfig{
 		ServerURL:    "",
-		ClientVersion: "1.13.2.10_20260723",
+		ClientVersion: "1.13.3.14_20260827",
 		Platform:     "qq",
 		OS:           "iOS",
 		OfflineNotifyEnabled: false,

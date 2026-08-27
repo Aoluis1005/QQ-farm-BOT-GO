@@ -214,7 +214,7 @@ const yulu = reactive({
   badge: null, badgeNote: '', badgeImage: '',
   weather: null,                                   // {id,name,active} 当前农场天气
   items: {},                                   // {id: {count,name,image}}  全部来自背包实时
-  research: { tiers: [], claimedAll: false, note: '', claimed: new Set() }, // claimed 记录已领取的 nodeId
+  research: { tiers: [], claimedAll: false, note: '', claimed: new Set(), unlocked: null }, // claimed 已领取；unlocked 本次新解锁（可领取，非已领取）
   exchangedOn: null, dayTick: 0, // 最近一次兑换天气瓶的日期字符串 / 跨0点刷新触发
   friends: [], allFriends: [], friendsDisplayCount: 0, friendsPerPage: 5, friendsLoading: false,
   oneClickRunning: false, oneClickTotal: 0, oneClickDone: 0, oneClickOk: 0,
@@ -369,6 +369,9 @@ function rsClaimed(nodeId) {
 function rsUnlockable(nodeId) {
   const t = (yulu.research.tiers || []).find(x => x.nodeId === nodeId)
   if (!t) return false
+  // 服务端 status 权威校验：status>0 且非 2（可领取）视为未解锁；缺失/0 时按前置链推导兜底
+  const st = Number(t.status)
+  if (st > 0 && st !== 2) return false
   return (t.prevs || []).every(p => rsClaimed(p))
 }
 function rsClick(t) {
@@ -405,9 +408,10 @@ async function yuluResearch(nodeId) {
       app.success('领取成功：' + nm)
       if (!yulu.research.claimed) yulu.research.claimed = new Set()
       yulu.research.claimed.add(nodeId)
-      // 服务端回带已解锁节点列表（含本次），一并并入本地记录
+      // 服务端回带的 unlockedNodeIds 是"本次领取后新解锁（可领取）"的节点，
+      // 不等于已领取，只用于刷新可领取状态，不并入 claimed
       if (data.data && data.data.unlockedNodeIds && data.data.unlockedNodeIds.length) {
-        data.data.unlockedNodeIds.forEach(id => yulu.research.claimed.add(Number(id)))
+        yulu.research.unlocked = new Set((data.data.unlockedNodeIds || []).map(Number))
       }
       loadYulu()
     } else {
