@@ -15,9 +15,10 @@ import (
 // ===== 雨落成诗（WeatherBottleUI）活动 =====
 // 活动根 2026070300，子组 2026070301~305（payload 玩法说明已抓包确认）。
 // 实现原则（2026-08-25 拍板）：能做的真接，做不了的占位。
-//   - 能做的：顶部 7 瓶(5001~5007)状态读背包实时；5002/5007/5008 开箱/召唤走 ItemService.Use；
-//     5003 闪电变异的"可变异地块筛选"函数（字段已 100% 定死）。
-//   - 框架可抄鹊桥、开服填空：5001/5004/5005/5006 好友向 Use（item id 已知，Use 编码/目标地块开服确认）。
+//   - 已实装：顶部 7 瓶(5001~5007)状态读背包实时；5002/5007/5008 开箱/召唤走 ItemService.Use；
+//     5003 闪电变异的"可变异地块筛选"函数（字段已 100% 定死）；
+//     5001 采集（Operate 2026070303 cmd=9）、5004 引雷/5005 青蛙/5006 乌云（好友向 Use，目标编码已定）；
+//     气象研究档位（GetGroup 根节点解析真实进度）、换瓶商店（Operate 2026070301 cmd=1）。
 //   - 占位（待开服抓包）：雷电徽章 id、气象研究档位 RPC、claim cmd、5009/5010 可售性。
 
 const (
@@ -390,8 +391,9 @@ func handleYuluMutate(w http.ResponseWriter, r *http.Request) {
 
 // ===== 使用（好友向 / 自家召唤）：POST /api/activity/yulu/use =====
 // 5002 雷雨召唤瓶：自家，plain Use（无 land，host_gid=0）。
-// 5001/5004/5005/5006：好友向，Enter 好友 + AllLands + 逐地块 Use{ item{id,1,uid}, target{host_gid, land_id} }。
-// 框架照搬鹊桥灵露喷洒；item id 已知，Use 编码/目标地块/是否校验雷雨态 待开服一锤。
+// 5005 青蛙使坏瓶：农场级事件，target 只带 host_gid（无 land_ids），整农场触发一次。
+// 5001/5004/5006：好友向，Enter 好友 + AllLands + Use{ item{id,count,uid}, target{host_gid, land_ids} }；
+//   5001 采集走 Operate（雷雨好友才可收集，服务端校验）；5006 乌云目标限生长中地块。
 func handleYuluUse(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AccountID string  `json:"accountId"`
@@ -484,6 +486,36 @@ func handleYuluUse(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// 青蛙使坏瓶(5005)：农场级事件，target 只带 host_gid（不带 land_ids），整农场触发一次。
+	if req.ItemID == yuluItemFrog {
+		var uid int64
+		if brep, e := c.Request(ctx, "gamepb.itempb.ItemService", "Bag", proto.EncodeBagRequest(), 12*time.Second); e == nil {
+			for _, it := range proto.DecodeBagReply(brep.Body).Items {
+				if it.ID == req.ItemID && it.UID > 0 {
+					uid = it.UID
+					break
+				}
+			}
+		}
+		item := proto.NewBuilder()
+		item.FieldInt64Always(1, req.ItemID)
+		item.FieldInt64Always(2, 1)
+		if uid > 0 {
+			item.FieldInt64(6, uid)
+		}
+		target := proto.NewBuilder()
+		target.FieldInt64Always(1, req.HostGID)
+		ub := proto.NewBuilder()
+		ub.FieldMessage(1, item.Bytes())
+		ub.FieldMessage(2, target.Bytes())
+		if _, e2 := c.Request(ctx, "gamepb.itempb.ItemService", "Use", ub.Bytes(), 12*time.Second); e2 != nil {
+			writeJSONMap(w, "ok", false, "error", "使用失败: "+e2.Error())
+			return
+		}
+		writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "itemId": req.ItemID,
+			"data": map[string]interface{}{"used": []int64{req.HostGID}, "useCount": 1}})
+		return
+	}
 	rep, err := c.Request(ctx, plantService, "AllLands", proto.EncodeAllLandsRequest(req.HostGID), 15*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", "GRPC:"+err.Error())
@@ -495,15 +527,36 @@ func handleYuluUse(w http.ResponseWriter, r *http.Request) {
 		want[id] = true
 	}
 	var selected []int64
-	for _, l := range lands {
-		hasCrop := l.Plant != nil && len(l.Plant.Phases) > 0
-		if !hasCrop {
-			continue
+	if req.ItemID == yuluItemCloud {
+		// 乌云使坏瓶(5006)：目标地块必须是生长中的作物（phase 在种子与成熟之间），每好友 1 块
+		for _, l := range lands {
+			if len(want) > 0 && !want[l.ID] {
+				continue
+			}
+			if l.Plant == nil || len(l.Plant.Phases) == 0 {
+				continue
+			}
+			ph := currentPhase(l.Plant.Phases, time.Now().Unix())
+			if ph == nil || ph.Phase <= proto.PhaseSeed || ph.Phase >= proto.PhaseMature {
+				continue
+			}
+			selected = append(selected, l.ID)
+			if len(selected) >= 1 {
+				break
+			}
 		}
-		if len(want) > 0 && !want[l.ID] {
-			continue
+	} else {
+		// 引雷瓶(5004)：有作物的地块即可，逐地块使用
+		for _, l := range lands {
+			hasCrop := l.Plant != nil && len(l.Plant.Phases) > 0
+			if !hasCrop {
+				continue
+			}
+			if len(want) > 0 && !want[l.ID] {
+				continue
+			}
+			selected = append(selected, l.ID)
 		}
-		selected = append(selected, l.ID)
 	}
 	if len(selected) == 0 {
 		writeJSON(w, map[string]interface{}{"ok": true, "account": accountID,

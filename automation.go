@@ -1079,22 +1079,34 @@ type seedErr struct{ msg string }
 func (e *seedErr) Error() string { return e.msg }
 
 // pickSeedForPlanting 按策略选种，返回 seedID / goodsID / price
-func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfig, strategy string, needCount int) (int64, int64, int64, error) {
-	// bag_priority：先消耗背包种子
-	if strategy == "bag_priority" {
-		if seedID, ok := pickBagSeed(accountID, c, cfg); ok {
-			return seedID, 0, 0, nil
-		}
-		strategy = cfg.BagSeedFallbackStrategy
-		if strategy == "" {
-			strategy = "level"
-		}
+// pickBagSeedByID 查背包指定种子是否有货（1x1），供"优先种植指定种子"策略使用。
+func pickBagSeedByID(accountID string, c *gw.Client, seedID int64) (int64, bool) {
+	rep, err := c.Request(context.Background(), "gamepb.itempb.ItemService", "Bag",
+		proto.EncodeBagRequest(), 12*time.Second)
+	if err != nil {
+		return 0, false
 	}
+	for _, it := range proto.DecodeBagReply(rep.Body).Items {
+		if it.ID != seedID || it.Count <= 0 || !isSeedItemID(it.ID) {
+			continue
+		}
+		pe, ok := seedToPlantMap[int(it.ID)]
+		if !ok || pe.Size != 1 {
+			continue
+		}
+		return it.ID, true
+	}
+	return 0, false
+}
 
+// findSeedCandidates 按策略从种子商店构建排序后的候选序列。
+// 候选序列语义：按策略优先级降序排列，调用方逐个尝试——某个候选不可买/种失败时
+// 继续尝试下一个，保证最终种上"当前策略下最合适的可买种子"。
+func findSeedCandidates(c *gw.Client, cfg config.AccountConfig, strategy string) ([]seedCand, error) {
 	shop, err := c.Request(context.Background(), "gamepb.shoppb.ShopService", "ShopInfo",
 		proto.EncodeShopInfoRequest(2), 15*time.Second)
 	if err != nil {
-		return 0, 0, 0, err
+		return nil, err
 	}
 	level := c.Level()
 	var cands []seedCand
@@ -1123,64 +1135,89 @@ func pickSeedForPlanting(accountID string, c *gw.Client, cfg config.AccountConfi
 		candMap[g.ItemID] = cc
 	}
 	if len(cands) == 0 {
-		return 0, 0, 0, errNoSeed
+		return nil, errNoSeed
 	}
 
 	switch strategy {
+	case "max_exp", "max_fert_exp", "max_profit", "max_fert_profit":
+		sortSeedCandsByRanking(cands, candMap, strategy, level)
 	case "preferred":
+		sortSeedCandsByLevel(cands)
 		if cfg.PreferredSeedID > 0 {
-			if cc, ok := candMap[int64(cfg.PreferredSeedID)]; ok {
-				return cc.seedID, cc.goodsID, cc.price, nil
+			for i, cc := range cands {
+				if cc.seedID == int64(cfg.PreferredSeedID) {
+					cands = append(cands[:i], append([]seedCand{cc}, cands[i+1:]...)...)
+					break
+				}
 			}
 		}
-		return bestByLevel(cands)
-	case "level":
-		return bestByLevel(cands)
-	case "max_exp":
-		return bestByRanking(cands, candMap, "exp", int64(level))
-	case "max_fert_exp":
-		return bestByRanking(cands, candMap, "fert", int64(level))
-	case "max_profit":
-		return bestByRanking(cands, candMap, "profit", int64(level))
-	case "max_fert_profit":
-		return bestByRanking(cands, candMap, "fert_profit", int64(level))
-	default:
-		return bestByLevel(cands)
+	default: // "level" 及未知策略
+		sortSeedCandsByLevel(cands)
 	}
+	return cands, nil
 }
 
-// bestByLevel 取等级门槛最高的候选
-func bestByLevel(cands []seedCand) (int64, int64, int64, error) {
-	if len(cands) == 0 {
-		return 0, 0, 0, errNoSeed
-	}
-	best := cands[0]
-	for _, cc := range cands[1:] {
-		if cc.reqLvl > best.reqLvl {
-			best = cc
+// sortSeedCandsByLevel 按等级门槛降序、seedId 升序稳定排序（同等级选种结果确定）
+func sortSeedCandsByLevel(cands []seedCand) {
+	sort.SliceStable(cands, func(i, j int) bool {
+		if cands[i].reqLvl != cands[j].reqLvl {
+			return cands[i].reqLvl > cands[j].reqLvl
 		}
-	}
-	return best.seedID, best.goodsID, best.price, nil
+		return cands[i].seedID < cands[j].seedID
+	})
 }
 
-// bestByRanking 按 getPlantRankings 的排序策略选第一个等级达标的候选
-func bestByRanking(cands []seedCand, candMap map[int64]seedCand, sortBy string, userLevel int64) (int64, int64, int64, error) {
-	rankings := getPlantRankings(sortBy)
-	for _, r := range rankings {
+// sortSeedCandsByRanking 按植物排行（exp/h 等）对商店候选排序：
+// 排行越靠前越优先；不在排行中的候选按等级降序+seedId 升序兜底排最后。
+// 商店买不到的种子本就进不了候选，排行脱节不会导致乱选。
+func sortSeedCandsByRanking(cands []seedCand, candMap map[int64]seedCand, strategy string, userLevel int64) {
+	key := "exp"
+	switch strategy {
+	case "max_fert_exp":
+		key = "fert"
+	case "max_profit":
+		key = "profit"
+	case "max_fert_profit":
+		key = "fert_profit"
+	}
+	rank := map[int64]int{}
+	idx := 0
+	for _, r := range getPlantRankings(key) {
 		seedID, _ := r["seedId"].(float64)
 		lvl, _ := r["level"].(float64)
-		cc, ok := candMap[int64(seedID)]
-		if !ok {
+		if seedID <= 0 {
 			continue
 		}
-		// 等级门槛高于用户等级的候选跳过
-		if int64(lvl) > userLevel {
+		if _, ok := candMap[int64(seedID)]; !ok {
 			continue
 		}
-		return cc.seedID, cc.goodsID, cc.price, nil
+		// 排行等级高于用户等级的种子不进排行序（交给等级兜底排序）
+		if lvl > 0 && int64(lvl) > userLevel {
+			continue
+		}
+		if _, dup := rank[int64(seedID)]; !dup {
+			rank[int64(seedID)] = idx
+			idx++
+		}
 	}
-	// 排行榜全部未命中时回退到商店可买的最高等级种子（未命中候选仍在候选列表里，总能选出）
-	return bestByLevel(cands)
+	sort.SliceStable(cands, func(i, j int) bool {
+		ri, okI := rank[cands[i].seedID]
+		rj, okJ := rank[cands[j].seedID]
+		switch {
+		case okI && okJ:
+			if ri != rj {
+				return ri < rj
+			}
+		case okI:
+			return true
+		case okJ:
+			return false
+		}
+		if cands[i].reqLvl != cands[j].reqLvl {
+			return cands[i].reqLvl > cands[j].reqLvl
+		}
+		return cands[i].seedID < cands[j].seedID
+	})
 }
 
 // pickBagSeed 背包优先：返回背包中可用的种子（count>0 且 1x1）按 BagSeedPriority 排序
@@ -1405,26 +1442,63 @@ func plantBagSeedsForLands(accountID string, c *gw.Client, cfg config.AccountCon
 
 // plantFromShopLands 对给定主地列表按策略从商城选种购买并种植。
 // overrideStrategy 非空时覆盖账号策略（用于 bag_priority 第二优先补种）。
+// 优先种植指定种子时先消耗背包；其余按候选序列逐个尝试，候选买/种失败时继续下一个，直到剩余空地种完。
 func plantFromShopLands(accountID string, c *gw.Client, cfg config.AccountConfig, masters []int64, overrideStrategy string) {
-	for _, m := range masters {
-		seedID, goodsID, price, err := pickSeedForPlanting(accountID, c, cfg, overrideStrategy, 1)
-		if err != nil || seedID <= 0 {
-			appendOpLog(accountID, "farm", "种植跳过：无可用种子 ("+err.Error()+")")
-			continue
+	if len(masters) == 0 {
+		return
+	}
+	strategy := overrideStrategy
+	if strategy == "" {
+		strategy = cfg.PlantingStrategy
+		if strategy == "" {
+			strategy = "level"
 		}
+	}
+	remaining := map[int64]bool{}
+	for _, m := range masters {
+		remaining[m] = true
+	}
+	// 优先种植指定种子：背包里有就直接用（商店无货也能种），商店兜底
+	if strategy == "preferred" && cfg.PreferredSeedID > 0 {
+		if seedID, ok := pickBagSeedByID(accountID, c, int64(cfg.PreferredSeedID)); ok {
+			plantOneSeed(accountID, c, cfg, seedID, 0, 0, remaining)
+			if len(remaining) == 0 {
+				return
+			}
+		}
+	}
+	cands, err := findSeedCandidates(c, cfg, strategy)
+	if err != nil {
+		appendOpLog(accountID, "farm", "种植跳过：无可用种子 ("+err.Error()+")")
+		return
+	}
+	for _, cand := range cands {
+		if len(remaining) == 0 {
+			break
+		}
+		plantOneSeed(accountID, c, cfg, cand.seedID, cand.goodsID, cand.price, remaining)
+	}
+}
+
+// plantOneSeed 用指定种子在剩余主地上种植（逐块）。购买或种植失败即停，剩余地交给调用方换候选。
+func plantOneSeed(accountID string, c *gw.Client, cfg config.AccountConfig, seedID, goodsID, price int64, remaining map[int64]bool) {
+	for m := range remaining {
 		realSeed, err := ensureSeedOwned(c, seedID, goodsID, price, 1)
 		if err != nil || realSeed <= 0 {
+			// 购买失败（金币不足/限购/买不到）：停止该种子，换下一个候选
 			if errors.Is(err, errGoldShort) {
-				appendOpLog(accountID, "farm", fmt.Sprintf("金币不足，跳过购买种子 %d（单价 %d）", seedID, price))
+				appendOpLog(accountID, "farm", fmt.Sprintf("金币不足，跳过种子 %d（单价 %d）", seedID, price))
 			} else {
 				appendOpLog(accountID, "farm", fmt.Sprintf("购买种子 %d 失败: %v", seedID, err))
 			}
-			continue
+			return
 		}
 		if err := execFarmOp(c, "Plant", proto.EncodePlantRequest(realSeed, []int64{m})); err != nil {
+			// 种植失败：同种子对账号级限制大概率全失败，换下一个候选
 			appendOpLog(accountID, "farm", fmt.Sprintf("种植 %d 失败: %v", realSeed, err))
-			continue
+			return
 		}
+		delete(remaining, m)
 		recordOperation(accountID, "plant", 1)
 		appendOpLog(accountID, "farm", fmt.Sprintf("种植种子 %d → 1 块地", realSeed))
 		time.Sleep(plantDelay(cfg) + 200*time.Millisecond)
