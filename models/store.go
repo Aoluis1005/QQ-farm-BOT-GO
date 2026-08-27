@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +86,25 @@ func writeJSONFileAtomic(filePath string, data interface{}) error {
 	return os.Rename(tmpPath, filePath)
 }
 
+// clientVersionStale 判断持久化的 clientVersion 是否过时（日期后缀早于代码默认值）。
+// 游戏版本升级后部署者只需升级代码，过时的旧版本号自动回退默认值，无需手动改配置。
+func clientVersionStale(v string) bool {
+	return versionDate(config.DefaultSystemConfig().ClientVersion) > versionDate(v)
+}
+
+// versionDate 取 "版本_日期" 的日期数字（如 20260723）；无日期或解析失败返回 0
+func versionDate(v string) int64 {
+	i := strings.LastIndex(v, "_")
+	if i < 0 || i == len(v)-1 {
+		return 0
+	}
+	n, err := strconv.ParseInt(v[i+1:], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
 func storeFilePath() string {
 	return filepath.Join(dataDir, "store.json")
 }
@@ -108,7 +129,7 @@ func loadGlobalConfig() {
 	if cfg.UserDefaultAccountPlans == nil {
 		cfg.UserDefaultAccountPlans = make(map[string]config.AccountConfig)
 	}
-	if cfg.SystemConfig.ClientVersion == "" {
+	if cfg.SystemConfig.ClientVersion == "" || clientVersionStale(cfg.SystemConfig.ClientVersion) {
 		cfg.SystemConfig = config.DefaultSystemConfig()
 	}
 	if cfg.CaptureConfig.APIBase == "" {
