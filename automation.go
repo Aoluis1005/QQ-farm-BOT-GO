@@ -418,7 +418,8 @@ func inQuietHours(cfg config.AccountConfig) bool {
 	if !qh.Enabled || qh.Start == "" || qh.End == "" {
 		return false
 	}
-	now := time.Now()
+	// 统一按北京时间判断（与离线通知、日报调度一致），避免服务器时区不是东八区时静默时段整体偏移
+	now := time.Now().In(time.FixedZone("CST", 8*3600))
 	startMin := parseTimeToMinutes(qh.Start)
 	endMin := parseTimeToMinutes(qh.End)
 	if startMin < 0 || endMin < 0 {
