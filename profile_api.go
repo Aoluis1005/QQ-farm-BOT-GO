@@ -885,12 +885,18 @@ func classifyBagCategory(id int64) (category, name string) {
 	if isFruitItemID(id) {
 		n := fruitPlantName(id)
 		if n == "" {
+			n = itemDisplayName(id) // 官方 ItemInfo.json / extraItemNames 注入名
+		}
+		if n == "" {
 			n = "果实" + itoa(id)
 		}
 		return "fruit", n
 	}
 	if isSeedItemID(id) {
 		n := seedPlantName(id)
+		if n == "" {
+			n = itemDisplayName(id) // 官方 ItemInfo.json / extraItemNames 注入名（如 20883=小红花种子）
+		}
 		if n == "" {
 			n = "种子" + itoa(id)
 		}
@@ -904,6 +910,9 @@ func classifyBagCategory(id int64) (category, name string) {
 		return "fertilizer", n
 	}
 	n := yuluItemNameOf(id)
+	if n == "" {
+		n = itemDisplayName(id) // 官方 ItemInfo.json / extraItemNames 注入名（如 1040=爱心值）
+	}
 	if n == "" {
 		n = "物品" + itoa(id)
 	}

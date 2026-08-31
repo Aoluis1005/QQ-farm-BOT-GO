@@ -476,7 +476,7 @@ function honghuaTick() {
 }
 const honghua = reactive({
   seeds: null, fruits: null, love: null, fund: null,
-  serverFund: null, claimed: false, note: '', err: '',
+  serverFund: null, serverGoal: null, serverPercent: 0, claimed: false, note: '', err: '',
   tiers: [
     { i: 1, rw: [{ t: '🧪 有机化肥（8小时）×1' }] },
     { i: 2, rw: [{ t: '🪙 点券 ×50' }] },
@@ -486,8 +486,15 @@ const honghua = reactive({
   ],
 })
 // 占位：后端 /api/activity/honghua 未实现，成功后回填；失败仅记 note 不弹错
-async function loadHonghua() {
-  const a = acc(); if (!a) return
+async function loadHonghua(retries = 3) {
+  const a = acc()
+  if (!a) {
+    // 页面刷新后账号列表异步加载（loadAccounts）与本面板加载存在竞态：
+    // 直接 return 会让页面永久停在「加载中…」。等账号就绪后重试。
+    if (retries > 0) { setTimeout(() => loadHonghua(retries - 1), 1500); return }
+    honghua.note = '请先在左上角选择账号'
+    return
+  }
   honghua.err = ''; honghua.note = ''
   try {
     const { data } = await api.get('/api/activity/honghua', { params: { accountId: a.gid } })
@@ -495,12 +502,79 @@ async function loadHonghua() {
       const d = data.data
       honghua.seeds = d.seeds; honghua.fruits = d.fruits
       honghua.love = d.love; honghua.fund = d.fund
-      if (d.tiers && d.tiers.length) honghua.tiers = d.tiers
-      honghua.serverFund = d.serverFund; honghua.claimed = !!d.claimed
-    } else honghua.note = (data && data.error) || ''
-  } catch (e) { honghua.note = '后端接口待实现（9/1 开服后上线）' }
+      honghua.serverFund = d.serverFund; honghua.serverGoal = d.serverGoal
+      honghua.serverPercent = d.serverPercent || 0
+      // 成功数据本地兜底：接口偶发失败时也显示上次成功值，绝不回退 0/0/加载中
+      try { localStorage.setItem('hh_prog', JSON.stringify({ fund: d.serverFund, goal: d.serverGoal, pct: d.serverPercent || 0 })) } catch (e) {}
+      // 合并后端档位实时数据（阈值/已捐/可领），保留本地奖励文案
+      if (Array.isArray(d.tiers) && d.tiers.length) {
+        d.tiers.forEach((t, idx) => {
+          const local = honghua.tiers[idx]
+          if (local) {
+            local.threshold = t.threshold
+            local.donated = t.donated
+            local.claimable = t.claimable
+          }
+        })
+      }
+      honghua.claimed = !!d.claimed
+    } else {
+      honghua.note = (data && data.error) || ''
+      // 接口异常：用本地兜底数据，不显示 0/0/加载中
+      try {
+        const c = JSON.parse(localStorage.getItem('hh_prog') || 'null')
+        if (c && c.goal) { honghua.serverFund = c.fund; honghua.serverGoal = c.goal; honghua.serverPercent = c.pct; honghua.note = (honghua.note ? honghua.note + '（显示上次数据）' : '全服进度暂不可用（显示上次数据）') }
+      } catch (e) {}
+      if (retries > 0) { setTimeout(() => loadHonghua(retries - 1), 2500) }
+    }
+  } catch (e) {
+    // 接口异常/部署窗口期：自动重试，避免页面永久停留在 0/0
+    try {
+      const c = JSON.parse(localStorage.getItem('hh_prog') || 'null')
+      if (c && c.goal) { honghua.serverFund = c.fund; honghua.serverGoal = c.goal; honghua.serverPercent = c.pct; honghua.note = '全服进度暂不可用（显示上次数据）' }
+    } catch (e2) {}
+    if (retries > 0) {
+      if (!honghua.note) honghua.note = '全服数据加载失败，正在重试…'
+      setTimeout(() => loadHonghua(retries - 1), 2500)
+    } else if (!honghua.note) {
+      honghua.note = '后端接口异常，请点击「刷新活动」重试'
+    }
+  }
 }
-function honghuaTodo() { app.info('活动 9月1日 开启后接入真实协议') }
+// 真实接口：送出爱心值 / 送出公益金 / 领取奖励（daily·tier·settle）
+// 成功/失败都必须弹窗（app.success / app.error），不能静默。
+async function honghuaDo(kind, payload) {
+  const a = acc(); if (!a) { app.error('请先在左上角选择账号'); return }
+  honghua.note = ''
+  try {
+    const { data } = await api.post('/api/activity/honghua/' + kind, null, { params: Object.assign({ accountId: a.gid }, payload || {}) })
+    if (data && data.ok) {
+      app.success(honghuaOkMsg(data, kind))
+      await loadHonghua()
+    } else {
+      const msg = (data && (data.error || data.msg)) || '操作失败'
+      honghua.note = msg
+      app.error(msg)
+    }
+  } catch (e) {
+    const msg = (e && e.response && e.response.data && e.response.data.error) ? e.response.data.error : (e && e.message ? e.message : '请求失败')
+    honghua.note = msg
+    app.error('请求失败：' + msg)
+  }
+}
+// honghuaOkMsg 成功提示文案：送出公益金会随订单到账「公益礼包」（化肥(1小时)×2），
+// 该礼包不是独立领取项，故在成功提示里直接把奖励说清楚。
+function honghuaOkMsg(data, kind) {
+  if (data && data.msg) return data.msg
+  const g = data && data.data && data.data.gift
+  if (kind === 'fund' && g) return '已送出公益金，获得公益礼包：' + (g.itemName || '') + '×' + (g.count || 0)
+  if (kind === 'fund') return '已送出公益金'
+  if (kind === 'love') return '已送出爱心值'
+  return '领取成功'
+}
+function honghuaLove() { honghuaDo('love') }
+function honghuaFund() { honghuaDo('fund') }
+function honghuaClaim(kind, tier) { honghuaDo('claim', Object.assign({ kind }, tier ? { tier } : {})) }
 
 const curPanel = computed(() => panels.value[panelIdx.value] || null)
 
@@ -601,11 +675,12 @@ async function loadGroup(group) {
     loading.value = false
     return
   }
-  // 公益小红花：占位面板（后端待 9/1 开服实现）
+  // 公益小红花：占位面板
   if (String(group.id || '').indexOf('20260909') === 0 || (group.title || '').indexOf('小红花') >= 0 || (group.title || '').indexOf('公益') >= 0) {
     panels.value = [{ key: 'honghua', title: '公益小红花', icon: '🌸' }]
     panelIdx.value = 0
     loading.value = false
+    await renderPanel(panels.value[0]) // 必须触发 loadHonghua，否则全服进度/爱心值永远不加载
     return
   }
   try {
@@ -789,9 +864,9 @@ function fmtDay(s) {
 }
 
 // 切号事件：用新账号重拉活动列表与鹊桥/雨落面板（热切换）
-const onSwitched = () => { loadActivity(); loadQiXi(); loadYulu() }
+const onSwitched = () => { loadActivity(); loadQiXi(); loadYulu(); loadHonghua() }
 let yuluDayTimer = null
-onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); honghuaTick(); honghuaCdTimer = setInterval(honghuaTick, 1000); yuluDayTimer = setInterval(() => { yulu.dayTick = Date.now() }, 60000); window.addEventListener('account-switched', onSwitched) })
+onMounted(() => { loadActivity(); loadQiXi(); loadYulu(); loadHonghua(); qixiTick(); qixiCdTimer = setInterval(qixiTick, 1000); yuluTick(); yuluCdTimer = setInterval(yuluTick, 1000); honghuaTick(); honghuaCdTimer = setInterval(honghuaTick, 1000); yuluDayTimer = setInterval(() => { yulu.dayTick = Date.now() }, 60000); window.addEventListener('account-switched', onSwitched) })
 onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer = null }; if (yuluCdTimer) { clearInterval(yuluCdTimer); yuluCdTimer = null }; if (honghuaCdTimer) { clearInterval(honghuaCdTimer); honghuaCdTimer = null }; if (yuluDayTimer) { clearInterval(yuluDayTimer); yuluDayTimer = null }; window.removeEventListener('account-switched', onSwitched) })
 </script>
 
@@ -1270,7 +1345,8 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
         </div>
         <div class="bar"><i style="width:0%"></i></div>
         <div class="muted" style="margin-bottom:10px">累计爱心值达到档位即可解锁领取奖励</div>
-        <button class="btn gold" @click="honghuaTodo">💛 送出公益金 · 1元助力</button>
+        <button class="btn primary" @click="honghuaLove">💖 送出爱心值</button>
+        <button class="btn gold" @click="honghuaFund">💛 送出公益金 · 1元助力</button>
         <div class="note">单用户活动期仅可获得 1 次公益金资格；不支持提现、兑换、转让、售卖；全服公益金拨付总额上限 200 万元。</div>
       </div>
 
@@ -1282,8 +1358,8 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
           <div class="hh-tier-hd">🎁 公益礼包 <span class="pill">每日限领 1 次</span></div>
           <div class="hh-tier-rw"><span class="hh-rw">🧪 化肥（1小时）×2</span></div>
           <div class="row" style="margin-top:9px">
-            <span class="muted">每日收获小红花后可领取</span>
-            <button class="btn primary small" @click="honghuaTodo">领取</button>
+            <span class="muted">收获小红花后，送出公益金即得</span>
+            <button class="btn primary small" @click="honghuaFund">领取</button>
           </div>
         </div>
       </div>
@@ -1297,8 +1373,8 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
             <span class="hh-rw" v-for="(r, ri) in t.rw" :key="ri">{{ r.t }}<template v-if="r.n > 1"> ×{{ r.n }}</template></span>
           </div>
           <div class="row" style="margin-top:8px">
-            <span class="muted">爱心值达标</span>
-            <button class="btn small" :class="t.i === 5 ? 'primary' : 'ghost'" @click="honghuaTodo">领取</button>
+            <span class="muted">已捐赠 {{ t.donated ?? 0 }}/{{ t.threshold ?? (t.i * 30) }}</span>
+            <button class="btn small" :class="t.i === 5 ? 'primary' : 'ghost'" @click="honghuaClaim('tier', t.threshold || (t.i * 30))">领取</button>
           </div>
         </div>
       </div>
@@ -1307,8 +1383,8 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
       <div class="card">
         <div class="ttl"><span class="dot"></span>全服公益目标</div>
         <div class="banner">全服玩家共同达成公益目标后，满足参与条件的玩家即可领取<b>全服公益结算礼包</b>（单角色限领 1 次）。</div>
-        <div class="bar" style="margin-top:12px"><i style="width:0%"></i></div>
-        <div class="muted" style="margin:0 0 10px">全服进度 · 待开服统计</div>
+        <div class="bar" style="margin-top:12px"><i :style="{ width: Math.min(honghua.serverPercent || 0, 100) + '%' }"></i></div>
+        <div class="muted" style="margin:0 0 10px">全服进度 · {{ honghua.serverGoal ? fmtBig(honghua.serverFund ?? 0) + '/' + fmtBig(honghua.serverGoal) : '--' }}（{{ (honghua.serverPercent || 0).toFixed(2) }}%）{{ honghua.note ? ' · ' + honghua.note : '' }}</div>
         <div class="hh-tier" style="margin-top:0">
           <div class="hh-tier-hd">🎁 全服公益结算礼包</div>
           <div class="hh-tier-rw">
@@ -1318,7 +1394,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
           </div>
           <div class="row" style="margin-top:9px">
             <span class="muted">全服目标达成后开放</span>
-            <button class="btn gold small" @click="honghuaTodo">领取</button>
+            <button class="btn gold small" @click="honghuaClaim('settle')">领取</button>
           </div>
         </div>
       </div>
@@ -1334,7 +1410,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
           <li>奖励分<b>公益礼包</b>、<b>个人爱心值档位</b>、<b>全服公益结算礼包</b>三类。</li>
         </ol>
         <div class="muted" style="margin-top:8px;font-size:11.5px" v-if="honghua.note">{{ honghua.note }}</div>
-        <div class="muted" style="margin-top:8px;font-size:11.5px">占位面板 · 后端接口待 9/1 开服实现，届时接入真实数据。</div>
+        <div class="muted" style="margin-top:8px;font-size:11.5px">已接入后端真实协议：送出爱心值/送出公益金为抓包确认 cmd；领取 cmd 为推断值，若报 "cmd 错误" 请在调试面板用 ?cmd= 覆盖试真实值。</div>
       </details>
     </div>
 

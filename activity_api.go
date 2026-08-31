@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -44,6 +45,7 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/qingmei/wine", handleQingmeiWine)
 	// TODO: 临时鹊桥 cmd 探测接口，探测完成后删除
 	api.HandleFunc("/api/debug/act_operate", handleDebugActOperate)
+	api.HandleFunc("/api/debug/act_group_raw", handleDebugActGroupRaw)
 	api.HandleFunc("/api/debug/plant_rpc", handleDebugPlantRPC)
 	api.HandleFunc("/api/debug/bag_dump", handleDebugBagDump)
 	api.HandleFunc("/api/activity/qixi", handleQiXiStatus)
@@ -59,6 +61,12 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/yulu/research", handleYuluResearch)  // 气象研究领奖
 	api.HandleFunc("/api/activity/yulu/exchange", handleYuluExchange)  // 兑换收集天气瓶（金豆→5001，每日1个）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
+
+	// 公益小红花（CharityRedFlower）：送出爱心值/送出公益金（cmd 已抓包确认）+ 领取奖励（cmd 推断，?cmd 覆盖）
+	api.HandleFunc("/api/activity/honghua", handleHonghuaStatus)
+	api.HandleFunc("/api/activity/honghua/love", handleHonghuaLove)   // 送出爱心值 cmd=36
+	api.HandleFunc("/api/activity/honghua/fund", handleHonghuaFund)   // 送出公益金 cmd=38（单账号仅1次+真实1元）
+	api.HandleFunc("/api/activity/honghua/claim", handleHonghuaClaim) // 领取奖励（daily/tier/settle，cmd 推断）
 }
 
 // ----- List：活动列表 + 时间过滤 -----
@@ -1090,9 +1098,34 @@ func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
 		}
 		b.FieldMessage(sf, sub.Bytes())
 	}
+	// 可选：f3_group=1 时先用 GetGroup(id) 取原始回包作为 field3 配置回显（真实客户端每次 Operate 都带活动配置块）
+	if r.URL.Query().Get("f3_group") == "1" {
+		gb := proto.NewBuilder()
+		gb.FieldInt64(1, id)
+		gb.FieldString(2, "")
+		gctx, gcancel := context.WithTimeout(r.Context(), 25*time.Second)
+		gbody, gerr := rpcRequest(gctx, accountID, actSvc, "GetGroup", gb.Bytes(), 25*time.Second)
+		gcancel()
+		if gerr == nil && len(gbody) > 0 {
+			b.FieldBytes(3, gbody)
+		}
+	}
+	// 可选：f3=<base64> 直接用抓包真实配置块当 field3（验证真实客户端请求结构用）
+	if s := r.URL.Query().Get("f3"); s != "" {
+		if dec, e := base64.StdEncoding.DecodeString(s); e == nil && len(dec) > 0 {
+			b.FieldBytes(3, dec)
+		}
+	}
+	// 可选：raw=<base64> 直接把抓包真实 Operate body 原样发送（绕过 id/cmd 构建，验证真实客户端请求结构用）
+	rawBody := b.Bytes()
+	if s := r.URL.Query().Get("raw"); s != "" {
+		if dec, e := base64.StdEncoding.DecodeString(s); e == nil && len(dec) > 0 {
+			rawBody = dec
+		}
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	body, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 20*time.Second)
+	body, err := rpcRequest(ctx, accountID, actSvc, "Operate", rawBody, 20*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err), "id", id, "cmd", cmd)
 		return
@@ -1113,6 +1146,27 @@ func handleDebugActOperate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "cmd": cmd, "hex": fmt.Sprintf("%X", body), "fields": fields})
+}
+
+// GET /api/debug/act_group_raw?id=2026090901
+// 返回 GetGroup 原始回包全字段树（dbgDumpNode），用于定位领取子节点 id 与操作 cmd。
+func handleDebugActGroupRaw(w http.ResponseWriter, r *http.Request) {
+	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
+	id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+	if id <= 0 {
+		writeError(w, 400, "missing/invalid id")
+		return
+	}
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	body, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 20*time.Second)
+	if err != nil {
+		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
+		return
+	}
+	writeJSON(w, map[string]interface{}{"ok": true, "account": accountID, "id": id, "tree": dbgDumpNode(body, 0, 5)})
 }
 
 func dbgPrintable(b []byte) bool {

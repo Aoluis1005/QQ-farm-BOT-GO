@@ -63,6 +63,14 @@ var (
 	mutantEffectMap = map[int]mutantEffectEntry{} // mutant id -> 效果
 )
 
+// extraItemNames 官方 ItemInfo.json 未收录的物品（新活动临时道具，配置未同步），
+// 手动登记名称——缺了它们背包里只会显示一串 id，无法辨认。
+// 图片素材暂缺，前端按无图处理；等官方补进 ItemInfo.json 后本表可安全移除（JSON 优先，见 loadItemInfoJSON）。
+var extraItemNames = map[int]string{
+	20883: "小红花种子", // 公益小红花：完成每日任务/每日分享获得，种下后结小红花果实
+	1040:  "爱心值",     // 公益小红花：收获小红花果实获得；捐赠后从背包扣除（抓包 ItemNotify 1040 -7 实锤）
+}
+
 // initGameConfig 从 gameConfigDir 加载 Plant.json / ItemInfo.json。
 // 成功加载后调用方可用 IsFruitItemID / IsSeedItemID / itemName 做精确分类。
 func initGameConfig(gameConfigDir string) {
@@ -157,6 +165,12 @@ func loadItemInfoJSON(path string) {
 		}
 		if it.Type == 5 {
 			seedItemSet[it.ID] = true
+		}
+	}
+	// 补登记官方配置缺失的活动物品（JSON 优先，已存在的不会被覆盖）
+	for id, name := range extraItemNames {
+		if _, ok := itemInfoMap[id]; !ok {
+			itemInfoMap[id] = itemInfoEntry{ID: id, Name: name}
 		}
 	}
 }
