@@ -127,6 +127,9 @@ func honghuaF3ForCmd(cmd int64) []byte {
 	case honghuaFundCmd:
 		s = honghuaF3FundB64
 	}
+	if s == "" {
+		return nil // 无真实数据时省略 field3，避免发送空配置块
+	}
 	if dec, e := base64.StdEncoding.DecodeString(s); e == nil {
 		return dec
 	}
