@@ -48,7 +48,7 @@ type itemInfoEntry struct {
 	Level           int     `json:"level"`
 	PriceID         int     `json:"price_id"`
 	InteractionType string  `json:"interaction_type"`
-	EffectDesc      string  `json:"effect_desc"` // 
+	EffectDesc      string  `json:"effect_desc"` //
 	Layer           int     `json:"layer"`       // 果实层级（图鉴 getFruitLayerByFruitId 用）
 	AssetName       string  `json:"asset_name"`  // 图鉴/物品图片映射用
 }
@@ -68,7 +68,7 @@ var (
 // 图片素材暂缺，前端按无图处理；等官方补进 ItemInfo.json 后本表可安全移除（JSON 优先，见 loadItemInfoJSON）。
 var extraItemNames = map[int]string{
 	20883: "小红花种子", // 公益小红花：完成每日任务/每日分享获得，种下后结小红花果实
-	1040:  "爱心值",     // 公益小红花：收获小红花果实获得；捐赠后从背包扣除（抓包 ItemNotify 1040 -7 实锤）
+	1040:  "爱心值",   // 公益小红花：收获小红花果实获得；捐赠后从背包扣除（抓包 ItemNotify 1040 -7 实锤）
 }
 
 // initGameConfig 从 gameConfigDir 加载 Plant.json / ItemInfo.json。
@@ -308,6 +308,21 @@ type MutantEffect struct {
 	Tag        string `json:"tag"`
 }
 
+// mutantIconShort 把 MutantEffect.icon 统一成短名:
+// CDN 完整路径 "gui/texture/mutant/icon/frozen/spriteFrame" → "frozen";
+// 已是短名(如 "frozen")或无 "/" 的原样返回。
+// 前端按 /game-config/seed_images_named/mutant/{icon}.png 拼图, 必须用短名。
+func mutantIconShort(icon string) string {
+	if icon == "" || !strings.Contains(icon, "/") {
+		return icon
+	}
+	parts := strings.Split(strings.Trim(icon, "/"), "/")
+	if len(parts) >= 2 {
+		return parts[len(parts)-2]
+	}
+	return icon
+}
+
 func getMutantEffectsByIDs(ids []int64) []MutantEffect {
 	out := []MutantEffect{}
 	for _, id := range ids {
@@ -315,7 +330,7 @@ func getMutantEffectsByIDs(ids []int64) []MutantEffect {
 		if !ok {
 			continue
 		}
-		out = append(out, MutantEffect{ID: it.ID, Name: it.Name, EffectName: it.EffectName, Icon: it.Icon, Tag: it.Tag})
+		out = append(out, MutantEffect{ID: it.ID, Name: it.Name, EffectName: it.EffectName, Icon: mutantIconShort(it.Icon), Tag: it.Tag})
 	}
 	return out
 }
