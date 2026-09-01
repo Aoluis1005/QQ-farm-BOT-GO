@@ -99,6 +99,28 @@ func honghuaItemName(id int64) string {
 	return itemDisplayName(id)
 }
 
+// honghuaSeedID / honghuaFruitID 小红花种子/果实物品 id（CDN ItemInfo 实锤：20883 种子 / 40883 果实）。
+const (
+	honghuaSeedID  = 20883
+	honghuaFruitID = 40883
+)
+
+// honghuaSeedName 小红花种子展示名（从同步的 ItemInfo 动态读取, 无则兜底）。
+func honghuaSeedName() string {
+	if n := itemDisplayName(honghuaSeedID); n != "" {
+		return n
+	}
+	return "小红花种子"
+}
+
+// honghuaFruitName 小红花果实展示名。
+func honghuaFruitName() string {
+	if n := itemDisplayName(honghuaFruitID); n != "" {
+		return n
+	}
+	return "小红花"
+}
+
 // ===== 公益金已捐防重（单账号活动期仅 1 次资格）=====
 // 服务端已捐状态未知（group 字段未确认），用内存记录「今日已捐」做 best-effort 防重；
 // 重启丢失可接受（与 qingmei 领种子标记一致）。真实 1 元扣款，重复捐会真扣钱，必须拦。
@@ -220,8 +242,8 @@ func handleHonghuaStatus(w http.ResponseWriter, r *http.Request) {
 			"uid":          "CharityRedFlower",
 			"startTime":    1788192000, // 2026-09-01 00:00 北京时间
 			"endTime":      1788969599, // 2026-09-09 23:59:59 北京时间
-			"seeds":        nil, // best-effort：小红花种子（暂无游戏内物品源，前端显示 —）
-			"fruits":       nil, // best-effort：小红花果实
+			"seeds":        honghuaSeedName(), // 小红花种子（CDN ItemInfo 20883，同步后动态读取）
+			"fruits":       honghuaFruitName(), // 小红花果实（CDN ItemInfo 40883，同步后动态读取）
 			"love":         donated, // 累计已捐赠爱心值（领取档位奖励不会减少）
 			"serverFund":   serverTotal,
 			"serverGoal":   serverGoal,
