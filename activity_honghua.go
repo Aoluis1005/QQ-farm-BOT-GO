@@ -29,21 +29,19 @@ const (
 	honghuaLoveCmd = 36 // 送出爱心值（抓包实锤 2026-08-31）
 	honghuaFundCmd = 38 // 送出公益金（抓包实锤 2026-08-31，单账号仅 1 次资格 + 真实 1 元）
 
-	// ===== 领取奖励 cmd（【推断】2026-08-31，抓包未抓到，线上用 ?cmd 覆盖试）=====
-	// 捐赠已确认 36/38，领取按同活动 cmd 邻接规律推断：
-	//   37 = 领取公益礼包（每日，收获小红花后领，化肥1h×2）
-	//   39 = 领取个人爱心值档位奖励（30/60/90/120/150，参数待确认）
-	//   40 = 领取全服公益结算礼包（化肥包×20/金豆豆×200/点券×300）
-	// 2026-09-01 线上逐 cmd 实测实锤（扫 cmd 30~45，仅以下 4 个 cmd 有效，其余一律「活动参数错误」）：
-	//   cmd=35 领分享奖励  → 「当日分享奖励不可领取」
-	//   cmd=36 送爱心值    → 「爱心不足，收获小红花果实可获得哦~」
-	//   cmd=38 送公益金    → 「当日未收获小红花，无法送出公益金」
-	//   cmd=39 领爱心值档位奖励 → 成功（回包 f139 空块）
-	honghuaClaimShareCmd = 35 // 领取分享奖励（实测有效）
-	honghuaClaimTierCmd  = 39 // 领取个人爱心值档位奖励（实测有效，30/60/90/120/150 五档）
-	// 以下两个 cmd 在 30~45 区间内实测无效（均返回「活动参数错误」），保留为待确认：
+	// ===== 领取奖励 cmd =====
+	// 捐赠/种子操作 2026-08-31 抓包实锤；档位领取 cmd 2026-09-02 线上带参实测实锤：
+	//   cmd=35 领小红花种子    → 空参（f134）
+	//   cmd=36 送爱心值        → 空参（f135）
+	//   cmd=37 领爱心值档位奖励 → 扩展 f136={f1=阈值}（30/60/90/120/150 五档，必带阈值否则「活动参数错误」）
+	//   cmd=38 送出公益金      → 空参（f137，回包即公益礼包到账）
+	// 验证记录（2026-09-02 线上对照）：cmd=37 领未达标档返回「个人捐赠进度未达标」、
+	// 领已领取档静默无奖励；cmd=39 领档位仅静默空回包（查询类，非领取），此前误判为有效。
+	honghuaClaimShareCmd = 35 // 领取小红花种子（实测有效）
+	honghuaClaimTierCmd  = 37 // 领取个人爱心值档位奖励（实测有效，30/60/90/120/150 五档）
+	// 以下 cmd 线上实测为无效操作（返回「活动参数错误」），保留待确认：
 	// 每日公益礼包 / 全服结算礼包 的操作可能尚未开放，或 cmd 不在该区间。
-	honghuaClaimDailyCmd  = 37
+	honghuaClaimDailyCmd  = 40
 	honghuaClaimSettleCmd = 40
 
 	// honghuaExtBase 扩展参数字段号基准（2026-09-01 实测实锤）：
@@ -160,7 +158,9 @@ func honghuaF3ForCmd(cmd int64) []byte {
 
 // honghuaOperate 组装公益小红花 Operate 请求，返回原始回包 body。
 // 形状与已跑通的「雨落成诗」一致（activity_yulu.go）：
-//   ActivityService.Operate{ field1 = 活动节点 id, field2 = cmd, field<ext> = 扩展参数子消息 }
+//
+//	ActivityService.Operate{ field1 = 活动节点 id, field2 = cmd, field<ext> = 扩展参数子消息 }
+//
 // 请求体出网关时由 gw/client.go 的 ACE 统一加密，这里只负责拼明文 protobuf。
 //
 // 说明（2026-08-31 更正）：此前把抓包里的 ACE 密文当 protobuf 解析，误得出
@@ -237,19 +237,19 @@ func handleHonghuaStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"data": map[string]interface{}{
-			"activityId":   honghuaActivityID,
-			"name":         "公益小红花",
-			"uid":          "CharityRedFlower",
-			"startTime":    1788192000, // 2026-09-01 00:00 北京时间
-			"endTime":      1788969599, // 2026-09-09 23:59:59 北京时间
-			"seeds":        honghuaSeedName(), // 小红花种子（CDN ItemInfo 20883，同步后动态读取）
-			"fruits":       honghuaFruitName(), // 小红花果实（CDN ItemInfo 40883，同步后动态读取）
-			"love":         donated, // 累计已捐赠爱心值（领取档位奖励不会减少）
-			"serverFund":   serverTotal,
-			"serverGoal":   serverGoal,
-			"serverPercent": serverPercent,
-			"tiers":        tiers, // [{threshold, donated, claimable, itemId, itemName, count}]
-			"claimed":      false,
+			"activityId":       honghuaActivityID,
+			"name":             "公益小红花",
+			"uid":              "CharityRedFlower",
+			"startTime":        1788192000,         // 2026-09-01 00:00 北京时间
+			"endTime":          1788969599,         // 2026-09-09 23:59:59 北京时间
+			"seeds":            honghuaSeedName(),  // 小红花种子（CDN ItemInfo 20883，同步后动态读取）
+			"fruits":           honghuaFruitName(), // 小红花果实（CDN ItemInfo 40883，同步后动态读取）
+			"love":             donated,            // 累计已捐赠爱心值（领取档位奖励不会减少）
+			"serverFund":       serverTotal,
+			"serverGoal":       serverGoal,
+			"serverPercent":    serverPercent,
+			"tiers":            tiers, // [{threshold, donated, claimable, itemId, itemName, count}]
+			"claimed":          false,
 			"fundClaimedToday": fundClaimed,
 			"dailyGift": map[string]interface{}{
 				"itemId": honghuaRewardItemOrganic, "itemName": "有机化肥(1小时)",
@@ -259,12 +259,12 @@ func handleHonghuaStatus(w http.ResponseWriter, r *http.Request) {
 				"note": "全服达成公益目标后满足参与条件可领：化肥礼包×20、金豆豆×200、点券×300，单角色限领 1 次",
 			},
 			"cmd": map[string]interface{}{
-				"love":   honghuaLoveCmd,
-				"fund":   honghuaFundCmd,
-				"claimDaily": honghuaClaimDailyCmd,
-				"claimTier":  honghuaClaimTierCmd,
+				"love":        honghuaLoveCmd,
+				"fund":        honghuaFundCmd,
+				"claimDaily":  honghuaClaimDailyCmd,
+				"claimTier":   honghuaClaimTierCmd,
 				"claimSettle": honghuaClaimSettleCmd,
-				"note": "cmd=35/36/38/39 均已线上实测确认；扩展块字段号=cmd+99（必带，可空）；cmd=37/40 实测无效",
+				"note":        "cmd=35 领种子/36 送爱心/38 送公益金 抓包确认；cmd=37 领爱心值档位奖励（扩展 f136={f1=阈值}）2026-09-02 带参实测确认；daily/settle 未确认",
 			},
 		},
 	})
@@ -273,7 +273,9 @@ func handleHonghuaStatus(w http.ResponseWriter, r *http.Request) {
 // honghuaLiveProgress best-effort 读 爱心值/公益金 实时进度。
 // 捐赠响应：cmd36→f136(7,7,7,2027314 计数)，cmd38→f138(订单)。GetGroup(2026090901) 应含类似进度。
 // 字段未确认，解析失败返回 (0,0)。
-// honghuaProgress 从 GetGroup(2026090901) 的活动进度块 f116 读取实时数据。
+//
+//	honghuaProgress 从 GetGroup(2026090901) 的活动进度块 f116 读取实时数据。
+//
 // 字段（抓包实锤，对照 flow225/flow367/flow369）：
 //
 //	f1 = 1040        爱心值物品 id（不是数量！背包里也是这个 id）
@@ -281,7 +283,8 @@ func handleHonghuaStatus(w http.ResponseWriter, r *http.Request) {
 //	                       这是累计值，领取档位奖励后不会减少。
 //	f4 = 全服累计进度值（单位：分，÷100 = 元）
 //	f5 = 全服目标值（1000000000 分 = 1000万元，进度 = f4/f5）
-//	f9 = repeated 档位 { f1=阈值(30/60/90/120/150), f2=奖励{ f1=物品id, f2=数量 } }
+//	f9 = repeated 档位 { f1=阈值(30/60/90/120/150), f2=奖励{ f1=物品id, f2=数量 },
+//	                     f3=领取状态(0/缺失=未领可领，1=已领取) }  ← f3 领取后由 0 置 1
 //
 // 注意 f3 只在捐赠过爱心值后出现；从未捐赠时该字段缺失，按 0 处理。
 //
@@ -294,8 +297,8 @@ var (
 
 type hhProgEntry struct {
 	donated, serverTotal, serverGoal int64
-	tiers                           []map[string]interface{}
-	ts                              time.Time
+	tiers                            []map[string]interface{}
+	ts                               time.Time
 }
 
 func honghuaProgress(ctx context.Context, accountID string) (donated, serverTotal, serverGoal int64, tiers []map[string]interface{}, ok bool) {
@@ -323,7 +326,7 @@ func honghuaProgress(ctx context.Context, accountID string) (donated, serverTota
 	}
 	if raw := find116(readActFields(body)); len(raw) > 0 {
 		g := readActFields(raw)
-		donated = actNum(g, 3)          // 累计已捐赠爱心值（缺失时为 0）
+		donated = actNum(g, 3)           // 累计已捐赠爱心值（缺失时为 0）
 		serverTotal = actNum(g, 4) / 100 // 全服累计公益金（服务端单位=分，÷100 转元，≈3.8万元）
 		serverGoal = actNum(g, 5) / 100  // 全服目标（分→元 = 1000万元，游戏 UI 与之一致；不除以 100 会显示成 10亿）
 		for _, tf := range g {
@@ -332,10 +335,12 @@ func honghuaProgress(ctx context.Context, accountID string) (donated, serverTota
 			}
 			tfFields := readActFields(tf.Bytes)
 			threshold := actNum(tfFields, 1)
+			claimed := actNum(tfFields, 3) == 1 // 档位块 f3=领取状态：1=已领取，0/缺失=未领
 			item := map[string]interface{}{
 				"threshold": threshold,
 				"donated":   donated, // 每档共用同一个累计已捐值
-				"claimable": donated >= threshold,
+				"claimable": donated >= threshold && !claimed,
+				"claimed":   claimed, // 已领取状态（f3），前端据此显示「已领取」并禁点
 			}
 			if rb := actBytes(tfFields, 2); len(rb) > 0 {
 				rfs := readActFields(rb)
@@ -437,8 +442,9 @@ func handleHonghuaFund(w http.ResponseWriter, r *http.Request) {
 }
 
 // ===== 领取奖励：POST /api/activity/honghua/claim =====
-// kind=tier|daily|settle（默认 tier）；?cmd= 覆盖真实 cmd；?tier= 档位阈值(30/60/90/120/150)。
-// 领取 cmd 已线上实测确认（见常量），?cmd 仅用于覆盖试其它值。
+// kind=tier|daily|settle|share（默认 tier）；?tier= 档位阈值(30/60/90/120/150)；?cmd= 覆盖真实 cmd（仅调试）。
+// 档位领取（kind=tier）：cmd=37 + 扩展 f136={f1=阈值}；领取前先拉 f116 校验档位状态——
+// 已领取（档位块 f3=1）直接返回「已领取」不发请求；爱心值未达标明确提示不发请求。
 func handleHonghuaClaim(w http.ResponseWriter, r *http.Request) {
 	accountID := resolveAccountID(r.URL.Query().Get("accountId"))
 	if accountID == "" {
@@ -456,40 +462,32 @@ func handleHonghuaClaim(w http.ResponseWriter, r *http.Request) {
 	case "settle":
 		cmd = honghuaClaimSettleCmd
 	case "share":
-		cmd = honghuaClaimShareCmd // 领取分享奖励（实测有效）
+		cmd = honghuaClaimShareCmd // 领取小红花种子
 	case "tier":
 		cmd = honghuaClaimTierCmd
+	default:
+		writeJSONMap(w, "ok", false, "error", "未知 kind："+kind)
+		return
 	}
 	if v := r.URL.Query().Get("cmd"); v != "" {
 		if n, e := strconv.ParseInt(v, 10, 64); e == nil {
 			cmd = n
 		}
 	}
-	// daily/settle 的 cmd 至今未实测成功（cmd=37/40 线上实测返回「活动参数错误」）。
-	// 与其发出必然失败的请求再笼统报「活动参数错误」，不如直接说清是功能未确认。
+	// daily/settle 的 cmd 至今未确认（见常量注释），与其发出必然失败的请求再笼统
+	// 报「活动参数错误」，不如直接说清是功能未确认。?cmd= 覆盖仅用于调试探测。
 	if (kind == "daily" || kind == "settle") && r.URL.Query().Get("cmd") == "" {
 		writeJSONMap(w, "ok", false, "kind", kind, "cmd", cmd,
-			"error", "该领取项的操作指令尚未确认（cmd="+itoa(cmd)+" 线上实测无效），需抓包拿到真实 cmd 后才能实现")
+			"error", "该领取项的操作指令尚未确认，需抓包拿到真实 cmd 后才能实现")
 		return
 	}
-	// 档位领取：尝试带 tier 阈值参数（字段/结构未确认，best-effort 用 field1=tier；
-	// 若服务端不需要参数，空 ext 也能工作；若需要别的结构，线上用 debug 接口探）。
-	// 各档位共用 cmd=39，靠扩展块里的阈值参数区分（30/60/90/120/150）。
-	var ext []byte
-	var tierThreshold int64
 	if kind == "tier" {
-		if tv := r.URL.Query().Get("tier"); tv != "" {
-			if thr, e := strconv.ParseInt(tv, 10, 64); e == nil {
-				tierThreshold = thr
-				sub := proto.NewBuilder()
-				sub.FieldInt64(1, thr)
-				ext = sub.Bytes()
-			}
-		}
+		handleHonghuaClaimTier(w, r, accountID, cmd)
+		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	body, err := honghuaOperate(ctx, accountID, cmd, ext)
+	body, err := honghuaOperate(ctx, accountID, cmd, nil)
 	if err != nil {
 		es := actErrMsg(err)
 		if strings.Contains(es, "已领取") || strings.Contains(es, "已领") || strings.Contains(es, "无可领取") {
@@ -502,32 +500,144 @@ func handleHonghuaClaim(w http.ResponseWriter, r *http.Request) {
 	// 领取成功 → 清 group 缓存让状态刷新
 	actCacheDel(actGroupCacheKey(accountID, honghuaActivityID))
 	actCacheDel(actGroupCacheKey(accountID, 2026090900))
-
 	rewards := parseActRewardField(body, 126)
-	// 诚实原则：服务端没返回奖励数据，就不能报「领取成功」。
-	// 实测 cmd=39 在档位未达成时同样返回成功码，但回包里没有任何奖励字段
-	//（f139 只是请求参数的回显，不是奖励），此前无条件报成功属于误导。
 	if len(rewards) == 0 {
-		// 服务端不通过 GetGroup 暴露个人爱心值/档位领取状态（f116 只有阈值与奖励），
-		// 故只能按「回包无奖励」判定未领到，并把最可能的原因说清楚。
-		errMsg := "未领取到奖励：服务端未返回奖励数据（条件未达成或已领取）"
-		if kind == "tier" && tierThreshold > 0 {
-			errMsg = "未领取到奖励：累计爱心值未达到 " + itoa(tierThreshold) + " 点档位，或该档位已领取"
-		}
-		writeJSON(w, map[string]interface{}{
-			"ok": false, "account": accountID,
-			"cmd": cmd, "kind": kind, "tier": tierThreshold,
-			"rewards": []map[string]interface{}{},
-			"error":   errMsg,
-		})
+		writeJSONMap(w, "ok", false, "account", accountID, "cmd", cmd, "kind", kind,
+			"rewards", []map[string]interface{}{},
+			"error", "未领取到奖励：服务端未返回奖励数据（条件未达成或已领取）")
 		return
 	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID,
 		"cmd": cmd, "kind": kind,
 		"rewards": rewards,
-		"msg": "领取成功",
+		"msg":     "领取成功",
 	})
+}
+
+// handleHonghuaClaimTier 领取个人爱心值档位奖励（cmd=37）。
+// 流程：实时拉 f116 → 校验该档状态（已领/未达标直接返回，不发请求）→ 达标未领才发 cmd=37。
+func handleHonghuaClaimTier(w http.ResponseWriter, r *http.Request, accountID string, cmd int64) {
+	tierThreshold, e := strconv.ParseInt(r.URL.Query().Get("tier"), 10, 64)
+	if e != nil || tierThreshold <= 0 {
+		writeJSONMap(w, "ok", false, "kind", "tier", "error", "缺少档位阈值参数（tier=30/60/90/120/150）")
+		return
+	}
+	// 实时拉最新 f116（GetGroup 直拉，无 30s 缓存），校验该档状态
+	preCtx, preCancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer preCancel()
+	donated, _, _, tiers, ok := honghuaProgress(preCtx, accountID)
+	if !ok {
+		writeJSONMap(w, "ok", false, "kind", "tier", "tier", tierThreshold,
+			"error", "拉取活动进度失败，无法校验档位状态，请稍后重试")
+		return
+	}
+	var hit map[string]interface{}
+	for _, t := range tiers {
+		if th, okk := t["threshold"].(int64); okk && th == tierThreshold {
+			hit = t
+			break
+		}
+	}
+	if hit == nil {
+		writeJSONMap(w, "ok", false, "kind", "tier", "tier", tierThreshold,
+			"error", "无效的档位阈值："+itoa(tierThreshold)+"（可选 30/60/90/120/150）")
+		return
+	}
+	// 已领取（档位块 f3=1）→ 直接返回，不再发请求
+	if claimed, _ := hit["claimed"].(bool); claimed {
+		writeJSON(w, map[string]interface{}{
+			"ok": true, "account": accountID, "kind": "tier", "tier": tierThreshold,
+			"alreadyClaimed": true, "msg": "该档位奖励已领取",
+			"rewards": []map[string]interface{}{},
+		})
+		return
+	}
+	// 爱心值未达标 → 不发请求，直接说清差距
+	if donated < tierThreshold {
+		writeJSONMap(w, "ok", false, "kind", "tier", "tier", tierThreshold,
+			"error", "爱心值不足：当前 "+itoa(donated)+" / 需 "+itoa(tierThreshold))
+		return
+	}
+	// 达标且未领 → 发 cmd=37，扩展 f136={f1=阈值}
+	ext := proto.NewBuilder()
+	ext.FieldInt64(1, tierThreshold)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	body, err := honghuaOperate(ctx, accountID, cmd, ext.Bytes())
+	if err != nil {
+		es := actErrMsg(err)
+		if strings.Contains(es, "已领取") || strings.Contains(es, "已领") || strings.Contains(es, "无可领取") {
+			writeJSON(w, map[string]interface{}{
+				"ok": true, "account": accountID, "kind": "tier", "tier": tierThreshold,
+				"alreadyClaimed": true, "msg": es,
+				"rewards": []map[string]interface{}{},
+			})
+			return
+		}
+		writeJSONMap(w, "ok", false, "error", es, "kind", "tier", "tier", tierThreshold)
+		return
+	}
+	// 成功 → 清 group 缓存让状态刷新
+	actCacheDel(actGroupCacheKey(accountID, honghuaActivityID))
+	actCacheDel(actGroupCacheKey(accountID, 2026090900))
+	// 奖励优先取回包结果块（field137={f1=阈值, f2=奖励}），解析不到用 f116 档位配置兜底
+	rewards := honghuaParseTierReward(body)
+	if len(rewards) == 0 {
+		if iid, okk := hit["itemId"].(int64); okk && iid > 0 {
+			name, _ := hit["itemName"].(string)
+			count, _ := hit["count"].(int64)
+			rewards = append(rewards, map[string]interface{}{"id": iid, "name": name, "count": count})
+		}
+	}
+	writeJSON(w, map[string]interface{}{
+		"ok": true, "account": accountID, "kind": "tier", "tier": tierThreshold,
+		"rewards": rewards,
+		"msg":     "领取成功",
+	})
+}
+
+// honghuaParseTierReward 解析档位领取回包中的奖励（cmd=37）。
+// 回包结构：响应内 field137（档位领取结果块）={ f1=阈值回显, f2=奖励{ f1=物品id, f2=数量 } }。
+// 递归查找 137（兼容不同包裹层），找不到返回空。
+func honghuaParseTierReward(body []byte) []map[string]interface{} {
+	var out []map[string]interface{}
+	var find137 func(buf []byte) []byte
+	find137 = func(buf []byte) []byte {
+		for _, f := range readActFields(buf) {
+			if f.Wire != 2 || len(f.Bytes) == 0 {
+				continue
+			}
+			if f.No == 137 {
+				return f.Bytes
+			}
+			if sub := find137(f.Bytes); len(sub) > 0 {
+				return sub
+			}
+		}
+		return nil
+	}
+	blk := find137(body)
+	if len(blk) == 0 {
+		return out
+	}
+	for _, f := range readActFields(blk) {
+		if f.No == 2 && f.Wire == 2 { // 奖励 item
+			var id, cnt int64
+			for _, it := range readActFields(f.Bytes) {
+				switch {
+				case it.No == 1 && it.Wire == 0:
+					id = it.Varint
+				case it.No == 2 && it.Wire == 0:
+					cnt = it.Varint
+				}
+			}
+			if id > 0 {
+				out = append(out, map[string]interface{}{"id": id, "name": honghuaItemName(id), "count": cnt})
+			}
+		}
+	}
+	return out
 }
 
 // honghuaParseDonateResult 解析捐赠回包：

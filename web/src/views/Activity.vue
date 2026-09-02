@@ -506,7 +506,7 @@ async function loadHonghua(retries = 3) {
       honghua.serverPercent = d.serverPercent || 0
       // 成功数据本地兜底：接口偶发失败时也显示上次成功值，绝不回退 0/0/加载中
       try { localStorage.setItem('hh_prog', JSON.stringify({ fund: d.serverFund, goal: d.serverGoal, pct: d.serverPercent || 0 })) } catch (e) {}
-      // 合并后端档位实时数据（阈值/已捐/可领），保留本地奖励文案
+      // 合并后端档位实时数据（阈值/已捐/可领/已领取），保留本地奖励文案
       if (Array.isArray(d.tiers) && d.tiers.length) {
         d.tiers.forEach((t, idx) => {
           const local = honghua.tiers[idx]
@@ -514,6 +514,7 @@ async function loadHonghua(retries = 3) {
             local.threshold = t.threshold
             local.donated = t.donated
             local.claimable = t.claimable
+            local.claimed = t.claimed   // 档位是否已领取（后端 f116 档位状态 f3）
           }
         })
       }
@@ -1374,7 +1375,15 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
           </div>
           <div class="row" style="margin-top:8px">
             <span class="muted">已捐赠 {{ t.donated ?? 0 }}/{{ t.threshold ?? (t.i * 30) }}</span>
-            <button class="btn small" :class="t.i === 5 ? 'primary' : 'ghost'" @click="honghuaClaim('tier', t.threshold || (t.i * 30))">领取</button>
+            <template v-if="t.claimed">
+              <span class="hh-claimed">✓ 已领取</span>
+            </template>
+            <template v-else-if="t.claimable">
+              <button class="btn small" :class="t.i === 5 ? 'primary' : 'ghost'" @click="honghuaClaim('tier', t.threshold || (t.i * 30))">领取</button>
+            </template>
+            <template v-else>
+              <span class="muted">爱心值不足</span>
+            </template>
           </div>
         </div>
       </div>
@@ -1678,4 +1687,5 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
 .hh-tier-hd { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .hh-tier-rw { margin-top: 7px; display: flex; gap: 7px; flex-wrap: wrap; }
 .hh-rw { font-size: 12px; background: rgba(127,127,127,.14); border-radius: 8px; padding: 3px 9px; color: var(--foreground); }
+.hh-claimed { font-size: 11.5px; font-weight: 700; color: var(--ok, #2e9e5b); border: 1px solid currentColor; border-radius: 8px; padding: 4px 10px; opacity: .85; }
 </style>
