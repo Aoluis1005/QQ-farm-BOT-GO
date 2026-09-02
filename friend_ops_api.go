@@ -352,7 +352,8 @@ func handleFriendRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// 真实执行：进入→分析→RPC→离开
-		res := doFriendOperation(c, accountID, gid, "", req.OpType)
+		// 手动操作不套成熟保护期（延迟只作用于自动化偷菜，方便手动即时测试）
+		res := doFriendOperation(c, accountID, gid, "", req.OpType, 0)
 		writeJSON(w, map[string]interface{}{
 			"ok":         res.OK,
 			"opType":     res.OpType,

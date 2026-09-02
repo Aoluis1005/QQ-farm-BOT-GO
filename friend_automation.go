@@ -49,6 +49,7 @@ const guardDogID = 90021
 
 // 每轮帮忙农场数上限
 const maxHelpTargetsPerCycle = 24
+
 // 偷到后下一轮快扫间隔
 const rapidStealInterval = time.Second
 
@@ -646,7 +647,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			if !canOperate(accountID, opSteal, 0) || scanTimedOut() {
 				break // 偷菜次数已达服务端上限（未知则不限）或整轮超时
 			}
-			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "steal")
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "steal", int64(cfg.StealDelaySeconds))
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败（好友离线/不存在）跳过
 			}
@@ -695,7 +696,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 			}
 			// 帮忙用 exp 增量比对检测经验上限
 			expBefore := c.Exp()
-			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "help")
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "help", 0)
 			if res != nil && res.Count > 0 && expLimitEnabled && getCanGetHelpExp(accountID) {
 				time.Sleep(200 * time.Millisecond)
 				detectExpFull(c, expBefore, accountID)
@@ -706,7 +707,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 	// 2.5 黄金虫放置（极速务农：暂停一切巡查、涡轮不放金虫）
 	if cfg.Automation.FriendGoldenBug && !computeEffectiveTurbo(cfg) {
 		for _, t := range helpTargets {
-			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "goldenbug")
+			res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "goldenbug", 0)
 			if res != nil && res.EnterError != "" {
 				continue // 进入失败跳过
 			}
@@ -726,7 +727,7 @@ func checkFriends(c *gw.Client, accountID string, cfg config.AccountConfig, only
 				if getBadRemainingTimes(accountID) <= 0 {
 					break
 				}
-				res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "bad")
+				res := doFriendOperation(c, accountID, t.gid, nameByGID[t.gid], "bad", 0)
 				if res != nil {
 					if res.Count > 0 {
 						incBadDaily(accountID)

@@ -50,6 +50,7 @@ func leaveFriendFarm(c *gw.Client, gid int64) {
 // friendLandsAnalysis 好友地块分类结果
 type friendLandsAnalysis struct {
 	Stealable       []int64
+	DelayedMature   []int64 // 已成熟但处于保护期(成熟未满 minMatureSec 秒)的地块，本轮不偷
 	NeedWater       []int64
 	NeedWeed        []int64
 	NeedBug         []int64
@@ -77,7 +78,8 @@ func isBlacklistedSeed(plantID int64, blacklist []int) bool {
 }
 
 // analyzeFriendLands 分析好友所有地块，产出可操作分类。
-func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []int) *friendLandsAnalysis {
+// minMatureSec > 0 时：刚成熟(进入成熟阶段未满该秒数)的地块不列入可偷，防「刚催熟即被秒偷」。
+func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []int, minMatureSec int64) *friendLandsAnalysis {
 	out := &friendLandsAnalysis{}
 	now := time.Now().Unix()
 	for _, land := range lands {
@@ -94,6 +96,11 @@ func analyzeFriendLands(lands []*proto.LandInfo, myGid int64, plantBlacklist []i
 		// 成熟 & 可偷（作物黑名单按 seedId 过滤）
 		if phase == proto.PhaseMature {
 			if p.Stealable && !isBlacklistedSeed(p.ID, plantBlacklist) {
+				// 保护期：成熟阶段 BeginTime 距今未满 minMatureSec 秒 → 本轮跳过不偷
+				if minMatureSec > 0 && now-current.BeginTime < minMatureSec {
+					out.DelayedMature = append(out.DelayedMature, land.ID)
+					continue
+				}
 				out.Stealable = append(out.Stealable, land.ID)
 			}
 			continue
@@ -353,7 +360,8 @@ func runFriendFarmingWithFallback(c *gw.Client, accountID string, gid int64, tar
 }
 
 // doFriendOperation 对好友执行单个操作（steal/water/weed/bug/bad）完整走 进入→操作→离开。
-func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, opType string) *doFriendOperationResult {
+// matureDelaySec：偷菜保护期秒数（成熟未满该时长不偷）；手动操作传 0 表示不延迟。
+func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, opType string, matureDelaySec int64) *doFriendOperationResult {
 	if gid <= 0 {
 		return &doFriendOperationResult{OK: false, OpType: opType, GID: gid, Message: "无效好友ID"}
 	}
@@ -381,12 +389,15 @@ func doFriendOperation(c *gw.Client, accountID string, gid int64, name string, o
 		return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "对方没有种植地块"}
 	}
 
-	analysis := analyzeFriendLands(lands, c.GID, getPlantBlacklist(accountID))
+	analysis := analyzeFriendLands(lands, c.GID, getPlantBlacklist(accountID), matureDelaySec)
 	var okCount int64
 
 	switch opType {
 	case "steal":
 		if len(analysis.Stealable) == 0 {
+			if len(analysis.DelayedMature) > 0 {
+				return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: fmt.Sprintf("作物刚成熟，%d 秒保护期内暂不偷取", matureDelaySec)}
+			}
 			return &doFriendOperationResult{OK: true, OpType: opType, GID: gid, Count: 0, Message: "没有可偷取土地"}
 		}
 		if err := execFriendOp(c, accountID, "Harvest", proto.EncodeHarvestRequest(analysis.Stealable, gid, true)); err != nil {

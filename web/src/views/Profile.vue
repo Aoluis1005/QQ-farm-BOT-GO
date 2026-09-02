@@ -53,7 +53,7 @@ function fmtDur(sec) {
   return (h > 0 ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
 }
 function landGrowPct(l) { const m = Number(l.matureInSec || 0), t = Number(l.totalGrowTime || 0); if (t <= 0 || m <= 0) return 0; return Math.min(100, Math.max(0, (m / t) * 100)) }
-async function loadLands() { if (!acc()) return; try { const { data } = await api.get('/api/farm/lands'); lands.value = (data?.data?.lands || data?.data || []) } catch (e) {} }
+async function loadLands(forceRefresh) { if (!acc()) return; try { const { data } = await api.get('/api/farm/lands' + (forceRefresh ? '?refresh=1' : '')); lands.value = (data?.data?.lands || data?.data || []) } catch (e) {} }
 function landCountdown() {
   const now = Date.now()
   lands.value.forEach(l => { if (l.matureAt) l.__left = Math.max(0, Math.ceil((l.matureAt - now) / 1000)) })
@@ -64,7 +64,7 @@ async function farmAction(action) {
   try {
     const { data } = await api.post('/api/farm/action', { action })
     app.success(data?.ok ? ('操作完成：' + action) : ('失败：' + (data?.error || '未知')))
-    if (data?.ok) loadLands()
+    if (data?.ok) loadLands(true)
   } catch (e) { app.error('请求失败') }
 }
 async function removeAll() {
@@ -73,7 +73,7 @@ async function removeAll() {
   try {
     const { data } = await api.post('/api/land/remove-all', {})
     app.success(data?.ok ? ('操作完成：' + (data?.message || '铲除')) : ('失败：' + (data?.error || '未知')))
-    if (data?.ok) loadLands()
+    if (data?.ok) loadLands(true)
   } catch (e) { app.error('请求失败') }
 }
 async function landOp(l, op) {
@@ -81,7 +81,7 @@ async function landOp(l, op) {
   try {
     const { data } = await api.post(op === 'fertilize' ? '/api/land/fertilize' : '/api/land/remove', { landId: l.id })
     app.success(data?.ok ? (op === 'fertilize' ? '催熟完成' : '已铲除') : ('失败：' + (data?.error || '')))
-    if (data?.ok) loadLands()
+    if (data?.ok) loadLands(true)
   } catch (e) { app.error('请求失败') }
 }
 
