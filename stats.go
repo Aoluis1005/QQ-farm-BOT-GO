@@ -47,7 +47,8 @@ var (
 )
 
 func todayKey() string {
-	return time.Now().Format("2006-01-02")
+	// 强制按北京时间(UTC+8)计算"今日",避免服务器时区非东八区(如海外 VPS 默认 UTC)时跨天错位到早上 8 点
+	return time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006-01-02")
 }
 
 func statsFilePath(accountID string) string {
