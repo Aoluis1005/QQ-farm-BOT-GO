@@ -380,11 +380,19 @@ func (c *Client) applyItemNotify(body []byte) {
 			} else if it.Delta != 0 {
 				c.exp = max64(0, c.exp+it.Delta)
 			}
-		case 1, 1001: // 金币
-			if it.Count > 0 {
-				c.gold = it.Count
-			} else if it.Delta != 0 {
+		case 1001: // 金币
+			switch {
+			case it.Delta != 0:
+				// 变化量优先：服务端给了明确增量就直接累加，不受 Count 语义歧义影响
 				c.gold = max64(0, c.gold+it.Delta)
+			case it.Count > 0:
+				// Count 语义不统一：部分推送给的是当前余额，部分给的是"本次变化量"。
+				// 若新值比当前余额低两个量级以上，判定为把变化量当成了余额，直接丢弃，
+				// 等基础信息推送用绝对余额校准，否则余额会被写成小额（如 1329 万 → 35），
+				// 收益统计按差值计算也会爆出天文数字。
+				if c.gold <= 0 || it.Count >= c.gold || it.Count >= c.gold/100 {
+					c.gold = it.Count
+				}
 			}
 		case 1002: // 点券
 			if it.Count > 0 {

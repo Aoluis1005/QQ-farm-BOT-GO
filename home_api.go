@@ -219,23 +219,21 @@ func formatGold(v int64) string {
 	if neg {
 		v = -v
 	}
-	s := ""
 	if v == 0 {
-		s = "0"
-	} else {
-		for {
-			s = fmt.Sprintf("%03d%s", v%1000, s)
-			v /= 1000
-			if v == 0 {
-				break
-			}
-			s = "," + s
-			if v < 1000 {
-				s = fmt.Sprintf("%d", v) + s
-				break
-			}
+		return "0"
+	}
+	// 从低位起每三位一组，最高位不补零（否则 35 会被格式化成 "035"），其余组补满三位
+	var groups []string
+	for v > 0 {
+		rem := v % 1000
+		v /= 1000
+		if v == 0 {
+			groups = append([]string{fmt.Sprintf("%d", rem)}, groups...)
+		} else {
+			groups = append([]string{fmt.Sprintf("%03d", rem)}, groups...)
 		}
 	}
+	s := strings.Join(groups, ",")
 	if neg {
 		s = "-" + s
 	}
