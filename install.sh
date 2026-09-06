@@ -41,11 +41,20 @@ if ! command -v go >/dev/null 2>&1; then
   sudo apt-get update -y >/dev/null 2>&1 || true
   sudo apt-get install -y golang-go >/dev/null 2>&1
 fi
+# 注入版本号（git 短哈希 + 构建时间）：让线上 /api/health 的版本能与源码 commit 互证
+VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo dev)
+printf 'package main\n\nvar buildVersion = "%s"\nvar buildTime = "%s"\n' \
+  "$VERSION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > version.go
+echo "  版本号: $VERSION"
 go build -o go-farm-bot .
 BIN="$SRC/go-farm-bot"
 
 # ---- 3. 安装程序 + 图片素材 ----
 echo "[3/5] 安装程序与素材到 $DES ..."
+# 覆盖二进制前必须先停服务：Linux 拒绝写入正在执行的文件（Text file busy），不停会直接中断
+if systemctl list-unit-files go-farm-bot.service >/dev/null 2>&1; then
+  sudo systemctl stop go-farm-bot 2>/dev/null || true
+fi
 sudo mkdir -p "$DES"
 sudo cp -rf "$BIN" "$SRC/game-config" "$DES/"
 sudo chmod +x "$DES/go-farm-bot"
@@ -68,7 +77,8 @@ RestartSec=5
 WantedBy=multi-user.target
 SVC
 sudo systemctl daemon-reload
-sudo systemctl enable --now go-farm-bot
+sudo systemctl enable go-farm-bot
+sudo systemctl restart go-farm-bot
 
 # ---- 5. 完成 ----
 echo "[5/5] 部署完成！"
