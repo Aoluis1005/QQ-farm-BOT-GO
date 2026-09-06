@@ -81,9 +81,23 @@ cd QQ-farm-BOT-GO
 sudo bash install.sh
 ```
 
-`install.sh` 会自动完成：编译程序 → 安装到 `/opt/go-farm-bot`（带 `game-config` 图片素材）→ 注册并启动 systemd 服务 → 打印访问地址。
+`install.sh` 会自动完成：构建前端 → 编译程序（注入当前 git 短哈希作为版本号）→ 安装到 `/opt/go-farm-bot`（带 `game-config` 图片素材）→ 注册并启动 systemd 服务 → 打印访问地址。
 
-部署完成后浏览器打开 **`http://<服务器IP>:3009`** 即可。后续重新部署/更新直接再跑一次 `sudo bash install.sh`。
+部署完成后浏览器打开 **`http://<服务器IP>:3009`** 即可。
+
+**后续更新**同样是这两步，脚本会自己先停服务再覆盖、装完自动拉起，不用手动 `systemctl stop`：
+
+```bash
+cd QQ-farm-BOT-GO
+git pull
+sudo bash install.sh
+```
+
+更新完想确认线上跑的是哪一版，返回里的 `version` 就是 git 短哈希：
+
+```bash
+curl -s http://127.0.0.1:3009/api/health
+```
 
 > 💡 `install.sh` 每次都会**自动重新构建前端**（检测并自动安装 Node → `npm ci` + `vite build`）后再编译后端，保证页面主题/样式始终完整。请勿删除或替换 `web/dist`，也不要手动放置旧版可执行文件——否则可能导致页面白屏、无任何 UI 样式。
 
