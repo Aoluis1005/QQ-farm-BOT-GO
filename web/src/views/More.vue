@@ -126,6 +126,7 @@ async function loadAccountMore() {
     myst.currencies = (d.mysteryAutoBuyCurrencies || []).map(Number)
 
     mS.strategy = d.plantingStrategy || 'max_exp'
+    mS.preferredSeed = Number(d.preferredSeedId) || 0
     mS.fallback = d.bagSeedFallbackStrategy || 'level'
     mS.bagLandTypes = Array.isArray(d.bagPriorityLandTypes) ? d.bagPriorityLandTypes.slice() : []
     mS.twoX2 = !!d.prioritize2x2Crops
@@ -158,6 +159,7 @@ async function loadDefaultPlan() {
       dUpdatedAt.value = Number(dd && dd.updatedAt) || 0
       dExists.value = !!(dd && dd.exists)
       dS.strategy = cfg.plantingStrategy || 'max_exp'
+      dS.preferredSeed = Number(cfg.preferredSeedId) || 0
       dS.fallback = cfg.bagSeedFallbackStrategy || 'level'
       dS.bagLandTypes = Array.isArray(cfg.bagPriorityLandTypes) ? cfg.bagPriorityLandTypes.slice() : []
       dS.twoX2 = !!cfg.prioritize2x2Crops
