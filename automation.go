@@ -468,6 +468,12 @@ func newFarmPushHandler(accountID string) func(string) {
 		last = now
 		mu.Unlock()
 		time.AfterFunc(1*time.Second, func() {
+			// 推送巡田同样受「自动种植收获」与「推送触发巡田」两个开关约束，
+			// 否则关闭采收后手动催熟/作物成熟推送仍会触发整轮收获与补种
+			cfg := models.GetAccountConfig(accountID)
+			if !cfg.Automation.FarmPush || !cfg.Automation.Farm {
+				return
+			}
 			if !tryLockFarm(accountID) {
 				return
 			}
@@ -476,7 +482,6 @@ func newFarmPushHandler(accountID string) func(string) {
 			if err != nil || c == nil {
 				return
 			}
-			cfg := models.GetAccountConfig(accountID)
 			runFarmOnce(accountID, c, cfg)
 		})
 	}
