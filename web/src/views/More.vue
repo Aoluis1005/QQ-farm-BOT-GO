@@ -1183,6 +1183,7 @@ onUnmounted(() => { window.removeEventListener('account-switched', onSwitched) }
     <div class="menu">
       <button class="sub-item" @click="router.push('/settings')"><span class="mi">⚙️</span>设置<span class="arr">›</span></button>
       <button class="sub-item" @click="router.push('/backend')"><span class="mi">🖥️</span>后台<span class="arr">›</span></button>
+      <button class="sub-item" @click="router.push('/sync')"><span class="mi">🔁</span>同步管理<span class="arr">›</span></button>
     </div>
     <p style="margin-top:20px;text-align:center;font-size:11.5px;color:var(--muted-2)">qq farm bot go v1.0.1</p>
   </div>

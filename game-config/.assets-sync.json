@@ -1,0 +1,3555 @@
+{
+  "syncedAt": "2026-09-01T22:32:06+01:00",
+  "bundles": {
+    "aiHead": "3e212",
+    "audio": "bab39",
+    "delayRes": "30c5b",
+    "extraRes": "aca43",
+    "mainscene": "eab4a",
+    "petdog": "f65f7",
+    "plant": "1d263",
+    "weather": "eb03a"
+  },
+  "items": {
+    "100001": {
+      "uuid": "caefc920-5cf6-46a8-a31b-4947c8728da7",
+      "hash": "1b1be",
+      "file": "100001_打开后，可以随机获得1种奖励。.png"
+    },
+    "100002": {
+      "uuid": "f22c4b0c-7020-4574-a22b-d6a9295dccf6",
+      "hash": "65ead",
+      "file": "100002_打开后，可以获得丰厚的奖励。.png"
+    },
+    "100003": {
+      "uuid": "d13af7af-7155-4a4e-9056-f81f183059d7",
+      "hash": "ecb15",
+      "file": "100003_打开后，可以获得1个化肥。.png"
+    },
+    "100004": {
+      "uuid": "9af8ac11-9099-4859-879e-1c28f80b44bc",
+      "hash": "63104",
+      "file": "100004_打开后，可以获得1个有机化肥。.png"
+    },
+    "100005": {
+      "uuid": "db975118-1896-4e5b-941e-974c7551d7ef",
+      "hash": "d4908",
+      "file": "100005_打开后，可以获得随机种子。.png"
+    },
+    "100006": {
+      "uuid": "7e07742d-d794-44b8-b0c1-8fb832fadfa2",
+      "hash": "99a39",
+      "file": "100006_打开后，可以获得随机种子。.png"
+    },
+    "100007": {
+      "uuid": "eab03944-5b49-4108-94d1-419adfc1fc0c",
+      "hash": "0b59b",
+      "file": "100007_打开后，可以获得随机种子。.png"
+    },
+    "100008": {
+      "uuid": "ed3690ba-87b5-4739-9060-321a0ed6baa4",
+      "hash": "1af75",
+      "file": "100008_打开后，随机获得1颗天工作物种子：哈哈南瓜、路易十四、爱心果、稀世琉璃果。.png"
+    },
+    "100009": {
+      "uuid": "0214d5c8-c788-4599-b589-43abd215c5d8",
+      "hash": "ee1fb",
+      "file": "100009_打开后，可随机获得以下作物种子：卡特兰、绿牡丹、丁香花、蔷薇、夏蜡梅、孔雀草。.png"
+    },
+    "10001": {
+      "uuid": "224c83ac-3182-448c-8ceb-5b8dadcd7e18",
+      "hash": "be5d6",
+      "file": "10001_收获.png"
+    },
+    "100010": {
+      "uuid": "7fa08bc0-9424-4645-b7db-209c9b14ac65",
+      "hash": "1e918",
+      "file": "100010_打开后，可随机获得以下作物种子和道具：红云飞片、毛蟹爪莲、七里香、勿忘我、昙花、.png"
+    },
+    "100011": {
+      "uuid": "5068f5a5-85d9-4b7f-94f9-fd3f01ed4408",
+      "hash": "f0de8",
+      "file": "100011_打开可随机获得以下种子：哈哈南瓜、路易十四、爱心果、稀世琉璃果.png"
+    },
+    "100012": {
+      "uuid": "5068f5a5-85d9-4b7f-94f9-fd3f01ed4408",
+      "hash": "f0de8",
+      "file": "100012_爱心驿站的爱心宝箱.png"
+    },
+    "100013": {
+      "uuid": "ed5b3272-a4da-4ad8-95f9-7ca8ac305a59",
+      "hash": "987e1",
+      "file": "100013_打开后，可以获得新春红包种子。.png"
+    },
+    "100014": {
+      "uuid": "7e07742d-d794-44b8-b0c1-8fb832fadfa2",
+      "hash": "99a39",
+      "file": "100014_柯基稀有种子包.png"
+    },
+    "10002": {
+      "uuid": "ef1e3181-568e-48b3-80ea-e2bd4cf3efbe",
+      "hash": "87ef5",
+      "file": "10002_铲除.png"
+    },
+    "10003": {
+      "uuid": "7de2068b-fecb-4a73-a217-2008b1037174",
+      "hash": "c0a18",
+      "file": "10003_放草.png"
+    },
+    "10004": {
+      "uuid": "2fbc803e-5624-438a-80a0-b1a50a785c8f",
+      "hash": "4a867",
+      "file": "10004_放虫.png"
+    },
+    "10005": {
+      "uuid": "59ae44f7-2222-412c-9afc-66dcfb0b7d88",
+      "hash": "abb9b",
+      "file": "10005_除草.png"
+    },
+    "10006": {
+      "uuid": "8c602d0a-f2b6-4813-a181-7fb1de8c8532",
+      "hash": "bb452",
+      "file": "10006_除虫.png"
+    },
+    "10007": {
+      "uuid": "a9e1f805-5f06-4859-8bf6-ab8353e04bbb",
+      "hash": "cd1f0",
+      "file": "10007_浇水.png"
+    },
+    "10008": {
+      "uuid": "5ae27d79-9140-4387-b3c9-bd5c04f32990",
+      "hash": "217ca",
+      "file": "10008_摘菜.png"
+    },
+    "10009": {
+      "uuid": "bf672d41-5775-4ba3-ab4a-64e11b5fb251",
+      "hash": "fbe1b",
+      "file": "10009_务农.png"
+    },
+    "1001": {
+      "uuid": "65088be3-d53f-46f9-a25d-d3d91b311959",
+      "hash": "b8ce8",
+      "file": "1001_金币.png"
+    },
+    "10015": {
+      "uuid": "2fbc803e-5624-438a-80a0-b1a50a785c8f",
+      "hash": "4a867",
+      "file": "10015_放置使坏虫道具.png"
+    },
+    "10016": {
+      "uuid": "8c602d0a-f2b6-4813-a181-7fb1de8c8532",
+      "hash": "bb452",
+      "file": "10016_清除使坏虫道具.png"
+    },
+    "10017": {
+      "uuid": "59ae44f7-2222-412c-9afc-66dcfb0b7d88",
+      "hash": "abb9b",
+      "file": "10017_放置使坏足球道具.png"
+    },
+    "10018": {
+      "uuid": "59ae44f7-2222-412c-9afc-66dcfb0b7d88",
+      "hash": "abb9b",
+      "file": "10018_清除使坏足球道具.png"
+    },
+    "10019": {
+      "uuid": "ef1e3181-568e-48b3-80ea-e2bd4cf3efbe",
+      "hash": "87ef5",
+      "file": "10019_未枯萎铲除.png"
+    },
+    "1002": {
+      "uuid": "bd489f54-172c-44da-987a-f34588edb87c",
+      "hash": "5c483",
+      "file": "1002_点券.png"
+    },
+    "10020": {
+      "uuid": "59ae44f7-2222-412c-9afc-66dcfb0b7d88",
+      "hash": "abb9b",
+      "file": "10020_放置鹊食.png"
+    },
+    "1003": {
+      "uuid": "bd489f54-172c-44da-987a-f34588edb87c",
+      "hash": "5c483",
+      "file": "1003_累计充值.png"
+    },
+    "1004": {
+      "uuid": "ff3c1c6f-3de4-4ed9-ae71-859d0cd73e53",
+      "hash": "8c006",
+      "file": "1004_钻石.png"
+    },
+    "1005": {
+      "uuid": "a5bc02d5-5755-4055-bdf4-ca89f12b5dcf",
+      "hash": "a94e4",
+      "file": "1005_金豆豆.png"
+    },
+    "1011": {
+      "uuid": "0c09567c-6962-48dc-a685-3a4cc66a7d21",
+      "hash": "cea9b",
+      "file": "1011_单个作物仅能使用一次.png"
+    },
+    "1012": {
+      "uuid": "c03718b9-f4e1-4e18-8878-538fa6ef765e",
+      "hash": "87cce",
+      "file": "1012_单个作物不限使用次数.png"
+    },
+    "101201": {
+      "uuid": "3ce3e38c-3786-4947-8103-a6ecbe0d0192",
+      "hash": "09709",
+      "file": "101201_打开后，可获得200点券、5 个有机化肥（1小时）。.png"
+    },
+    "101202": {
+      "uuid": "616e151a-ceaa-414a-aa11-0cb7bc08bf56",
+      "hash": "7faad",
+      "file": "101202_打开后，可获得1个种植精英礼包 （30级）、200点券、10个有机化肥（1小时）.png"
+    },
+    "101203": {
+      "uuid": "616e151a-ceaa-414a-aa11-0cb7bc08bf56",
+      "hash": "7faad",
+      "file": "101203_达到30级可以使用，可获得300点券、20个有机化肥（1小时）。.png"
+    },
+    "101204": {
+      "uuid": "a9a64731-17a4-490c-a118-621619914ef8",
+      "hash": "77d83",
+      "file": "101204_打开后，可获得1个田园大师礼包 （30级）、200点券、10个有机化肥（1小时）.png"
+    },
+    "101205": {
+      "uuid": "a9a64731-17a4-490c-a118-621619914ef8",
+      "hash": "77d83",
+      "file": "101205_达到30级可以使用，可获得1个田园大师礼包 （45级）、300点券、20个有机化.png"
+    },
+    "101206": {
+      "uuid": "a9a64731-17a4-490c-a118-621619914ef8",
+      "hash": "77d83",
+      "file": "101206_达到45级可以使用，可获得500点券、50个有机化肥（1小时）。.png"
+    },
+    "101251": {
+      "uuid": "21510180-f3fc-4ac5-b61d-74390f8fcc3d",
+      "hash": "1e406",
+      "file": "101251_QQ新春限时礼包.png"
+    },
+    "101252": {
+      "uuid": "b825ba31-a900-47b8-8f9a-8e63891bd04c",
+      "hash": "2cb16",
+      "file": "101252_粽香大比拼活动礼包.png"
+    },
+    "101253": {
+      "uuid": "b825ba31-a900-47b8-8f9a-8e63891bd04c",
+      "hash": "2cb16",
+      "file": "101253_粽香大比拼活动礼包.png"
+    },
+    "101254": {
+      "uuid": "b825ba31-a900-47b8-8f9a-8e63891bd04c",
+      "hash": "2cb16",
+      "file": "101254_粽香大比拼活动礼包.png"
+    },
+    "1013": {
+      "uuid": "52c46b54-a1f3-4bb6-8419-aae92775c8b9",
+      "hash": "2bb92",
+      "file": "1013_友谊树果实.png"
+    },
+    "101301": {
+      "uuid": "60e84e6a-1848-4e07-a3f0-cd766c10a2f9",
+      "hash": "4e853",
+      "file": "101301_SVIP特权随机礼包.png"
+    },
+    "101302": {
+      "uuid": "499c1d43-419f-4da2-91cb-1789dc97f7bb",
+      "hash": "795d5",
+      "file": "101302_荷风游记限定随机礼包.png"
+    },
+    "101303": {
+      "uuid": "d8fd1fd3-f03e-4241-9d02-7c5a540eb98f",
+      "hash": "f8215",
+      "file": "101303_金穗至尊场景装扮套装.png"
+    },
+    "101304": {
+      "uuid": "499c1d43-419f-4da2-91cb-1789dc97f7bb",
+      "hash": "795d5",
+      "file": "101304_千星游记礼包.png"
+    },
+    "101310": {
+      "uuid": "74aece0c-5d66-4989-9f3c-ae7bf3944e59",
+      "hash": "7a525",
+      "file": "101310_拉新礼盒.png"
+    },
+    "101311": {
+      "uuid": "5ac46612-952a-4bc2-8258-17686e47ea70",
+      "hash": "3c074",
+      "file": "101311_拉新福袋.png"
+    },
+    "101315": {
+      "uuid": "2e2648e1-ef4a-4de0-be05-fb399f097dcc",
+      "hash": "ff8cf",
+      "file": "101315_成长礼盒.png"
+    },
+    "101316": {
+      "uuid": "5ac46612-952a-4bc2-8258-17686e47ea70",
+      "hash": "3c074",
+      "file": "101316_成长福袋.png"
+    },
+    "101321": {
+      "uuid": "dfc3692d-33d4-4a1a-938f-ab77654517d6",
+      "hash": "bc42d",
+      "file": "101321_新人福袋.png"
+    },
+    "101323": {
+      "uuid": "a48a3812-2d0f-42e1-ba36-a03387c4728b",
+      "hash": "a3629",
+      "file": "101323_足球狂欢随机礼包.png"
+    },
+    "101324": {
+      "uuid": "11c0fa00-74e6-4bc2-bb44-f5851efbde34",
+      "hash": "24c94",
+      "file": "101324_鹊羽礼包.png"
+    },
+    "101325": {
+      "uuid": "11c0fa00-74e6-4bc2-bb44-f5851efbde34",
+      "hash": "24c94",
+      "file": "101325_鹊桥寄情礼包·一.png"
+    },
+    "101326": {
+      "uuid": "11c0fa00-74e6-4bc2-bb44-f5851efbde34",
+      "hash": "24c94",
+      "file": "101326_鹊桥寄情礼包·二.png"
+    },
+    "101330": {
+      "uuid": "74aece0c-5d66-4989-9f3c-ae7bf3944e59",
+      "hash": "7a525",
+      "file": "101330_拉新礼盒.png"
+    },
+    "101331": {
+      "uuid": "2e2648e1-ef4a-4de0-be05-fb399f097dcc",
+      "hash": "ff8cf",
+      "file": "101331_成长礼盒.png"
+    },
+    "101351": {
+      "uuid": "a48a3812-2d0f-42e1-ba36-a03387c4728b",
+      "hash": "a3629",
+      "file": "101351_同气连枝随机礼包.png"
+    },
+    "1014": {
+      "uuid": "d7484bd8-ffbb-4483-bebd-47457c0b4465",
+      "hash": "64e6b",
+      "file": "1014_稀有种子兑换货币.png"
+    },
+    "101400": {
+      "uuid": "bb745c91-6f4b-4397-a6f5-9c9ad034b917",
+      "hash": "c5eed",
+      "file": "101400_福运红包.png"
+    },
+    "101401": {
+      "uuid": "60e84e6a-1848-4e07-a3f0-cd766c10a2f9",
+      "hash": "4e853",
+      "file": "101401_微信蓝包测试礼包.png"
+    },
+    "101402": {
+      "uuid": "60e84e6a-1848-4e07-a3f0-cd766c10a2f9",
+      "hash": "4e853",
+      "file": "101402_微信蓝包测试礼包.png"
+    },
+    "101403": {
+      "uuid": "60e84e6a-1848-4e07-a3f0-cd766c10a2f9",
+      "hash": "4e853",
+      "file": "101403_红包拿来.png"
+    },
+    "1015": {
+      "uuid": "9ac44107-3c92-4f2d-8167-189c36a0dc27",
+      "hash": "fdf0d",
+      "file": "1015_幸运币.png"
+    },
+    "101501": {
+      "uuid": "a48a3812-2d0f-42e1-ba36-a03387c4728b",
+      "hash": "a3629",
+      "file": "101501_同气连枝随机礼包.png"
+    },
+    "1016": {
+      "uuid": "89582d51-7b43-4f60-b8ae-6ac6151b2912",
+      "hash": "77ed1",
+      "file": "1016_青团.png"
+    },
+    "101601": {
+      "uuid": "965fe5ab-e44e-46a8-9bb0-789528eea059",
+      "hash": "fc28c",
+      "file": "101601_故友重逢礼包.png"
+    },
+    "101602": {
+      "uuid": "7acd8c6b-d2c8-4fb3-ba54-d9a3e9a5a37f",
+      "hash": "f9fe7",
+      "file": "101602_回归专属礼包.png"
+    },
+    "101603": {
+      "uuid": "e80a46ed-cc0c-4eaa-a4b1-75935a49edab",
+      "hash": "296a8",
+      "file": "101603_每成功召回1名好友即可领取.png"
+    },
+    "101604": {
+      "uuid": "4a0ebd53-8b96-42a9-95f7-47ed9db85bb7",
+      "hash": "faec0",
+      "file": "101604_公益小红花结算礼包.png"
+    },
+    "1017": {
+      "uuid": "d343fc4d-10ba-4916-875f-3196275e1c53",
+      "hash": "35187",
+      "file": "1017_南瓜印章.png"
+    },
+    "1018": {
+      "uuid": "d817ae9c-a4ee-452f-92ba-a7c1a0d8a371",
+      "hash": "b5141",
+      "file": "1018_荷露.png"
+    },
+    "1019": {
+      "uuid": "7d219c40-b76f-49f7-b0f1-cc485850200c",
+      "hash": "43498",
+      "file": "1019_游记积分.png"
+    },
+    "1020": {
+      "uuid": "40b8c8ab-4f2a-47e1-ab18-76852a419564",
+      "hash": "09386",
+      "file": "1020_金穗券.png"
+    },
+    "1021": {
+      "uuid": "25b750a5-4fd2-4e83-9b49-b502a473d5b4",
+      "hash": "5d99d",
+      "file": "1021_助威粽叶.png"
+    },
+    "1022": {
+      "uuid": "7d219c40-b76f-49f7-b0f1-cc485850200c",
+      "hash": "43498",
+      "file": "1022_游记积分.png"
+    },
+    "1023": {
+      "uuid": "33e67f42-a66a-4793-b426-7a434617db75",
+      "hash": "f97ea",
+      "file": "1023_星砂.png"
+    },
+    "1024": {
+      "uuid": "762cfc20-b1e4-457c-a5ea-5a235bc3731d",
+      "hash": "9003e",
+      "file": "1024_鹊羽.png"
+    },
+    "1025": {
+      "uuid": "98cc1ff0-2f82-46d3-b425-972ea7720932",
+      "hash": "2cc9c",
+      "file": "1025_鹊羽香囊.png"
+    },
+    "1026": {
+      "uuid": "362d8fdc-e688-4f01-9f82-d4f07f3818de",
+      "hash": "af79e",
+      "file": "1026_鹊羽香囊.png"
+    },
+    "1027": {
+      "uuid": "2c2be7cc-46db-4357-b4d7-1baab186e3c1",
+      "hash": "70a47",
+      "file": "1027_雷电徽章.png"
+    },
+    "1040": {
+      "uuid": "3103e90b-fd6f-450f-8e89-8c2d4f559325",
+      "hash": "c4aa7",
+      "file": "1040_爱心值.png"
+    },
+    "1040025": {
+      "uuid": "e156c762-a6fe-4b38-8b6a-f2f9a85ba74c",
+      "hash": "bb314",
+      "file": "1040025_卖给商人后，可以获得金豆豆。_gold_Crop_25_Seed.png"
+    },
+    "1040046": {
+      "uuid": "a2639069-a028-4736-a75d-c24392e55c9d",
+      "hash": "aab67",
+      "file": "1040046_卖给商人后，可以获得金豆豆。_gold_Crop_46_Seed.png"
+    },
+    "1040108": {
+      "uuid": "34472172-12f7-4ca3-a087-a3bdc18a233d",
+      "hash": "e535b",
+      "file": "1040108_卖给商人后，可以获得金豆豆。_gold_Crop_108_Seed.png"
+    },
+    "1040109": {
+      "uuid": "8dc06e44-bcfd-422a-8bcd-ac55c5310f54",
+      "hash": "77232",
+      "file": "1040109_卖给商人后，可以获得金豆豆。_gold_Crop_109_Seed.png"
+    },
+    "1040112": {
+      "uuid": "4dece6fa-cc57-49dc-a928-bdc8c18e88bf",
+      "hash": "6ebf2",
+      "file": "1040112_卖给商人后，可以获得金豆豆。_gold_Crop_112_Seed.png"
+    },
+    "1040121": {
+      "uuid": "de69be0d-4376-4ccd-a874-81ed0c98b19f",
+      "hash": "a88f5",
+      "file": "1040121_卖给商人后，可以获得金豆豆。_gold_Crop_121_Seed.png"
+    },
+    "1040122": {
+      "uuid": "5aa6fc02-32ac-4fac-92c4-f3bb0143c18f",
+      "hash": "990b3",
+      "file": "1040122_卖给商人后，可以获得金豆豆。_gold_Crop_122_Seed.png"
+    },
+    "1040129": {
+      "uuid": "37907af1-5b5e-4698-8fa7-db031b8ca565",
+      "hash": "707fc",
+      "file": "1040129_卖给商人后，可以获得金豆豆。_gold_Crop_129_Seed.png"
+    },
+    "1040133": {
+      "uuid": "adb97612-6b41-4661-aa0f-c81f8eaf3d94",
+      "hash": "f4ef1",
+      "file": "1040133_卖给商人后，可以获得金豆豆。_gold_Crop_133_Seed.png"
+    },
+    "1040134": {
+      "uuid": "912f707e-035b-481a-ad1c-07f443c0baf0",
+      "hash": "ab0ee",
+      "file": "1040134_卖给商人后，可以获得金豆豆。_gold_Crop_134_Seed.png"
+    },
+    "1040139": {
+      "uuid": "6c0c0183-e3f1-4856-b79e-93f01e51296c",
+      "hash": "21f1d",
+      "file": "1040139_卖给商人后，可以获得金豆豆。_gold_Crop_139_Seed.png"
+    },
+    "1040140": {
+      "uuid": "e010b7ff-2c83-4b75-b618-550dcc0d19b2",
+      "hash": "7e91c",
+      "file": "1040140_卖给商人后，可以获得金豆豆。_gold_Crop_140_Seed.png"
+    },
+    "1040144": {
+      "uuid": "bba1122f-56cf-49d9-a38e-1bb210eaee0d",
+      "hash": "f5a16",
+      "file": "1040144_卖给商人后，可以获得金豆豆。_gold_Crop_144_Seed.png"
+    },
+    "1040154": {
+      "uuid": "a112ee3f-d269-4e65-a3a8-62872fb07a41",
+      "hash": "2192d",
+      "file": "1040154_卖给商人后，可以获得金豆豆。_gold_Crop_154_Seed.png"
+    },
+    "1040167": {
+      "uuid": "47b8d471-9b0d-4036-914c-2b148128cee8",
+      "hash": "4fed0",
+      "file": "1040167_卖给商人后，可以获得金豆豆。_gold_Crop_167_Seed.png"
+    },
+    "1040176": {
+      "uuid": "c2c83269-ae23-4359-a79c-f4ff92babfe8",
+      "hash": "7df71",
+      "file": "1040176_卖给商人后，可以获得金豆豆。_gold_Crop_176_Seed.png"
+    },
+    "1040184": {
+      "uuid": "f2c9919f-6240-4194-863e-9e30899de292",
+      "hash": "5ce9c",
+      "file": "1040184_卖给商人后，可以获得金豆豆。_gold_Crop_184_Seed.png"
+    },
+    "1040185": {
+      "uuid": "1d7a9f38-df8e-40be-9a54-404fc3080446",
+      "hash": "a7e94",
+      "file": "1040185_卖给商人后，可以获得金豆豆。_gold_Crop_185_Seed.png"
+    },
+    "1040186": {
+      "uuid": "3c979f65-3e72-4738-b8f4-02c450a998b6",
+      "hash": "200cc",
+      "file": "1040186_卖给商人后，可以获得金豆豆。_gold_Crop_186_Seed.png"
+    },
+    "1040193": {
+      "uuid": "fe6bc747-2a65-4d56-bb3a-4d31af7af6f5",
+      "hash": "7005e",
+      "file": "1040193_卖给商人后，可以获得金豆豆。_gold_Crop_193_Seed.png"
+    },
+    "1040199": {
+      "uuid": "90f73180-e278-45bb-85b9-be953c905fe3",
+      "hash": "3f4ce",
+      "file": "1040199_卖给商人后，可以获得金豆豆。_gold_Crop_199_Seed.png"
+    },
+    "1040223": {
+      "uuid": "e04f9024-b93e-413a-af47-890cb4657cbf",
+      "hash": "1c9e9",
+      "file": "1040223_卖给商人后，可以获得金豆豆。_gold_Crop_223_Seed.png"
+    },
+    "1040224": {
+      "uuid": "31064377-5ef5-467d-a48b-e367bad0b7c6",
+      "hash": "2c3ae",
+      "file": "1040224_卖给商人后，可以获得金豆豆。_gold_Crop_224_Seed.png"
+    },
+    "1040243": {
+      "uuid": "926969b7-1dd8-4b74-a6d5-b3f57a90af67",
+      "hash": "8b635",
+      "file": "1040243_卖给商人后，可以获得金豆豆。_gold_Crop_243_Seed.png"
+    },
+    "1040249": {
+      "uuid": "5339f838-328c-47eb-9bf4-c381c4c22355",
+      "hash": "74be0",
+      "file": "1040249_卖给商人后，可以获得金豆豆。_gold_Crop_249_Seed.png"
+    },
+    "1040251": {
+      "uuid": "9543319e-bd89-45f7-b444-ff36fa810ac0",
+      "hash": "fed5c",
+      "file": "1040251_卖给商人后，可以获得金豆豆。_gold_Crop_251_Seed.png"
+    },
+    "1040256": {
+      "uuid": "744f2347-da99-45e1-9c7c-4dbab8947fba",
+      "hash": "22e3e",
+      "file": "1040256_卖给商人后，可以获得金豆豆。_gold_Crop_256_Seed.png"
+    },
+    "1040257": {
+      "uuid": "df1447d5-fbe8-4261-a927-c01309df02f2",
+      "hash": "e8c5a",
+      "file": "1040257_卖给商人后，可以获得金豆豆。_gold_Crop_257_Seed.png"
+    },
+    "1040258": {
+      "uuid": "2c6f8a5c-2ae7-48c2-8503-16e5c3c0e1e2",
+      "hash": "88020",
+      "file": "1040258_卖给商人后，可以获得金豆豆。_gold_Crop_258_Seed.png"
+    },
+    "1040261": {
+      "uuid": "0726c11e-dc4e-4b6e-8a6c-1933a9fe377b",
+      "hash": "cda0b",
+      "file": "1040261_卖给商人后，可以获得金豆豆。_gold_Crop_261_Seed.png"
+    },
+    "1040262": {
+      "uuid": "8d501877-6de6-432f-b7e4-bcb21dd11a89",
+      "hash": "5d1f9",
+      "file": "1040262_卖给商人后，可以获得金豆豆。_gold_Crop_262_Seed.png"
+    },
+    "1040263": {
+      "uuid": "8dd08d05-50db-4dc2-ab01-94a91fd14f08",
+      "hash": "d9931",
+      "file": "1040263_卖给商人后，可以获得金豆豆。_gold_Crop_263_Seed.png"
+    },
+    "1040264": {
+      "uuid": "33a984e8-eace-450d-b8b5-cbe3e57caef2",
+      "hash": "750be",
+      "file": "1040264_黄金·帝王血_gold_Crop_264_Seed.png"
+    },
+    "1040267": {
+      "uuid": "fb7c72ee-d9fc-4c4e-99bd-e0e0831f3e4e",
+      "hash": "8c0a9",
+      "file": "1040267_卖给商人后，可以获得金豆豆。_gold_Crop_267_Seed.png"
+    },
+    "1040269": {
+      "uuid": "479769cf-b979-4008-ae00-5914ad3490d9",
+      "hash": "08adc",
+      "file": "1040269_卖给商人后，可以获得金豆豆。_gold_Crop_269_Seed.png"
+    },
+    "1040304": {
+      "uuid": "5082e580-88c9-4045-922f-80bee40e7640",
+      "hash": "bd6f4",
+      "file": "1040304_卖给商人后，可以获得金豆豆。_gold_Crop_304_Seed.png"
+    },
+    "1040375": {
+      "uuid": "6d29c5be-3759-4285-ab5d-d7eb6b5025a1",
+      "hash": "00a36",
+      "file": "1040375_卖给商人后，可以获得金豆豆。_gold_Crop_375_Seed.png"
+    },
+    "1040416": {
+      "uuid": "a06fc917-43b0-4a9b-bc06-df38bd7d9bca",
+      "hash": "8fb05",
+      "file": "1040416_卖给商人后，可以获得金豆豆。_gold_Crop_416_Seed.png"
+    },
+    "1041032": {
+      "uuid": "c9a60f44-bc9d-442b-b9d0-8f0bb8c7cec4",
+      "hash": "dbf07",
+      "file": "1041032_卖给商人后，可以获得金豆豆。_gold_Crop_1032_Seed.png"
+    },
+    "1041037": {
+      "uuid": "d4a9c420-2632-46a3-aded-64727f70809a",
+      "hash": "85f0a",
+      "file": "1041037_卖给商人后，可以获得金豆豆。_gold_Crop_1037_Seed.png"
+    },
+    "1041038": {
+      "uuid": "7fec3367-6fc5-4118-9eff-637d23383594",
+      "hash": "a1705",
+      "file": "1041038_卖给商人后，可以获得金豆豆。_gold_Crop_1038_Seed.png"
+    },
+    "1041044": {
+      "uuid": "fe0f41fd-9080-4f11-9d76-84a6f9ef2739",
+      "hash": "45140",
+      "file": "1041044_卖给商人后，可以获得金豆豆。_gold_Crop_1044_Seed.png"
+    },
+    "1041050": {
+      "uuid": "ba89fcd6-6ad1-47c3-acd6-63f74d87fc31",
+      "hash": "56340",
+      "file": "1041050_卖给商人后，可以获得金豆豆。_gold_Crop_1050_Seed.png"
+    },
+    "1041134": {
+      "uuid": "c36ad4dd-ed90-4fe1-a32c-eb463ec6d1a5",
+      "hash": "58511",
+      "file": "1041134_卖给商人后，可以获得金豆豆。_gold_Crop_1134_Seed.png"
+    },
+    "1041135": {
+      "uuid": "d0761d34-8bf2-4dd7-93ae-bfb312ac2458",
+      "hash": "32845",
+      "file": "1041135_卖给商人后，可以获得金豆豆。_gold_Crop_1135_Seed.png"
+    },
+    "1041221": {
+      "uuid": "cdf88e7c-f537-40b4-8306-3cc66e6a7b92",
+      "hash": "64dc3",
+      "file": "1041221_卖给商人后，可以获得金豆豆。_gold_Crop_1221_Seed.png"
+    },
+    "1041251": {
+      "uuid": "7d2be7c2-e8ff-44c2-bfda-c306cb1cde3e",
+      "hash": "12cb5",
+      "file": "1041251_卖给商人后，可以获得金豆豆。_gold_Crop_1251_Seed.png"
+    },
+    "1041353": {
+      "uuid": "9dd299f2-c39e-495e-a7f6-56680c200530",
+      "hash": "60a93",
+      "file": "1041353_黄金·紫薇_gold_Crop_1353_Seed.png"
+    },
+    "1041380": {
+      "uuid": "782e385d-c921-41e8-a37a-d4a28089d4f8",
+      "hash": "582f7",
+      "file": "1041380_卖给商人后，可以获得金豆豆。_gold_Crop_1380_Seed.png"
+    },
+    "1041404": {
+      "uuid": "62a60217-d8fe-4909-b7e2-4638ad170893",
+      "hash": "50768",
+      "file": "1041404_黄金·月光花_gold_Crop_1404_Seed.png"
+    },
+    "1041474": {
+      "uuid": "36e159cb-224e-455b-90a8-b8a808da05b1",
+      "hash": "3203e",
+      "file": "1041474_卖给商人后，可以获得金豆豆。_gold_Crop_1474_Seed.png"
+    },
+    "1046032": {
+      "uuid": "ca012ef0-296e-4230-bb2d-f1f2adadabf9",
+      "hash": "325ca",
+      "file": "1046032_卖给商人后，可以获得金豆豆。_gold_Crop_6032_Seed.png"
+    },
+    "1046109": {
+      "uuid": "77ac9c6f-f916-4566-9a7e-ddcc6f574c8a",
+      "hash": "d1339",
+      "file": "1046109_卖给商人后，可以获得金豆豆。_gold_Crop_6109_Seed.png"
+    },
+    "1046127": {
+      "uuid": "a03b0b5c-7ed6-4839-8309-25d66b8c58fe",
+      "hash": "c3f83",
+      "file": "1046127_卖给商人后，可以获得金豆豆。_gold_Crop_6127_Seed.png"
+    },
+    "1049001": {
+      "uuid": "2c183f52-2c55-4321-a15e-6187c09d6910",
+      "hash": "21984",
+      "file": "1049001_卖给商人后，可以获得金豆豆。_gold_Crop_9001_Seed.png"
+    },
+    "1049003": {
+      "uuid": "5cb535aa-3ea5-451e-8c8a-aa5bbc9c1266",
+      "hash": "3e9cd",
+      "file": "1049003_黄金·星语铃花_gold_Crop_9003_Seed.png"
+    },
+    "1101": {
+      "uuid": "6eca3ee1-0d13-4e22-945d-5c23867f5831",
+      "hash": "92844",
+      "file": "1101_种植经验.png"
+    },
+    "20001": {
+      "uuid": "8d7c740a-e144-458d-95c3-15d95efa8bc3",
+      "hash": "21243",
+      "file": "20001_草莓_Crop_1_Seed.png"
+    },
+    "20002": {
+      "uuid": "aa2d4772-8b90-417c-89be-c098e1cbb35c",
+      "hash": "47add",
+      "file": "20002_白萝卜_Crop_2_Seed.png"
+    },
+    "20003": {
+      "uuid": "a823c190-2bd8-4b86-bbac-6c5cbf0c465d",
+      "hash": "20d67",
+      "file": "20003_胡萝卜_Crop_3_Seed.png"
+    },
+    "20004": {
+      "uuid": "956ddaa2-27aa-4b9b-aa72-413390ecaaf5",
+      "hash": "1e555",
+      "file": "20004_玉米_Crop_4_Seed.png"
+    },
+    "20005": {
+      "uuid": "95f857bc-ce3a-47f6-aae0-20ec6f84d21a",
+      "hash": "b0df1",
+      "file": "20005_土豆_Crop_5_Seed.png"
+    },
+    "20006": {
+      "uuid": "2a626649-1952-41ef-8d5a-5ebbb726e479",
+      "hash": "14be1",
+      "file": "20006_茄子_Crop_6_Seed.png"
+    },
+    "20007": {
+      "uuid": "f7d5b3a4-c759-461f-bd81-79d8df59cbe2",
+      "hash": "fbfa8",
+      "file": "20007_番茄_Crop_7_Seed.png"
+    },
+    "20008": {
+      "uuid": "f55a4326-3e65-429e-a615-f5c7c867e451",
+      "hash": "29d15",
+      "file": "20008_豌豆_Crop_8_Seed.png"
+    },
+    "20009": {
+      "uuid": "7eed9dde-2174-4d6d-84e2-5fdb7276eaf3",
+      "hash": "c5356",
+      "file": "20009_辣椒_Crop_9_Seed.png"
+    },
+    "20010": {
+      "uuid": "0009ad77-fd65-48fa-af78-29c9872d8476",
+      "hash": "e0fbe",
+      "file": "20010_南瓜_Crop_10_Seed.png"
+    },
+    "20011": {
+      "uuid": "5eff94d0-05ff-4e1d-a584-cfa473dcb5ca",
+      "hash": "cda1d",
+      "file": "20011_苹果_Crop_11_Seed.png"
+    },
+    "20013": {
+      "uuid": "4d63db88-33bc-4783-aeba-5213c0db86b9",
+      "hash": "e60c2",
+      "file": "20013_葡萄_Crop_13_Seed.png"
+    },
+    "20014": {
+      "uuid": "74d60e9d-aee3-4fad-be3c-6c34b2c479d2",
+      "hash": "4508c",
+      "file": "20014_西瓜_Crop_14_Seed.png"
+    },
+    "20015": {
+      "uuid": "0ea242a7-5188-4296-8700-b4a2e00347b8",
+      "hash": "b5d28",
+      "file": "20015_香蕉_Crop_15_Seed.png"
+    },
+    "20018": {
+      "uuid": "9ec730e7-4a9b-4825-bb45-046f1c5477b1",
+      "hash": "881f1",
+      "file": "20018_桃子_Crop_18_Seed.png"
+    },
+    "20019": {
+      "uuid": "be59e9ef-d6b5-4a70-8b1d-b2a81851eaa2",
+      "hash": "44bfd",
+      "file": "20019_橙子_Crop_19_Seed.png"
+    },
+    "20022": {
+      "uuid": "7be2a835-4ae6-4344-bcc3-918eeca3349a",
+      "hash": "5c0ba",
+      "file": "20022_鳄梨_Crop_22_Seed.png"
+    },
+    "20023": {
+      "uuid": "2a303167-26ac-4a76-8238-d8f5b90f2c5f",
+      "hash": "9af97",
+      "file": "20023_石榴_Crop_23_Seed.png"
+    },
+    "20025": {
+      "uuid": "76410e2c-45b7-4e3c-9db2-637fea80e095",
+      "hash": "79b5f",
+      "file": "20025_银杏树苗_Crop_25_Seed.png"
+    },
+    "20026": {
+      "uuid": "c4a71275-ddce-4607-b9fc-93625244d256",
+      "hash": "83e88",
+      "file": "20026_柚子_Crop_26_Seed.png"
+    },
+    "20027": {
+      "uuid": "37fed013-1f29-4686-992a-bbbf7bc79350",
+      "hash": "fe676",
+      "file": "20027_菠萝_Crop_27_Seed.png"
+    },
+    "20029": {
+      "uuid": "3a2d2a6e-02b3-4a67-ac63-847f728c1279",
+      "hash": "20164",
+      "file": "20029_椰子_Crop_29_Seed.png"
+    },
+    "20031": {
+      "uuid": "7cde3aa5-1732-4215-9b5d-e0aac6550f3f",
+      "hash": "edb43",
+      "file": "20031_葫芦_Crop_31_Seed.png"
+    },
+    "20033": {
+      "uuid": "51f55501-d2b0-4c14-929c-abfc08cef212",
+      "hash": "b3d80",
+      "file": "20033_火龙果_Crop_33_Seed.png"
+    },
+    "20034": {
+      "uuid": "01f07ecf-6303-4b54-8a1a-ea64f5928855",
+      "hash": "13ef6",
+      "file": "20034_樱桃_Crop_34_Seed.png"
+    },
+    "20035": {
+      "uuid": "07232d7e-3d5e-4d48-923e-d70c2b64873b",
+      "hash": "38e1e",
+      "file": "20035_荔枝_Crop_35_Seed.png"
+    },
+    "20036": {
+      "uuid": "f75e1ed3-acfd-4bdf-bae5-a64459ed0347",
+      "hash": "13a07",
+      "file": "20036_箬竹_Crop_36_Seed.png"
+    },
+    "20037": {
+      "uuid": "bb9c6484-1269-44f1-a203-74aa05fecc1d",
+      "hash": "ebb2c",
+      "file": "20037_莲藕_Crop_37_Seed.png"
+    },
+    "20038": {
+      "uuid": "8816cd72-1ebd-4904-bd50-509a8e3798fb",
+      "hash": "91f6c",
+      "file": "20038_木瓜_Crop_38_Seed.png"
+    },
+    "20039": {
+      "uuid": "3be855b2-ac62-4e8f-b754-8ef8d8d1e46a",
+      "hash": "891ad",
+      "file": "20039_杨桃_Crop_39_Seed.png"
+    },
+    "20041": {
+      "uuid": "340b1098-6163-404c-97f9-86cbbc00336b",
+      "hash": "9431b",
+      "file": "20041_红玫瑰_Crop_41_Seed.png"
+    },
+    "20042": {
+      "uuid": "d78193cf-a7a5-40b4-ae67-d1519480503e",
+      "hash": "48e69",
+      "file": "20042_柠檬_Crop_42_Seed.png"
+    },
+    "20043": {
+      "uuid": "68e20b28-d9a4-40cc-a3f0-8ff2d2ba2fc9",
+      "hash": "798d0",
+      "file": "20043_无花果_Crop_43_Seed.png"
+    },
+    "20044": {
+      "uuid": "5c446801-84f3-44fd-a066-9264a619ae04",
+      "hash": "2aee9",
+      "file": "20044_丝瓜_Crop_44_Seed.png"
+    },
+    "20045": {
+      "uuid": "d4e03a5a-6e87-4761-b29c-83835c5665b9",
+      "hash": "66e99",
+      "file": "20045_猕猴桃_Crop_45_Seed.png"
+    },
+    "20046": {
+      "uuid": "1620be8c-9e8f-4476-a016-4d00ffd8b23c",
+      "hash": "f8f0b",
+      "file": "20046_爱心果_Crop_46_Seed.png"
+    },
+    "20047": {
+      "uuid": "fabbc1bf-6622-433a-9471-8839d4a1aad3",
+      "hash": "15d56",
+      "file": "20047_甘蔗_Crop_47_Seed.png"
+    },
+    "20048": {
+      "uuid": "9eb47072-a3ae-4239-99b3-5d1fde9129d9",
+      "hash": "12f45",
+      "file": "20048_杨梅_Crop_48_Seed.png"
+    },
+    "20049": {
+      "uuid": "30f01814-4b36-4838-9c93-d34a823db6a0",
+      "hash": "ca593",
+      "file": "20049_花生_Crop_49_Seed.png"
+    },
+    "20050": {
+      "uuid": "09c2f94f-e865-472f-b599-5e857925ecfe",
+      "hash": "36008",
+      "file": "20050_蘑菇_Crop_50_Seed.png"
+    },
+    "20051": {
+      "uuid": "095fd7f0-24a0-415a-b4b8-96a8aeb07ba5",
+      "hash": "43ad3",
+      "file": "20051_红枣_Crop_51_Seed.png"
+    },
+    "20052": {
+      "uuid": "aa0ddbb8-3102-4428-bad4-c8ad39dfab9e",
+      "hash": "dcccb",
+      "file": "20052_金针菇_Crop_52_Seed.png"
+    },
+    "20053": {
+      "uuid": "ef610bda-bc53-46e7-a0fa-a519a8b180d0",
+      "hash": "7ba22",
+      "file": "20053_桂圆_Crop_53_Seed.png"
+    },
+    "20054": {
+      "uuid": "93760003-3cc3-4a51-abe4-963543437406",
+      "hash": "2b660",
+      "file": "20054_梨_Crop_54_Seed.png"
+    },
+    "20055": {
+      "uuid": "af64a49f-6266-414c-810b-0e03a2edaf11",
+      "hash": "cfe23",
+      "file": "20055_枇杷_Crop_55_Seed.png"
+    },
+    "20056": {
+      "uuid": "0e787d09-1443-4c0f-b496-e0f037983758",
+      "hash": "cced4",
+      "file": "20056_哈密瓜_Crop_56_Seed.png"
+    },
+    "20057": {
+      "uuid": "44bd1002-5c47-47be-b9bc-1ae0fb9a26f2",
+      "hash": "13fb9",
+      "file": "20057_芒果_Crop_57_Seed.png"
+    },
+    "20058": {
+      "uuid": "7816ce22-6077-4175-8632-9f147402c98f",
+      "hash": "dcfc6",
+      "file": "20058_榴莲_Crop_58_Seed.png"
+    },
+    "20059": {
+      "uuid": "d4057a83-ecef-45fb-8988-905b56ae7ce3",
+      "hash": "0a012",
+      "file": "20059_大白菜_Crop_59_Seed.png"
+    },
+    "20060": {
+      "uuid": "e059e031-6953-402e-9d2b-88644465dc81",
+      "hash": "cfbe9",
+      "file": "20060_水稻_Crop_60_Seed.png"
+    },
+    "20061": {
+      "uuid": "2446c70c-20b6-4e3c-8a2f-5d64a044ded6",
+      "hash": "b0f19",
+      "file": "20061_小麦_Crop_61_Seed.png"
+    },
+    "20062": {
+      "uuid": "35aba40d-33bc-465c-8c58-f9b45bd61ca1",
+      "hash": "994e2",
+      "file": "20062_四叶草_Crop_62_Seed.png"
+    },
+    "20063": {
+      "uuid": "7565aa2d-1ff4-43f9-aaa4-be0d1a937122",
+      "hash": "b750f",
+      "file": "20063_苦瓜_Crop_63_Seed.png"
+    },
+    "20064": {
+      "uuid": "9bf36963-4f34-4c9d-b967-73ec64d1e924",
+      "hash": "3bf55",
+      "file": "20064_大葱_Crop_64_Seed.png"
+    },
+    "20065": {
+      "uuid": "5a1d18bc-32f9-40d7-8cd3-be00b79004cc",
+      "hash": "b1ff0",
+      "file": "20065_大蒜_Crop_65_Seed.png"
+    },
+    "20066": {
+      "uuid": "3a7230b2-a8b4-434a-83bf-4cb850c6b291",
+      "hash": "9b1fc",
+      "file": "20066_鲜姜_Crop_66_Seed.png"
+    },
+    "20067": {
+      "uuid": "4a30dcd3-efd2-4ff2-b406-7e81ab3f4923",
+      "hash": "d1c8a",
+      "file": "20067_香瓜_Crop_67_Seed.png"
+    },
+    "20068": {
+      "uuid": "95fe19b7-bb30-4b1a-b70f-fa4fd8e3d893",
+      "hash": "51a24",
+      "file": "20068_冬瓜_Crop_68_Seed.png"
+    },
+    "20069": {
+      "uuid": "4a2d2b64-5b82-4b7e-bf10-cc2084afd97a",
+      "hash": "78ab5",
+      "file": "20069_莴笋_Crop_69_Seed.png"
+    },
+    "20070": {
+      "uuid": "de01453f-1159-490b-b312-6f9906cb8e38",
+      "hash": "4b63e",
+      "file": "20070_黄豆_Crop_70_Seed.png"
+    },
+    "20071": {
+      "uuid": "07ca7a88-3983-42f9-8402-fdec001cb51c",
+      "hash": "a8086",
+      "file": "20071_小白菜_Crop_71_Seed.png"
+    },
+    "20072": {
+      "uuid": "57888e00-33a6-4e1e-b7f7-b6a67b651935",
+      "hash": "31cf4",
+      "file": "20072_榛子_Crop_72_Seed.png"
+    },
+    "20073": {
+      "uuid": "a9429882-6c61-4d3b-83a4-38da55470b6a",
+      "hash": "a27aa",
+      "file": "20073_菠菜_Crop_73_Seed.png"
+    },
+    "20074": {
+      "uuid": "b0811647-bd43-4402-a071-e60e05312943",
+      "hash": "e3f31",
+      "file": "20074_金桔_Crop_74_Seed.png"
+    },
+    "20075": {
+      "uuid": "e1c7e781-d74f-478d-b44e-cd37fc54294e",
+      "hash": "de065",
+      "file": "20075_桑葚_Crop_75_Seed.png"
+    },
+    "20076": {
+      "uuid": "8c490c1a-5085-4f5f-bf06-0a35b39e10e9",
+      "hash": "aa6ae",
+      "file": "20076_山竹_Crop_76_Seed.png"
+    },
+    "20077": {
+      "uuid": "80ae7506-850f-451f-9e18-57c11f62bca2",
+      "hash": "4e7d2",
+      "file": "20077_蓝莓_Crop_77_Seed.png"
+    },
+    "20078": {
+      "uuid": "522a790b-e625-4743-bc1d-8a8d1d52738c",
+      "hash": "6bd84",
+      "file": "20078_杏子_Crop_78_Seed.png"
+    },
+    "20079": {
+      "uuid": "57fada3e-788a-4384-9ff7-b0d50b6a0e57",
+      "hash": "15fc5",
+      "file": "20079_番石榴_Crop_79_Seed.png"
+    },
+    "20080": {
+      "uuid": "727dfe57-ed34-4e96-b8e2-bc856211c39f",
+      "hash": "aba0d",
+      "file": "20080_月柿_Crop_80_Seed.png"
+    },
+    "20083": {
+      "uuid": "b1c8fdd8-2122-4a0b-9af1-e7d50860c0d8",
+      "hash": "d692e",
+      "file": "20083_红毛丹_Crop_83_Seed.png"
+    },
+    "20084": {
+      "uuid": "23dc6a67-01f9-4c50-a772-4e4e34cd4670",
+      "hash": "99eb6",
+      "file": "20084_芭蕉_Crop_84_Seed.png"
+    },
+    "20085": {
+      "uuid": "263f038b-8028-497d-ba6e-6b11dd3511ac",
+      "hash": "82474",
+      "file": "20085_番荔枝_Crop_85_Seed.png"
+    },
+    "20086": {
+      "uuid": "b17af923-2135-4d18-ae27-4ef7a0b9c619",
+      "hash": "ae919",
+      "file": "20086_橄榄_Crop_86_Seed.png"
+    },
+    "20087": {
+      "uuid": "bef2ec8d-2f45-44f6-a7f9-81b5e1f01e3e",
+      "hash": "604a9",
+      "file": "20087_百香果_Crop_87_Seed.png"
+    },
+    "20088": {
+      "uuid": "c93ba578-23c3-4b11-a257-d79e4b8126cb",
+      "hash": "cfcf8",
+      "file": "20088_灯笼果_Crop_88_Seed.png"
+    },
+    "20089": {
+      "uuid": "d6f2058b-d616-4fd9-ae3c-f7f2b5c06aa6",
+      "hash": "8326c",
+      "file": "20089_芦荟_Crop_89_Seed.png"
+    },
+    "20090": {
+      "uuid": "9448434f-33db-47f5-86da-0ce9b413c6a2",
+      "hash": "4469f",
+      "file": "20090_薄荷_Crop_90_Seed.png"
+    },
+    "20091": {
+      "uuid": "4501b8e9-144e-497a-b282-ca1df8e17ee2",
+      "hash": "c847e",
+      "file": "20091_山楂_Crop_91_Seed.png"
+    },
+    "20092": {
+      "uuid": "1e8e8dd8-b362-4c02-96eb-332aa1405a7a",
+      "hash": "32ffb",
+      "file": "20092_稀世琉璃果_Crop_92_Seed.png"
+    },
+    "20095": {
+      "uuid": "d1531233-1602-4322-9d08-25445ccd123f",
+      "hash": "f0547",
+      "file": "20095_栗子_Crop_95_Seed.png"
+    },
+    "20096": {
+      "uuid": "c7879560-b0d9-4f21-ab73-3fb4f083ddc5",
+      "hash": "29cc9",
+      "file": "20096_生菜_Crop_96_Seed.png"
+    },
+    "20097": {
+      "uuid": "722e3547-d04e-4501-9aad-148af16cc8cb",
+      "hash": "97e9b",
+      "file": "20097_黄瓜_Crop_97_Seed.png"
+    },
+    "20098": {
+      "uuid": "f44f642e-4cd9-4c3d-bb25-269ba52d424a",
+      "hash": "84fc4",
+      "file": "20098_花菜_Crop_98_Seed.png"
+    },
+    "20099": {
+      "uuid": "35f65e28-3b35-4466-a040-e1b686085c23",
+      "hash": "89dad",
+      "file": "20099_油菜_Crop_99_Seed.png"
+    },
+    "20100": {
+      "uuid": "c0fc1d8d-0c10-471a-83f4-14c400902a39",
+      "hash": "1abaf",
+      "file": "20100_竹笋_Crop_100_Seed.png"
+    },
+    "201001": {
+      "uuid": "59c10f2c-9d57-4c8c-8fd8-50a55a9b16c0",
+      "hash": "13418",
+      "file": "201001_默认小屋.png"
+    },
+    "201002": {
+      "uuid": "80bfa627-4b31-4c37-bd38-85ad58541cb5",
+      "hash": "80450",
+      "file": "201002_哈哈南瓜小屋.png"
+    },
+    "201003": {
+      "uuid": "92981f00-0c5c-4408-8f44-80c4d7a6948d",
+      "hash": "3dea2",
+      "file": "201003_嘻嘻南瓜小屋.png"
+    },
+    "201004": {
+      "uuid": "4371494e-2830-493a-88e0-bd7bf94a0879",
+      "hash": "29663",
+      "file": "201004_晴空庄园小屋.png"
+    },
+    "201005": {
+      "uuid": "fcf54112-9488-4a6c-afc1-40667e1d1b82",
+      "hash": "ae81e",
+      "file": "201005_枕水听荷小屋.png"
+    },
+    "201006": {
+      "uuid": "636905f9-ff9e-47de-81e2-7ae2984710b6",
+      "hash": "2f880",
+      "file": "201006_绿荫闲庭小屋.png"
+    },
+    "201007": {
+      "uuid": "e169c4b5-012d-46e7-a185-ba463053f649",
+      "hash": "845d2",
+      "file": "201007_夏野农家小屋.png"
+    },
+    "201008": {
+      "uuid": "73fbc668-ffe1-4b5e-9090-b5d72afaa355",
+      "hash": "2b0a9",
+      "file": "201008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "201009": {
+      "uuid": "8f32493c-d4f2-49b4-ae1a-7f0fedcfc324",
+      "hash": "a78a9",
+      "file": "201009_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "20101": {
+      "uuid": "56e51e12-b320-41d1-9d46-4b976eabc271",
+      "hash": "71a8d",
+      "file": "20101_薰衣草_Crop_101_Seed.png"
+    },
+    "20102": {
+      "uuid": "c6f51d4f-45e2-49c6-b5a6-c77e965cc25e",
+      "hash": "fdd21",
+      "file": "20102_马蹄莲_Crop_102_Seed.png"
+    },
+    "20103": {
+      "uuid": "e5f9d964-28ee-4491-b714-ba917a9cec87",
+      "hash": "3e3c3",
+      "file": "20103_天香百合_Crop_103_Seed.png"
+    },
+    "20104": {
+      "uuid": "5432d98e-84cb-4456-af35-ea2b8b194efe",
+      "hash": "c07ec",
+      "file": "20104_非洲菊_Crop_104_Seed.png"
+    },
+    "20105": {
+      "uuid": "b4f19058-1031-420f-ab64-feb4432c60a6",
+      "hash": "8b211",
+      "file": "20105_小雏菊_Crop_105_Seed.png"
+    },
+    "20106": {
+      "uuid": "fb360624-b556-49bc-a86a-88ba924c860c",
+      "hash": "503c2",
+      "file": "20106_郁金香_Crop_106_Seed.png"
+    },
+    "20107": {
+      "uuid": "3d78f5f3-1c54-4c7c-ad97-44c11f9a0d6d",
+      "hash": "4452f",
+      "file": "20107_仙人掌_Crop_107_Seed.png"
+    },
+    "20108": {
+      "uuid": "c756ff7d-4345-4916-a90d-e5a73b126d36",
+      "hash": "9ba30",
+      "file": "20108_铃兰_Crop_108_Seed.png"
+    },
+    "20109": {
+      "uuid": "eb3fd597-28f9-46db-b7c9-235bc4203bb4",
+      "hash": "f9ebc",
+      "file": "20109_蝴蝶兰_Crop_109_Seed.png"
+    },
+    "20110": {
+      "uuid": "48593983-6831-4a94-8678-28a8c4304f54",
+      "hash": "f156b",
+      "file": "20110_满天星_Crop_110_Seed.png"
+    },
+    "20111": {
+      "uuid": "0c57ee50-ef0e-41ba-8988-730390c0bc63",
+      "hash": "de78b",
+      "file": "20111_粉玫瑰_Crop_111_Seed.png"
+    },
+    "20112": {
+      "uuid": "c65bbe0e-d9d0-4dd2-ae6c-e2d7599faf33",
+      "hash": "b53bf",
+      "file": "20112_风信子_Crop_112_Seed.png"
+    },
+    "20113": {
+      "uuid": "b211704b-55f1-4bbd-82ae-a2325b916828",
+      "hash": "fcfe8",
+      "file": "20113_栀子花_Crop_113_Seed.png"
+    },
+    "20114": {
+      "uuid": "e0980e74-8510-4376-ba6d-fc5e354e564c",
+      "hash": "ce6d6",
+      "file": "20114_蓝玫瑰_Crop_114_Seed.png"
+    },
+    "20115": {
+      "uuid": "8a7b7f5b-1899-4472-aa7d-4b06f7db780b",
+      "hash": "b125d",
+      "file": "20115_兰花_Crop_115_Seed.png"
+    },
+    "20116": {
+      "uuid": "6bb50aa4-3d41-426d-8b97-7b3829f045bf",
+      "hash": "a0786",
+      "file": "20116_曼陀罗华_Crop_116_Seed.png"
+    },
+    "20118": {
+      "uuid": "153a45ac-c5c0-4cc4-bb56-1cfd4b60f240",
+      "hash": "79928",
+      "file": "20118_水仙花_Crop_118_Seed.png"
+    },
+    "20120": {
+      "uuid": "8de9453f-e6ef-40ff-a678-3da9bb861bb5",
+      "hash": "13fb0",
+      "file": "20120_蒲公英_Crop_120_Seed.png"
+    },
+    "20121": {
+      "uuid": "104a17da-d00f-4b22-8923-3f586b59f526",
+      "hash": "bb578",
+      "file": "20121_蔷薇_Crop_121_Seed.png"
+    },
+    "20122": {
+      "uuid": "ff3415a7-399e-4eec-99cc-11a2c28ae31b",
+      "hash": "99d94",
+      "file": "20122_丁香花_Crop_122_Seed.png"
+    },
+    "20123": {
+      "uuid": "d2cdfa78-82c9-42fa-9a38-e331c35cce5a",
+      "hash": "4831e",
+      "file": "20123_海棠花_Crop_123_Seed.png"
+    },
+    "20124": {
+      "uuid": "acf97dac-7237-4695-822a-fe488ee25f75",
+      "hash": "38640",
+      "file": "20124_月季花_Crop_124_Seed.png"
+    },
+    "20126": {
+      "uuid": "a7780718-b070-4922-953e-42e3234d0a6b",
+      "hash": "e5f71",
+      "file": "20126_曼珠沙华_Crop_126_Seed.png"
+    },
+    "20128": {
+      "uuid": "17d7dee5-e114-46f0-8017-506863370df9",
+      "hash": "41078",
+      "file": "20128_茉莉花_Crop_128_Seed.png"
+    },
+    "20129": {
+      "uuid": "dcc3b96f-2754-497c-8c58-715579916177",
+      "hash": "6aeed",
+      "file": "20129_勿忘我_Crop_129_Seed.png"
+    },
+    "20130": {
+      "uuid": "d5fadb2a-e464-4933-8bb7-f44238666ffa",
+      "hash": "f0f1d",
+      "file": "20130_琼花_Crop_130_Seed.png"
+    },
+    "20131": {
+      "uuid": "339cdcae-204a-4bcc-b9ce-389aeab4510a",
+      "hash": "0b38f",
+      "file": "20131_六月雪_Crop_131_Seed.png"
+    },
+    "20132": {
+      "uuid": "2a664592-85ba-4cca-9fde-149a40577315",
+      "hash": "c5550",
+      "file": "20132_蓝铃花_Crop_132_Seed.png"
+    },
+    "20133": {
+      "uuid": "79b16618-20aa-47eb-bc86-716880516143",
+      "hash": "f70a4",
+      "file": "20133_凤仙花_Crop_133_Seed.png"
+    },
+    "20134": {
+      "uuid": "cb5b6703-2abd-4af5-be6a-1cabd1c954dc",
+      "hash": "fe281",
+      "file": "20134_绿牡丹_Crop_134_Seed.png"
+    },
+    "20135": {
+      "uuid": "637a9c4e-fe92-4416-b913-f25ac46daab9",
+      "hash": "9ae6d",
+      "file": "20135_火绒草_Crop_135_Seed.png"
+    },
+    "20136": {
+      "uuid": "b56fd745-0dc1-4924-b278-4d03c656875b",
+      "hash": "8cf8a",
+      "file": "20136_毛蟹爪莲_Crop_136_Seed.png"
+    },
+    "20139": {
+      "uuid": "885a22c6-f612-4c31-aed3-f61c90498008",
+      "hash": "b69dc",
+      "file": "20139_糖槭树花_Crop_139_Seed.png"
+    },
+    "20140": {
+      "uuid": "cd82671c-0f16-4f45-aaca-32adac3b8943",
+      "hash": "6286e",
+      "file": "20140_象牙红_Crop_140_Seed.png"
+    },
+    "20141": {
+      "uuid": "5687ef62-528d-4faf-8380-a3d9fc14dd6f",
+      "hash": "1f9c5",
+      "file": "20141_花香根鸢尾_Crop_141_Seed.png"
+    },
+    "20142": {
+      "uuid": "74b327cb-e6db-496b-b665-3b3ceeee04f0",
+      "hash": "9ddac",
+      "file": "20142_虞美人_Crop_142_Seed.png"
+    },
+    "20143": {
+      "uuid": "ee3d377e-30e5-4572-bd4d-6019cf1e6352",
+      "hash": "e8eaa",
+      "file": "20143_含羞草_Crop_143_Seed.png"
+    },
+    "20144": {
+      "uuid": "2bc2281e-c0ef-4757-9c42-3bfbe6eb7680",
+      "hash": "df91e",
+      "file": "20144_七里香_Crop_144_Seed.png"
+    },
+    "20145": {
+      "uuid": "fe45b6b7-3081-4541-bd1f-54bfded448ee",
+      "hash": "1a236",
+      "file": "20145_向日葵_Crop_145_Seed.png"
+    },
+    "20147": {
+      "uuid": "54ce926b-ef79-4f1b-920b-756d8368408f",
+      "hash": "6b647",
+      "file": "20147_牵牛花_Crop_147_Seed.png"
+    },
+    "20154": {
+      "uuid": "61477378-31df-47af-8ec1-08ced07a56d5",
+      "hash": "e7b62",
+      "file": "20154_月桂花_Crop_154_Seed.png"
+    },
+    "20161": {
+      "uuid": "b72a754f-4e24-451d-a12a-a318f3937a05",
+      "hash": "bfab8",
+      "file": "20161_黄色秋菊_Crop_161_Seed.png"
+    },
+    "20162": {
+      "uuid": "f3a09490-43c0-4d04-8a3a-679f9e25efe8",
+      "hash": "3a394",
+      "file": "20162_红色秋菊_Crop_162_Seed.png"
+    },
+    "20165": {
+      "uuid": "aa6ec135-0d19-463b-ae70-3ebb9bf8156d",
+      "hash": "1623a",
+      "file": "20165_茱萸_Crop_165_Seed.png"
+    },
+    "20167": {
+      "uuid": "70ec31d4-957b-49f8-93fd-8c6976ef92c3",
+      "hash": "789dd",
+      "file": "20167_欢乐糖果_Crop_167_Seed.png"
+    },
+    "20172": {
+      "uuid": "1002a2cc-fe2e-401f-b1e3-2ceb061fdb00",
+      "hash": "84f6c",
+      "file": "20172_宋梅_Crop_172_Seed.png"
+    },
+    "20174": {
+      "uuid": "927e4986-19cd-4b01-8d10-f2bd3983a5c2",
+      "hash": "72c0d",
+      "file": "20174_晚香玉_Crop_174_Seed.png"
+    },
+    "20176": {
+      "uuid": "a7498620-9844-4c79-95c3-fa60a66580a0",
+      "hash": "eff80",
+      "file": "20176_金银花_Crop_176_Seed.png"
+    },
+    "20182": {
+      "uuid": "ad69908e-d02c-4758-bd21-b5cd6a191270",
+      "hash": "257dc",
+      "file": "20182_艳蝶兰_Crop_182_Seed.png"
+    },
+    "20184": {
+      "uuid": "888c0ab3-4173-4053-9089-c2ac2ba180f8",
+      "hash": "1edb8",
+      "file": "20184_卡特兰_Crop_184_Seed.png"
+    },
+    "20185": {
+      "uuid": "d467ae0a-319b-4f26-8236-8d702d986bfa",
+      "hash": "821d3",
+      "file": "20185_似何莲_Crop_185_Seed.png"
+    },
+    "20186": {
+      "uuid": "fa88b0bf-b545-4ea5-96a8-a12fa978ca28",
+      "hash": "00752",
+      "file": "20186_米兰_Crop_186_Seed.png"
+    },
+    "20187": {
+      "uuid": "669157f3-771d-409d-b353-949201f85a75",
+      "hash": "a936e",
+      "file": "20187_君子兰_Crop_187_Seed.png"
+    },
+    "20188": {
+      "uuid": "deae3536-15a2-43a8-82c9-22604f21a7f8",
+      "hash": "e60eb",
+      "file": "20188_文殊兰_Crop_188_Seed.png"
+    },
+    "20193": {
+      "uuid": "3dce20af-8b44-4fc9-b94f-36e5d949c88e",
+      "hash": "a361c",
+      "file": "20193_红云飞片_Crop_193_Seed.png"
+    },
+    "20199": {
+      "uuid": "31be696b-e661-48b7-8600-1b110504ab6c",
+      "hash": "f3b87",
+      "file": "20199_石莲花_Crop_199_Seed.png"
+    },
+    "202001": {
+      "uuid": "46a511dc-4b0b-4cd1-a999-101d9e169928",
+      "hash": "3d9c0",
+      "file": "202001_默认木牌.png"
+    },
+    "202002": {
+      "uuid": "0f172c8b-63fb-42d4-98d7-815f96a2538e",
+      "hash": "267d3",
+      "file": "202002_哈哈南瓜木牌.png"
+    },
+    "202003": {
+      "uuid": "e1927a3e-b47f-4d41-b36e-a995c0030837",
+      "hash": "7b01b",
+      "file": "202003_晴空庄园木牌.png"
+    },
+    "202004": {
+      "uuid": "685fcd63-50a8-4eeb-9a09-53b164c8e07f",
+      "hash": "4a1e2",
+      "file": "202004_枕水听荷木牌.png"
+    },
+    "202005": {
+      "uuid": "2f36c8f8-e0cb-4f65-9960-c0d70205ab0a",
+      "hash": "11f2f",
+      "file": "202005_绿荫闲庭木牌.png"
+    },
+    "202006": {
+      "uuid": "70015e19-76ba-49c8-80ab-8e0ff1426f9a",
+      "hash": "3aa30",
+      "file": "202006_夏野农家木牌.png"
+    },
+    "202007": {
+      "uuid": "ef08650a-6f8e-4edb-b83e-fb845dfd8601",
+      "hash": "6afa9",
+      "file": "202007_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "202008": {
+      "uuid": "b27f0b3a-a10f-4d48-8765-9e32a61e85e8",
+      "hash": "6e91d",
+      "file": "202008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "20201": {
+      "uuid": "0d6b3ac8-cab6-4792-a288-52e30af58ab4",
+      "hash": "015e8",
+      "file": "20201_天山雪莲_Crop_201_Seed.png"
+    },
+    "20202": {
+      "uuid": "93c623a8-f066-4faa-9207-ca1c6ef4a26b",
+      "hash": "ae60b",
+      "file": "20202_金边灵芝_Crop_202_Seed.png"
+    },
+    "20204": {
+      "uuid": "713eb888-5860-4419-b552-0e416fc832d2",
+      "hash": "7fe71",
+      "file": "20204_人参_Crop_204_Seed.png"
+    },
+    "20218": {
+      "uuid": "189f164a-a8d8-40ec-918f-567249467619",
+      "hash": "8ed8a",
+      "file": "20218_瓶子树_Crop_218_Seed.png"
+    },
+    "20219": {
+      "uuid": "e71fc085-ec03-4a80-9863-e6c51cf26166",
+      "hash": "80ccb",
+      "file": "20219_路易十四_Crop_219_Seed.png"
+    },
+    "20220": {
+      "uuid": "7d2e3b7f-57e1-4491-8d55-cc485b8a548e",
+      "hash": "afafe",
+      "file": "20220_猪笼草_Crop_220_Seed.png"
+    },
+    "20221": {
+      "uuid": "bbeb2945-da57-4d63-bad8-78c046ffe46d",
+      "hash": "e858f",
+      "file": "20221_天堂鸟_Crop_221_Seed.png"
+    },
+    "20222": {
+      "uuid": "8df2f4e2-f8e1-44b3-a5cb-0e9f2617228d",
+      "hash": "8aded",
+      "file": "20222_豹皮花_Crop_222_Seed.png"
+    },
+    "20223": {
+      "uuid": "50fdb429-1fb0-4f87-acf1-997423d51038",
+      "hash": "a272e",
+      "file": "20223_夏蜡梅_Crop_223_Seed.png"
+    },
+    "20224": {
+      "uuid": "b8515942-e57f-46de-b902-7e97911582d3",
+      "hash": "518de",
+      "file": "20224_昙花_Crop_224_Seed.png"
+    },
+    "20225": {
+      "uuid": "3ebf3c3f-c93a-465a-90d8-7ef92799d9fd",
+      "hash": "1eec9",
+      "file": "20225_宝华玉兰_Crop_225_Seed.png"
+    },
+    "20226": {
+      "uuid": "3cc3f75e-f404-4a97-8166-2f81959df8a9",
+      "hash": "c5dd2",
+      "file": "20226_依米花_Crop_226_Seed.png"
+    },
+    "20227": {
+      "uuid": "2f3db606-fa75-479d-b13e-2dff9ca3fe19",
+      "hash": "5b16f",
+      "file": "20227_大王花_Crop_227_Seed.png"
+    },
+    "20228": {
+      "uuid": "f23c273c-8249-4179-853d-255aedb73eb1",
+      "hash": "55f5b",
+      "file": "20228_人参果_Crop_228_Seed.png"
+    },
+    "20229": {
+      "uuid": "cfea7096-c7f1-4161-9260-6d2fe0996172",
+      "hash": "b0329",
+      "file": "20229_何首乌_Crop_229_Seed.png"
+    },
+    "20235": {
+      "uuid": "6a806076-b893-43f4-b4db-18deddc39050",
+      "hash": "62bc3",
+      "file": "20235_金花茶_Crop_235_Seed.png"
+    },
+    "20242": {
+      "uuid": "4835cfb3-5cb8-4b21-b83a-868b62aa2981",
+      "hash": "9767e",
+      "file": "20242_似血杜鹃_Crop_242_Seed.png"
+    },
+    "20243": {
+      "uuid": "b2d9e2be-1f15-4d51-977f-f487a8d6b2be",
+      "hash": "994fa",
+      "file": "20243_芹叶铁线莲_Crop_243_Seed.png"
+    },
+    "20249": {
+      "uuid": "ce07cc5f-67a8-43a6-90e0-587c0276a164",
+      "hash": "f7dc2",
+      "file": "20249_荷包牡丹_Crop_249_Seed.png"
+    },
+    "20251": {
+      "uuid": "4fae6704-d1f8-48db-beba-7c9ef1d8484d",
+      "hash": "254cd",
+      "file": "20251_鹭草_Crop_251_Seed.png"
+    },
+    "20256": {
+      "uuid": "a5c235dc-ef95-4e2c-9e35-943d04908333",
+      "hash": "fe64e",
+      "file": "20256_石竹花_Crop_256_Seed.png"
+    },
+    "20257": {
+      "uuid": "20946d87-9439-47d3-96d5-3cc651d2cb4b",
+      "hash": "3fb87",
+      "file": "20257_孔雀草_Crop_257_Seed.png"
+    },
+    "20258": {
+      "uuid": "bc29b8bf-bf37-49ad-975e-dc6d9964906c",
+      "hash": "a3261",
+      "file": "20258_欧石楠_Crop_258_Seed.png"
+    },
+    "20259": {
+      "uuid": "8df7c28d-ba7c-477d-a68e-39fb027e3969",
+      "hash": "70831",
+      "file": "20259_银莲花_Crop_259_Seed.png"
+    },
+    "20261": {
+      "uuid": "8cd66579-e4fb-4dcd-8460-2c782c5170f9",
+      "hash": "ec67b",
+      "file": "20261_针垫花_Crop_261_Seed.png"
+    },
+    "20262": {
+      "uuid": "470a98e0-4d57-4370-8553-156b380df175",
+      "hash": "e0548",
+      "file": "20262_帝王花_Crop_262_Seed.png"
+    },
+    "20263": {
+      "uuid": "516edb0a-6e5a-41af-8d87-3aedbc4b339d",
+      "hash": "52045",
+      "file": "20263_天竺葵_Crop_263_Seed.png"
+    },
+    "20264": {
+      "uuid": "18bc64ca-a495-42a2-91a0-70dc5c01072f",
+      "hash": "155f2",
+      "file": "20264_帝王血_Crop_264_Seed.png"
+    },
+    "20265": {
+      "uuid": "46fdccfd-8018-40b9-b807-186cd10e9e81",
+      "hash": "40e65",
+      "file": "20265_朱雀花_Crop_265_Seed.png"
+    },
+    "20266": {
+      "uuid": "f1d491c4-2b88-43d6-813b-57ea40464179",
+      "hash": "f04f2",
+      "file": "20266_羊乳花_Crop_266_Seed.png"
+    },
+    "20267": {
+      "uuid": "1a42cdff-1915-4aa0-aec1-139844b7101a",
+      "hash": "499a4",
+      "file": "20267_地涌金莲_Crop_267_Seed.png"
+    },
+    "20269": {
+      "uuid": "c675953e-cb3f-4cfa-9e25-8c802ed7fd37",
+      "hash": "3d5a0",
+      "file": "20269_桔梗花_Crop_269_Seed.png"
+    },
+    "203001": {
+      "uuid": "7790917f-677a-4ccc-b029-88e782bc452e",
+      "hash": "ade1c",
+      "file": "203001_默认栅栏.png"
+    },
+    "203002": {
+      "uuid": "f874dcdb-fbc2-43cb-9fea-1687ff5a23c7",
+      "hash": "af305",
+      "file": "203002_哈哈南瓜栅栏.png"
+    },
+    "203003": {
+      "uuid": "258f744d-98e6-4a71-a46a-d45681a11a46",
+      "hash": "deab1",
+      "file": "203003_嘻嘻南瓜栅栏.png"
+    },
+    "203004": {
+      "uuid": "71cf206b-c089-453e-a030-8f48221e5b76",
+      "hash": "9e11b",
+      "file": "203004_晴空庄园栅栏.png"
+    },
+    "203005": {
+      "uuid": "f69ddca3-fa7c-4bf1-bbb3-690355694552",
+      "hash": "06995",
+      "file": "203005_枕水听荷栅栏.png"
+    },
+    "203006": {
+      "uuid": "4ac3fa44-c68d-4894-8f6d-7aacd7ebfb35",
+      "hash": "8eb07",
+      "file": "203006_绿荫闲庭栅栏.png"
+    },
+    "203007": {
+      "uuid": "a1561530-3d0b-4d01-8414-ce83fad1862e",
+      "hash": "c2c38",
+      "file": "203007_夏野农家栅栏.png"
+    },
+    "203008": {
+      "uuid": "8ff0f84a-efd2-4f8b-9ba1-b439d8d45373",
+      "hash": "e1c6c",
+      "file": "203008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "203009": {
+      "uuid": "11cf94aa-cf9e-4544-b9cb-281bbe54fa33",
+      "hash": "4a009",
+      "file": "203009_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "20304": {
+      "uuid": "73722bba-e9f1-4d75-aa23-65d57eff622c",
+      "hash": "0bd11",
+      "file": "20304_黄金果_Crop_304_Seed.png"
+    },
+    "20305": {
+      "uuid": "7599bc40-a5d7-4834-8ed8-3e6eab7216ff",
+      "hash": "d6836",
+      "file": "20305_韭菜_Crop_305_Seed.png"
+    },
+    "20306": {
+      "uuid": "6d172f29-286f-4f58-88f7-e6776a863ef7",
+      "hash": "ec59c",
+      "file": "20306_芹菜_Crop_306_Seed.png"
+    },
+    "20308": {
+      "uuid": "b3b7045f-2b34-41ac-9e94-aaaf6083e06a",
+      "hash": "e4bfb",
+      "file": "20308_核桃_Crop_308_Seed.png"
+    },
+    "20329": {
+      "uuid": "c56dec42-9fae-4361-99c6-3d5ef6049569",
+      "hash": "dee1d",
+      "file": "20329_发财红包_Crop_329_Seed.png"
+    },
+    "20375": {
+      "uuid": "64cc614f-a891-4404-a334-823b4df87840",
+      "hash": "b66fe",
+      "file": "20375_木槿_Crop_375_Seed.png"
+    },
+    "20396": {
+      "uuid": "32376957-bcd7-4dca-9bdc-7053da6fae7b",
+      "hash": "81192",
+      "file": "20396_迎春花_Crop_396_Seed.png"
+    },
+    "204002": {
+      "uuid": "705e5884-47b1-467c-80ce-54d24e31fecb",
+      "hash": "65139",
+      "file": "204002_卖给商人后，可以获得金币。_Crop_8001_Seed.png"
+    },
+    "204003": {
+      "uuid": "c365606b-64b9-4151-afac-677897560dd5",
+      "hash": "90ccd",
+      "file": "204003_卖给商人后，可以获得金豆豆。_gold_Crop_8001_Seed.png"
+    },
+    "204004": {
+      "uuid": "901be176-1ae1-4cdb-b3cc-c7399cbabcd4",
+      "hash": "6a43b",
+      "file": "204004_卖给商人后，可以获得金币。_Crop_8002_Seed.png"
+    },
+    "204005": {
+      "uuid": "7759533f-e044-4aa7-aae7-0fc09d840901",
+      "hash": "5c04a",
+      "file": "204005_卖给商人后，可以获得金豆豆。_gold_Crop_8002_Seed.png"
+    },
+    "204006": {
+      "uuid": "75be052b-fb8a-4712-a6b6-e311206f5d0d",
+      "hash": "2842a",
+      "file": "204006_卖给商人后，可以获得金币。_Crop_8003_Seed.png"
+    },
+    "204007": {
+      "uuid": "56d5a4b1-095f-44cf-913f-7f22bb3fddcf",
+      "hash": "8271f",
+      "file": "204007_卖给商人后，可以获得金豆豆。_gold_Crop_8003_Seed.png"
+    },
+    "20413": {
+      "uuid": "ddd8134a-15e5-4fbd-a7f6-a26457e638e2",
+      "hash": "26aa3",
+      "file": "20413_李子_Crop_413_Seed.png"
+    },
+    "20416": {
+      "uuid": "2cd90760-8462-481c-8406-721693c00160",
+      "hash": "e01a7",
+      "file": "20416_哈哈南瓜_Crop_416_Seed.png"
+    },
+    "20442": {
+      "uuid": "00beea60-aa61-4283-a6f3-431605582581",
+      "hash": "93104",
+      "file": "20442_睡莲_Crop_442_Seed.png"
+    },
+    "205001": {
+      "uuid": "b526c1cf-c2f2-40fb-aec2-ba2116d229a9",
+      "hash": "942a7",
+      "file": "205001_默认装扮.png"
+    },
+    "205002": {
+      "uuid": "ba398dfc-f7ed-4b4e-ba19-5049a1d88016",
+      "hash": "b7543",
+      "file": "205002_【南瓜乐翻天】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "205003": {
+      "uuid": "31a39998-5a5d-4975-869f-0f3c7de53fc2",
+      "hash": "343b6",
+      "file": "205003_SVIP特权装扮.png"
+    },
+    "205004": {
+      "uuid": "c82ae6b0-de05-42e9-8c19-4a05c134b4ff",
+      "hash": "16151",
+      "file": "205004_枕水听荷狗屋.png"
+    },
+    "205005": {
+      "uuid": "64affa58-fb66-4b80-b9ab-2e7871538fe2",
+      "hash": "7b61c",
+      "file": "205005_【荷风十里蝉初鸣】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "205006": {
+      "uuid": "3d47d979-0ae5-4474-a383-7896d2cc2fe4",
+      "hash": "1b615",
+      "file": "205006_在【商店】功能中进行购买。.png"
+    },
+    "205007": {
+      "uuid": "5ba87234-1a59-44c0-94fe-88fc3a205167",
+      "hash": "b9c12",
+      "file": "205007_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "205008": {
+      "uuid": "c97549c5-1cc5-4ca0-891e-0e7c3fd8df47",
+      "hash": "75cf5",
+      "file": "205008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "206001": {
+      "uuid": "dda7fb99-e808-445a-acfa-bd54155829d1",
+      "hash": "ef52f",
+      "file": "206001_默认仓库.png"
+    },
+    "206002": {
+      "uuid": "39f2bbff-f699-4e38-8c82-91debe6b1bc4",
+      "hash": "cac46",
+      "file": "206002_哈哈南瓜仓库.png"
+    },
+    "206003": {
+      "uuid": "9803f5dc-8129-4767-af68-0a0426d17159",
+      "hash": "9f4e6",
+      "file": "206003_晴空庄园仓库.png"
+    },
+    "206004": {
+      "uuid": "f20a9505-3a66-4fa6-90e7-ec501ee37ba4",
+      "hash": "86a97",
+      "file": "206004_枕水听荷仓库.png"
+    },
+    "206005": {
+      "uuid": "963ca8db-28b3-4103-a121-0c0703550bd6",
+      "hash": "be97e",
+      "file": "206005_绿荫闲庭仓库.png"
+    },
+    "206006": {
+      "uuid": "c0745e8b-47b0-4359-9dd9-9c9c96237e74",
+      "hash": "1ee8e",
+      "file": "206006_夏野农家仓库.png"
+    },
+    "206007": {
+      "uuid": "3c43aa4d-7cc0-4bf7-b6a9-bdffbec8b7a5",
+      "hash": "a4fcb",
+      "file": "206007_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "206008": {
+      "uuid": "82987223-24f2-429d-a158-57e77cd6975a",
+      "hash": "7ebd9",
+      "file": "206008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "207001": {
+      "uuid": "e650306b-db52-4f18-97e2-878efee480a5",
+      "hash": "a4507",
+      "file": "207001_默认道路.png"
+    },
+    "207002": {
+      "uuid": "cbdc4d55-0bc5-47b8-a899-2223687b6039",
+      "hash": "d1f9a",
+      "file": "207002_哈哈南瓜街道.png"
+    },
+    "207003": {
+      "uuid": "689e852a-751e-4cba-813a-76757f0d5918",
+      "hash": "c0687",
+      "file": "207003_嘻嘻南瓜街道.png"
+    },
+    "207004": {
+      "uuid": "89c48564-d261-41d8-bf61-833c897b6146",
+      "hash": "3818e",
+      "file": "207004_晴空庄园街道.png"
+    },
+    "207005": {
+      "uuid": "b9ca1ebd-adf4-48f8-81c5-0d86c91aceb0",
+      "hash": "e9a93",
+      "file": "207005_枕水听荷街道.png"
+    },
+    "207006": {
+      "uuid": "69e56994-8af8-4604-bad7-d8f75524cfb4",
+      "hash": "5cddc",
+      "file": "207006_绿荫闲庭街道.png"
+    },
+    "207007": {
+      "uuid": "38268230-43e7-4d0d-9f85-6108503ce585",
+      "hash": "02c73",
+      "file": "207007_夏野农家街道.png"
+    },
+    "207008": {
+      "uuid": "5af45e12-c7bb-4645-b99f-a3834adb411e",
+      "hash": "72b07",
+      "file": "207008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "207009": {
+      "uuid": "f6026804-6483-4879-a6c1-134d2334704a",
+      "hash": "fe19e",
+      "file": "207009_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "208001": {
+      "uuid": "0afeb484-f847-4d77-ae39-da622d891b45",
+      "hash": "cde04",
+      "file": "208001_默认装扮.png"
+    },
+    "208002": {
+      "uuid": "6d4d4d6c-260e-4968-bfe5-e2dff571807f",
+      "hash": "2cab0",
+      "file": "208002_【南瓜乐翻天】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "208003": {
+      "uuid": "68eb9547-4bfb-4f51-9262-4751daa25685",
+      "hash": "4c903",
+      "file": "208003_【南瓜乐翻天】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "208004": {
+      "uuid": "c639f857-f1d8-420e-aa32-993b5d31e764",
+      "hash": "30ebe",
+      "file": "208004_SVIP特权装扮.png"
+    },
+    "208005": {
+      "uuid": "e35dcce9-a9c8-41e9-b1f1-74553c1d7fbc",
+      "hash": "5b780",
+      "file": "208005_枕水听荷围栏.png"
+    },
+    "208006": {
+      "uuid": "4ca841a3-d0d3-43b9-9783-2a97e7e7ba78",
+      "hash": "99a4a",
+      "file": "208006_【荷风十里蝉初鸣】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "208007": {
+      "uuid": "57089084-a374-43f3-a1da-1989eaa6ad8b",
+      "hash": "d9dd9",
+      "file": "208007_在【商店】功能中进行购买。.png"
+    },
+    "208008": {
+      "uuid": "45f09bde-0eca-4553-b9bc-bfb66c6602a9",
+      "hash": "48b27",
+      "file": "208008_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "208009": {
+      "uuid": "d655de38-fb1d-4997-a383-989e4993bf02",
+      "hash": "6de7c",
+      "file": "208009_【心许千灯星垂野】活动限定装扮，可在【装扮】功能中进行装备。.png"
+    },
+    "20883": {
+      "uuid": "c61651d2-8b10-4210-9eb0-c2bebefe5cea",
+      "hash": "37919",
+      "file": "20883_小红花种子_Crop_883_Seed.png"
+    },
+    "21032": {
+      "uuid": "6f776d22-65d6-455d-be46-0c74681db4ab",
+      "hash": "70f83",
+      "file": "21032_琉璃宝荷_Crop_1032_Seed.png"
+    },
+    "21037": {
+      "uuid": "7047ab54-999d-4775-a1be-087c76cdd7b2",
+      "hash": "0e8ab",
+      "file": "21037_银星海棠_Crop_1037_Seed.png"
+    },
+    "21038": {
+      "uuid": "7fb38cdd-3c70-4c7f-bef2-5ef2ee83d979",
+      "hash": "579f7",
+      "file": "21038_香彩雀_Crop_1038_Seed.png"
+    },
+    "21044": {
+      "uuid": "e30411c4-b2e0-435b-848f-2743658ca72e",
+      "hash": "38aa9",
+      "file": "21044_繁星花_Crop_1044_Seed.png"
+    },
+    "21050": {
+      "uuid": "0c552948-5a97-4f97-b21b-455293f2c4fc",
+      "hash": "80a5b",
+      "file": "21050_萱草_Crop_1050_Seed.png"
+    },
+    "2110": {
+      "uuid": "931565ce-dbda-4114-b37b-052184e94e37",
+      "hash": "5a6f7",
+      "file": "2110_农场元老内测头像框.png"
+    },
+    "21134": {
+      "uuid": "a9c7bc79-375d-4781-af29-2bc5fc9b0d82",
+      "hash": "480af",
+      "file": "21134_菖蒲_Crop_1134_Seed.png"
+    },
+    "21135": {
+      "uuid": "821fe2c3-07b6-4098-9111-8c51de3566cb",
+      "hash": "19d74",
+      "file": "21135_艾草_Crop_1135_Seed.png"
+    },
+    "21221": {
+      "uuid": "bd6c3582-1352-4d1e-a2ad-bf831f4fd753",
+      "hash": "0acd7",
+      "file": "21221_青梅_Crop_1221_Seed.png"
+    },
+    "21251": {
+      "uuid": "80bf5adf-3d09-40d2-8017-f40b01d92747",
+      "hash": "c8371",
+      "file": "21251_紫茉莉_Crop_1251_Seed.png"
+    },
+    "21353": {
+      "uuid": "9496e218-f394-4afa-b27f-a948ab4c4459",
+      "hash": "112f7",
+      "file": "21353_紫薇_Crop_1353_Seed.png"
+    },
+    "21380": {
+      "uuid": "cb297dcc-cd41-4a15-9c6a-80007baa48b7",
+      "hash": "33ef7",
+      "file": "21380_梧桐_Crop_1380_Seed.png"
+    },
+    "21404": {
+      "uuid": "bccccb2c-ed35-4fe1-a71b-4601b910ea54",
+      "hash": "daea3",
+      "file": "21404_月光花_Crop_1404_Seed.png"
+    },
+    "21474": {
+      "uuid": "6183e5c4-5463-49bb-a93e-cbc85737d3c3",
+      "hash": "69799",
+      "file": "21474_荷青花_Crop_1474_Seed.png"
+    },
+    "2151": {
+      "uuid": "b18bd5f5-6e8f-4793-95e3-735b71ef43e2",
+      "hash": "fe646",
+      "file": "2151_枕水听荷头像框.png"
+    },
+    "2152": {
+      "uuid": "4f27b8e9-f294-4d0b-88f7-9b1d9a87657f",
+      "hash": "f0cb9",
+      "file": "2152_荷风游记系列活动获取，使用后获得头像框。.png"
+    },
+    "2153": {
+      "uuid": "820e117c-6eda-42b6-a8a7-9b9da3bca020",
+      "hash": "538c4",
+      "file": "2153_粽香大比拼活动获取，使用后获得头像框。.png"
+    },
+    "2154": {
+      "uuid": "8454f9ac-415f-442f-a022-9458e8efaae5",
+      "hash": "c7286",
+      "file": "2154_粽香大比拼活动获取，使用后获得头像框。.png"
+    },
+    "21542": {
+      "uuid": "819f356c-5539-4a71-9b61-af3eeb8336a6",
+      "hash": "186e7",
+      "file": "21542_新春红包_Crop_1542_Seed.png"
+    },
+    "2155": {
+      "uuid": "1506a19a-d4bd-4b7b-94c5-5ec63b2ce2f6",
+      "hash": "2feca",
+      "file": "2155_足球狂欢季活动获取，使用后获得头像框。.png"
+    },
+    "2156": {
+      "uuid": "bf170e2e-166b-4049-ab85-bea3f4ffc134",
+      "hash": "22847",
+      "file": "2156_千星游记系列活动获取，使用后获得头像框。.png"
+    },
+    "2157": {
+      "uuid": "67c0168f-8dd8-4a25-9fc6-806494afaa67",
+      "hash": "2c432",
+      "file": "2157_千星游记系列活动获取，使用后获得头像框。.png"
+    },
+    "2158": {
+      "uuid": "78cdf94b-caf2-4bb2-aca9-d7fa42446810",
+      "hash": "3d294",
+      "file": "2158_小红花做好事头像框.png"
+    },
+    "2159": {
+      "uuid": "081fc717-e366-4e6a-a219-46bf06631d18",
+      "hash": "ae757",
+      "file": "2159_雨落成诗头像框.png"
+    },
+    "26032": {
+      "uuid": "eb8af4c8-bd98-468d-bbe9-05715623e634",
+      "hash": "50650",
+      "file": "26032_月见草_Crop_6032_Seed.png"
+    },
+    "26127": {
+      "uuid": "c3b38551-8a02-4668-9647-3ffd26289392",
+      "hash": "eee70",
+      "file": "26127_凌霄花_Crop_6127_Seed.png"
+    },
+    "29003": {
+      "uuid": "a087f279-63c3-416a-8d06-fff941c1c333",
+      "hash": "98f26",
+      "file": "29003_星语铃花_Crop_9003_Seed.png"
+    },
+    "29998": {
+      "uuid": "2cd90760-8462-481c-8406-721693c00160",
+      "hash": "e01a7",
+      "file": "29998_哈哈南瓜_Crop_416_Seed.png"
+    },
+    "29999": {
+      "uuid": "aa2d4772-8b90-417c-89be-c098e1cbb35c",
+      "hash": "47add",
+      "file": "29999_白萝卜_Crop_2_Seed.png"
+    },
+    "3001": {
+      "uuid": "bd489f54-172c-44da-987a-f34588edb87c",
+      "hash": "5c483",
+      "file": "3001_普通图鉴进度值.png"
+    },
+    "3002": {
+      "uuid": "bd489f54-172c-44da-987a-f34588edb87c",
+      "hash": "5c483",
+      "file": "3002_典藏图鉴进度值.png"
+    },
+    "30025": {
+      "uuid": "76410e2c-45b7-4e3c-9db2-637fea80e095",
+      "hash": "79b5f",
+      "file": "30025_种子解锁道具_Crop_25_Seed.png"
+    },
+    "30107": {
+      "uuid": "3d78f5f3-1c54-4c7c-ad97-44c11f9a0d6d",
+      "hash": "4452f",
+      "file": "30107_种子解锁道具_Crop_107_Seed.png"
+    },
+    "30108": {
+      "uuid": "c756ff7d-4345-4916-a90d-e5a73b126d36",
+      "hash": "9ba30",
+      "file": "30108_种子解锁道具_Crop_108_Seed.png"
+    },
+    "30109": {
+      "uuid": "eb3fd597-28f9-46db-b7c9-235bc4203bb4",
+      "hash": "f9ebc",
+      "file": "30109_种子解锁道具_Crop_109_Seed.png"
+    },
+    "301101": {
+      "uuid": "5a4690b2-7382-4f97-a4a1-05b9231e47e2",
+      "hash": "6c1e2",
+      "file": "301101_在好友农场放置可获得30经验，仅限好友本人清除，可获得相同奖励。.png"
+    },
+    "301102": {
+      "uuid": "4879e6e8-5bb8-481a-bba0-3e0ba0bd9f76",
+      "hash": "7cec5",
+      "file": "301102_通过足球狂欢季活动获取，在好友农场放置可获得30经验。.png"
+    },
+    "301103": {
+      "uuid": "36397a1b-ef68-49a7-8209-c06648969092",
+      "hash": "660b2",
+      "file": "301103_鹊桥寄情活动期间内，可在自己或好友农场使用。.png"
+    },
+    "30111": {
+      "uuid": "0c57ee50-ef0e-41ba-8988-730390c0bc63",
+      "hash": "de78b",
+      "file": "30111_种子解锁道具_Crop_111_Seed.png"
+    },
+    "30112": {
+      "uuid": "c65bbe0e-d9d0-4dd2-ae6c-e2d7599faf33",
+      "hash": "b53bf",
+      "file": "30112_种子解锁道具_Crop_112_Seed.png"
+    },
+    "30113": {
+      "uuid": "b211704b-55f1-4bbd-82ae-a2325b916828",
+      "hash": "fcfe8",
+      "file": "30113_种子解锁道具_Crop_113_Seed.png"
+    },
+    "30114": {
+      "uuid": "e0980e74-8510-4376-ba6d-fc5e354e564c",
+      "hash": "ce6d6",
+      "file": "30114_种子解锁道具_Crop_114_Seed.png"
+    },
+    "30118": {
+      "uuid": "153a45ac-c5c0-4cc4-bb56-1cfd4b60f240",
+      "hash": "79928",
+      "file": "30118_种子解锁道具_Crop_118_Seed.png"
+    },
+    "30121": {
+      "uuid": "104a17da-d00f-4b22-8923-3f586b59f526",
+      "hash": "bb578",
+      "file": "30121_种子解锁道具_Crop_121_Seed.png"
+    },
+    "30122": {
+      "uuid": "ff3415a7-399e-4eec-99cc-11a2c28ae31b",
+      "hash": "99d94",
+      "file": "30122_种子解锁道具_Crop_122_Seed.png"
+    },
+    "30123": {
+      "uuid": "d2cdfa78-82c9-42fa-9a38-e331c35cce5a",
+      "hash": "4831e",
+      "file": "30123_种子解锁道具_Crop_123_Seed.png"
+    },
+    "30129": {
+      "uuid": "dcc3b96f-2754-497c-8c58-715579916177",
+      "hash": "6aeed",
+      "file": "30129_种子解锁道具_Crop_129_Seed.png"
+    },
+    "30130": {
+      "uuid": "d5fadb2a-e464-4933-8bb7-f44238666ffa",
+      "hash": "f0f1d",
+      "file": "30130_种子解锁道具_Crop_130_Seed.png"
+    },
+    "30134": {
+      "uuid": "cb5b6703-2abd-4af5-be6a-1cabd1c954dc",
+      "hash": "fe281",
+      "file": "30134_种子解锁道具_Crop_134_Seed.png"
+    },
+    "30136": {
+      "uuid": "b56fd745-0dc1-4924-b278-4d03c656875b",
+      "hash": "8cf8a",
+      "file": "30136_种子解锁道具_Crop_136_Seed.png"
+    },
+    "30139": {
+      "uuid": "885a22c6-f612-4c31-aed3-f61c90498008",
+      "hash": "b69dc",
+      "file": "30139_种子解锁道具_Crop_139_Seed.png"
+    },
+    "30140": {
+      "uuid": "cd82671c-0f16-4f45-aaca-32adac3b8943",
+      "hash": "6286e",
+      "file": "30140_种子解锁道具_Crop_140_Seed.png"
+    },
+    "30144": {
+      "uuid": "2bc2281e-c0ef-4757-9c42-3bfbe6eb7680",
+      "hash": "df91e",
+      "file": "30144_种子解锁道具_Crop_144_Seed.png"
+    },
+    "30154": {
+      "uuid": "61477378-31df-47af-8ec1-08ced07a56d5",
+      "hash": "e7b62",
+      "file": "30154_种子解锁道具_Crop_154_Seed.png"
+    },
+    "30165": {
+      "uuid": "aa6ec135-0d19-463b-ae70-3ebb9bf8156d",
+      "hash": "1623a",
+      "file": "30165_种子解锁道具_Crop_165_Seed.png"
+    },
+    "30184": {
+      "uuid": "888c0ab3-4173-4053-9089-c2ac2ba180f8",
+      "hash": "1edb8",
+      "file": "30184_种子解锁道具_Crop_184_Seed.png"
+    },
+    "30185": {
+      "uuid": "d467ae0a-319b-4f26-8236-8d702d986bfa",
+      "hash": "821d3",
+      "file": "30185_种子解锁道具_Crop_185_Seed.png"
+    },
+    "30186": {
+      "uuid": "fa88b0bf-b545-4ea5-96a8-a12fa978ca28",
+      "hash": "00752",
+      "file": "30186_种子解锁道具_Crop_186_Seed.png"
+    },
+    "30193": {
+      "uuid": "3dce20af-8b44-4fc9-b94f-36e5d949c88e",
+      "hash": "a361c",
+      "file": "30193_种子解锁道具_Crop_193_Seed.png"
+    },
+    "30199": {
+      "uuid": "31be696b-e661-48b7-8600-1b110504ab6c",
+      "hash": "f3b87",
+      "file": "30199_种子解锁道具_Crop_199_Seed.png"
+    },
+    "30223": {
+      "uuid": "50fdb429-1fb0-4f87-acf1-997423d51038",
+      "hash": "a272e",
+      "file": "30223_种子解锁道具_Crop_223_Seed.png"
+    },
+    "30224": {
+      "uuid": "b8515942-e57f-46de-b902-7e97911582d3",
+      "hash": "518de",
+      "file": "30224_种子解锁道具_Crop_224_Seed.png"
+    },
+    "30249": {
+      "uuid": "ce07cc5f-67a8-43a6-90e0-587c0276a164",
+      "hash": "f7dc2",
+      "file": "30249_种子解锁道具_Crop_249_Seed.png"
+    },
+    "30256": {
+      "uuid": "a5c235dc-ef95-4e2c-9e35-943d04908333",
+      "hash": "fe64e",
+      "file": "30256_种子解锁道具_Crop_256_Seed.png"
+    },
+    "30257": {
+      "uuid": "20946d87-9439-47d3-96d5-3cc651d2cb4b",
+      "hash": "3fb87",
+      "file": "30257_种子解锁道具_Crop_257_Seed.png"
+    },
+    "30258": {
+      "uuid": "bc29b8bf-bf37-49ad-975e-dc6d9964906c",
+      "hash": "a3261",
+      "file": "30258_种子解锁道具_Crop_258_Seed.png"
+    },
+    "30261": {
+      "uuid": "8cd66579-e4fb-4dcd-8460-2c782c5170f9",
+      "hash": "ec67b",
+      "file": "30261_种子解锁道具_Crop_261_Seed.png"
+    },
+    "30262": {
+      "uuid": "470a98e0-4d57-4370-8553-156b380df175",
+      "hash": "e0548",
+      "file": "30262_种子解锁道具_Crop_262_Seed.png"
+    },
+    "30263": {
+      "uuid": "516edb0a-6e5a-41af-8d87-3aedbc4b339d",
+      "hash": "52045",
+      "file": "30263_种子解锁道具_Crop_263_Seed.png"
+    },
+    "30264": {
+      "uuid": "18bc64ca-a495-42a2-91a0-70dc5c01072f",
+      "hash": "155f2",
+      "file": "30264_种子解锁道具_Crop_264_Seed.png"
+    },
+    "30265": {
+      "uuid": "46fdccfd-8018-40b9-b807-186cd10e9e81",
+      "hash": "40e65",
+      "file": "30265_种子解锁道具_Crop_265_Seed.png"
+    },
+    "30266": {
+      "uuid": "f1d491c4-2b88-43d6-813b-57ea40464179",
+      "hash": "f04f2",
+      "file": "30266_种子解锁道具_Crop_266_Seed.png"
+    },
+    "30269": {
+      "uuid": "c675953e-cb3f-4cfa-9e25-8c802ed7fd37",
+      "hash": "3d5a0",
+      "file": "30269_种子解锁道具_Crop_269_Seed.png"
+    },
+    "30304": {
+      "uuid": "73722bba-e9f1-4d75-aa23-65d57eff622c",
+      "hash": "0bd11",
+      "file": "30304_种子解锁道具_Crop_304_Seed.png"
+    },
+    "40001": {
+      "uuid": "8d7c740a-e144-458d-95c3-15d95efa8bc3",
+      "hash": "21243",
+      "file": "40001_卖给商人后，可以获得金币。_Crop_1_Seed.png"
+    },
+    "40002": {
+      "uuid": "aa2d4772-8b90-417c-89be-c098e1cbb35c",
+      "hash": "47add",
+      "file": "40002_卖给商人后，可以获得金币。_Crop_2_Seed.png"
+    },
+    "40003": {
+      "uuid": "a823c190-2bd8-4b86-bbac-6c5cbf0c465d",
+      "hash": "20d67",
+      "file": "40003_卖给商人后，可以获得金币。_Crop_3_Seed.png"
+    },
+    "40004": {
+      "uuid": "956ddaa2-27aa-4b9b-aa72-413390ecaaf5",
+      "hash": "1e555",
+      "file": "40004_卖给商人后，可以获得金币。_Crop_4_Seed.png"
+    },
+    "40005": {
+      "uuid": "95f857bc-ce3a-47f6-aae0-20ec6f84d21a",
+      "hash": "b0df1",
+      "file": "40005_卖给商人后，可以获得金币。_Crop_5_Seed.png"
+    },
+    "40006": {
+      "uuid": "2a626649-1952-41ef-8d5a-5ebbb726e479",
+      "hash": "14be1",
+      "file": "40006_卖给商人后，可以获得金币。_Crop_6_Seed.png"
+    },
+    "40007": {
+      "uuid": "f7d5b3a4-c759-461f-bd81-79d8df59cbe2",
+      "hash": "fbfa8",
+      "file": "40007_卖给商人后，可以获得金币。_Crop_7_Seed.png"
+    },
+    "40008": {
+      "uuid": "f55a4326-3e65-429e-a615-f5c7c867e451",
+      "hash": "29d15",
+      "file": "40008_卖给商人后，可以获得金币。_Crop_8_Seed.png"
+    },
+    "40009": {
+      "uuid": "7eed9dde-2174-4d6d-84e2-5fdb7276eaf3",
+      "hash": "c5356",
+      "file": "40009_卖给商人后，可以获得金币。_Crop_9_Seed.png"
+    },
+    "4001": {
+      "uuid": "1111bacf-2028-40dc-b063-125c7fe0f876",
+      "hash": "e6885",
+      "file": "4001_手札活跃点.png"
+    },
+    "40010": {
+      "uuid": "0009ad77-fd65-48fa-af78-29c9872d8476",
+      "hash": "e0fbe",
+      "file": "40010_卖给商人后，可以获得金币。_Crop_10_Seed.png"
+    },
+    "40011": {
+      "uuid": "5eff94d0-05ff-4e1d-a584-cfa473dcb5ca",
+      "hash": "cda1d",
+      "file": "40011_卖给商人后，可以获得金币。_Crop_11_Seed.png"
+    },
+    "40013": {
+      "uuid": "4d63db88-33bc-4783-aeba-5213c0db86b9",
+      "hash": "e60c2",
+      "file": "40013_卖给商人后，可以获得金币。_Crop_13_Seed.png"
+    },
+    "40014": {
+      "uuid": "74d60e9d-aee3-4fad-be3c-6c34b2c479d2",
+      "hash": "4508c",
+      "file": "40014_卖给商人后，可以获得金币。_Crop_14_Seed.png"
+    },
+    "40015": {
+      "uuid": "0ea242a7-5188-4296-8700-b4a2e00347b8",
+      "hash": "b5d28",
+      "file": "40015_卖给商人后，可以获得金币。_Crop_15_Seed.png"
+    },
+    "40018": {
+      "uuid": "9ec730e7-4a9b-4825-bb45-046f1c5477b1",
+      "hash": "881f1",
+      "file": "40018_卖给商人后，可以获得金币。_Crop_18_Seed.png"
+    },
+    "40019": {
+      "uuid": "be59e9ef-d6b5-4a70-8b1d-b2a81851eaa2",
+      "hash": "44bfd",
+      "file": "40019_卖给商人后，可以获得金币。_Crop_19_Seed.png"
+    },
+    "4002": {
+      "uuid": "6843c71f-f61c-49ae-bfcd-c9d0ff555fe9",
+      "hash": "72676",
+      "file": "4002_闪电感应.png"
+    },
+    "40022": {
+      "uuid": "7be2a835-4ae6-4344-bcc3-918eeca3349a",
+      "hash": "5c0ba",
+      "file": "40022_卖给商人后，可以获得金币。_Crop_22_Seed.png"
+    },
+    "40023": {
+      "uuid": "2a303167-26ac-4a76-8238-d8f5b90f2c5f",
+      "hash": "9af97",
+      "file": "40023_卖给商人后，可以获得金币。_Crop_23_Seed.png"
+    },
+    "40025": {
+      "uuid": "76410e2c-45b7-4e3c-9db2-637fea80e095",
+      "hash": "79b5f",
+      "file": "40025_卖给商人后，可以获得金币。_Crop_25_Seed.png"
+    },
+    "40026": {
+      "uuid": "c4a71275-ddce-4607-b9fc-93625244d256",
+      "hash": "83e88",
+      "file": "40026_卖给商人后，可以获得金币。_Crop_26_Seed.png"
+    },
+    "40027": {
+      "uuid": "37fed013-1f29-4686-992a-bbbf7bc79350",
+      "hash": "fe676",
+      "file": "40027_卖给商人后，可以获得金币。_Crop_27_Seed.png"
+    },
+    "40029": {
+      "uuid": "3a2d2a6e-02b3-4a67-ac63-847f728c1279",
+      "hash": "20164",
+      "file": "40029_卖给商人后，可以获得金币。_Crop_29_Seed.png"
+    },
+    "4003": {
+      "uuid": "6843c71f-f61c-49ae-bfcd-c9d0ff555fe9",
+      "hash": "72676",
+      "file": "4003_闪电感应.png"
+    },
+    "40031": {
+      "uuid": "7cde3aa5-1732-4215-9b5d-e0aac6550f3f",
+      "hash": "edb43",
+      "file": "40031_卖给商人后，可以获得金币。_Crop_31_Seed.png"
+    },
+    "40033": {
+      "uuid": "51f55501-d2b0-4c14-929c-abfc08cef212",
+      "hash": "b3d80",
+      "file": "40033_卖给商人后，可以获得金币。_Crop_33_Seed.png"
+    },
+    "40034": {
+      "uuid": "01f07ecf-6303-4b54-8a1a-ea64f5928855",
+      "hash": "13ef6",
+      "file": "40034_卖给商人后，可以获得金币。_Crop_34_Seed.png"
+    },
+    "40035": {
+      "uuid": "07232d7e-3d5e-4d48-923e-d70c2b64873b",
+      "hash": "38e1e",
+      "file": "40035_卖给商人后，可以获得金币。_Crop_35_Seed.png"
+    },
+    "40036": {
+      "uuid": "f75e1ed3-acfd-4bdf-bae5-a64459ed0347",
+      "hash": "13a07",
+      "file": "40036_卖给商人后，可以获得金币。_Crop_36_Seed.png"
+    },
+    "40037": {
+      "uuid": "bb9c6484-1269-44f1-a203-74aa05fecc1d",
+      "hash": "ebb2c",
+      "file": "40037_卖给商人后，可以获得金币。_Crop_37_Seed.png"
+    },
+    "40038": {
+      "uuid": "8816cd72-1ebd-4904-bd50-509a8e3798fb",
+      "hash": "91f6c",
+      "file": "40038_卖给商人后，可以获得金币。_Crop_38_Seed.png"
+    },
+    "40039": {
+      "uuid": "3be855b2-ac62-4e8f-b754-8ef8d8d1e46a",
+      "hash": "891ad",
+      "file": "40039_卖给商人后，可以获得金币。_Crop_39_Seed.png"
+    },
+    "40041": {
+      "uuid": "340b1098-6163-404c-97f9-86cbbc00336b",
+      "hash": "9431b",
+      "file": "40041_卖给商人后，可以获得金币。_Crop_41_Seed.png"
+    },
+    "40042": {
+      "uuid": "d78193cf-a7a5-40b4-ae67-d1519480503e",
+      "hash": "48e69",
+      "file": "40042_卖给商人后，可以获得金币。_Crop_42_Seed.png"
+    },
+    "40043": {
+      "uuid": "68e20b28-d9a4-40cc-a3f0-8ff2d2ba2fc9",
+      "hash": "798d0",
+      "file": "40043_卖给商人后，可以获得金币。_Crop_43_Seed.png"
+    },
+    "40044": {
+      "uuid": "5c446801-84f3-44fd-a066-9264a619ae04",
+      "hash": "2aee9",
+      "file": "40044_卖给商人后，可以获得金币。_Crop_44_Seed.png"
+    },
+    "40045": {
+      "uuid": "d4e03a5a-6e87-4761-b29c-83835c5665b9",
+      "hash": "66e99",
+      "file": "40045_卖给商人后，可以获得金币。_Crop_45_Seed.png"
+    },
+    "40046": {
+      "uuid": "1620be8c-9e8f-4476-a016-4d00ffd8b23c",
+      "hash": "f8f0b",
+      "file": "40046_卖给商人后，可以获得金币。_Crop_46_Seed.png"
+    },
+    "40047": {
+      "uuid": "fabbc1bf-6622-433a-9471-8839d4a1aad3",
+      "hash": "15d56",
+      "file": "40047_卖给商人后，可以获得金币。_Crop_47_Seed.png"
+    },
+    "40048": {
+      "uuid": "9eb47072-a3ae-4239-99b3-5d1fde9129d9",
+      "hash": "12f45",
+      "file": "40048_卖给商人后，可以获得金币。_Crop_48_Seed.png"
+    },
+    "40049": {
+      "uuid": "30f01814-4b36-4838-9c93-d34a823db6a0",
+      "hash": "ca593",
+      "file": "40049_卖给商人后，可以获得金币。_Crop_49_Seed.png"
+    },
+    "40050": {
+      "uuid": "09c2f94f-e865-472f-b599-5e857925ecfe",
+      "hash": "36008",
+      "file": "40050_卖给商人后，可以获得金币。_Crop_50_Seed.png"
+    },
+    "40051": {
+      "uuid": "095fd7f0-24a0-415a-b4b8-96a8aeb07ba5",
+      "hash": "43ad3",
+      "file": "40051_卖给商人后，可以获得金币。_Crop_51_Seed.png"
+    },
+    "40052": {
+      "uuid": "aa0ddbb8-3102-4428-bad4-c8ad39dfab9e",
+      "hash": "dcccb",
+      "file": "40052_卖给商人后，可以获得金币。_Crop_52_Seed.png"
+    },
+    "40053": {
+      "uuid": "ef610bda-bc53-46e7-a0fa-a519a8b180d0",
+      "hash": "7ba22",
+      "file": "40053_卖给商人后，可以获得金币。_Crop_53_Seed.png"
+    },
+    "40054": {
+      "uuid": "93760003-3cc3-4a51-abe4-963543437406",
+      "hash": "2b660",
+      "file": "40054_卖给商人后，可以获得金币。_Crop_54_Seed.png"
+    },
+    "40055": {
+      "uuid": "af64a49f-6266-414c-810b-0e03a2edaf11",
+      "hash": "cfe23",
+      "file": "40055_卖给商人后，可以获得金币。_Crop_55_Seed.png"
+    },
+    "40056": {
+      "uuid": "0e787d09-1443-4c0f-b496-e0f037983758",
+      "hash": "cced4",
+      "file": "40056_卖给商人后，可以获得金币。_Crop_56_Seed.png"
+    },
+    "40057": {
+      "uuid": "44bd1002-5c47-47be-b9bc-1ae0fb9a26f2",
+      "hash": "13fb9",
+      "file": "40057_卖给商人后，可以获得金币。_Crop_57_Seed.png"
+    },
+    "40058": {
+      "uuid": "7816ce22-6077-4175-8632-9f147402c98f",
+      "hash": "dcfc6",
+      "file": "40058_卖给商人后，可以获得金币。_Crop_58_Seed.png"
+    },
+    "40059": {
+      "uuid": "d4057a83-ecef-45fb-8988-905b56ae7ce3",
+      "hash": "0a012",
+      "file": "40059_卖给商人后，可以获得金币。_Crop_59_Seed.png"
+    },
+    "40060": {
+      "uuid": "e059e031-6953-402e-9d2b-88644465dc81",
+      "hash": "cfbe9",
+      "file": "40060_卖给商人后，可以获得金币。_Crop_60_Seed.png"
+    },
+    "40061": {
+      "uuid": "2446c70c-20b6-4e3c-8a2f-5d64a044ded6",
+      "hash": "b0f19",
+      "file": "40061_卖给商人后，可以获得金币。_Crop_61_Seed.png"
+    },
+    "40062": {
+      "uuid": "35aba40d-33bc-465c-8c58-f9b45bd61ca1",
+      "hash": "994e2",
+      "file": "40062_卖给商人后，可以获得金币。_Crop_62_Seed.png"
+    },
+    "40063": {
+      "uuid": "7565aa2d-1ff4-43f9-aaa4-be0d1a937122",
+      "hash": "b750f",
+      "file": "40063_卖给商人后，可以获得金币。_Crop_63_Seed.png"
+    },
+    "40064": {
+      "uuid": "9bf36963-4f34-4c9d-b967-73ec64d1e924",
+      "hash": "3bf55",
+      "file": "40064_卖给商人后，可以获得金币。_Crop_64_Seed.png"
+    },
+    "40065": {
+      "uuid": "5a1d18bc-32f9-40d7-8cd3-be00b79004cc",
+      "hash": "b1ff0",
+      "file": "40065_卖给商人后，可以获得金币。_Crop_65_Seed.png"
+    },
+    "40066": {
+      "uuid": "3a7230b2-a8b4-434a-83bf-4cb850c6b291",
+      "hash": "9b1fc",
+      "file": "40066_卖给商人后，可以获得金币。_Crop_66_Seed.png"
+    },
+    "40067": {
+      "uuid": "4a30dcd3-efd2-4ff2-b406-7e81ab3f4923",
+      "hash": "d1c8a",
+      "file": "40067_卖给商人后，可以获得金币。_Crop_67_Seed.png"
+    },
+    "40068": {
+      "uuid": "95fe19b7-bb30-4b1a-b70f-fa4fd8e3d893",
+      "hash": "51a24",
+      "file": "40068_卖给商人后，可以获得金币。_Crop_68_Seed.png"
+    },
+    "40069": {
+      "uuid": "4a2d2b64-5b82-4b7e-bf10-cc2084afd97a",
+      "hash": "78ab5",
+      "file": "40069_卖给商人后，可以获得金币。_Crop_69_Seed.png"
+    },
+    "40070": {
+      "uuid": "de01453f-1159-490b-b312-6f9906cb8e38",
+      "hash": "4b63e",
+      "file": "40070_卖给商人后，可以获得金币。_Crop_70_Seed.png"
+    },
+    "40071": {
+      "uuid": "07ca7a88-3983-42f9-8402-fdec001cb51c",
+      "hash": "a8086",
+      "file": "40071_卖给商人后，可以获得金币。_Crop_71_Seed.png"
+    },
+    "40072": {
+      "uuid": "57888e00-33a6-4e1e-b7f7-b6a67b651935",
+      "hash": "31cf4",
+      "file": "40072_卖给商人后，可以获得金币。_Crop_72_Seed.png"
+    },
+    "40073": {
+      "uuid": "a9429882-6c61-4d3b-83a4-38da55470b6a",
+      "hash": "a27aa",
+      "file": "40073_卖给商人后，可以获得金币。_Crop_73_Seed.png"
+    },
+    "40074": {
+      "uuid": "b0811647-bd43-4402-a071-e60e05312943",
+      "hash": "e3f31",
+      "file": "40074_卖给商人后，可以获得金币。_Crop_74_Seed.png"
+    },
+    "40075": {
+      "uuid": "e1c7e781-d74f-478d-b44e-cd37fc54294e",
+      "hash": "de065",
+      "file": "40075_卖给商人后，可以获得金币。_Crop_75_Seed.png"
+    },
+    "40076": {
+      "uuid": "8c490c1a-5085-4f5f-bf06-0a35b39e10e9",
+      "hash": "aa6ae",
+      "file": "40076_卖给商人后，可以获得金币。_Crop_76_Seed.png"
+    },
+    "40077": {
+      "uuid": "80ae7506-850f-451f-9e18-57c11f62bca2",
+      "hash": "4e7d2",
+      "file": "40077_卖给商人后，可以获得金币。_Crop_77_Seed.png"
+    },
+    "40078": {
+      "uuid": "522a790b-e625-4743-bc1d-8a8d1d52738c",
+      "hash": "6bd84",
+      "file": "40078_卖给商人后，可以获得金币。_Crop_78_Seed.png"
+    },
+    "40079": {
+      "uuid": "57fada3e-788a-4384-9ff7-b0d50b6a0e57",
+      "hash": "15fc5",
+      "file": "40079_卖给商人后，可以获得金币。_Crop_79_Seed.png"
+    },
+    "40080": {
+      "uuid": "727dfe57-ed34-4e96-b8e2-bc856211c39f",
+      "hash": "aba0d",
+      "file": "40080_卖给商人后，可以获得金币。_Crop_80_Seed.png"
+    },
+    "40083": {
+      "uuid": "b1c8fdd8-2122-4a0b-9af1-e7d50860c0d8",
+      "hash": "d692e",
+      "file": "40083_卖给商人后，可以获得金币。_Crop_83_Seed.png"
+    },
+    "40084": {
+      "uuid": "23dc6a67-01f9-4c50-a772-4e4e34cd4670",
+      "hash": "99eb6",
+      "file": "40084_卖给商人后，可以获得金币。_Crop_84_Seed.png"
+    },
+    "40085": {
+      "uuid": "263f038b-8028-497d-ba6e-6b11dd3511ac",
+      "hash": "82474",
+      "file": "40085_卖给商人后，可以获得金币。_Crop_85_Seed.png"
+    },
+    "40086": {
+      "uuid": "b17af923-2135-4d18-ae27-4ef7a0b9c619",
+      "hash": "ae919",
+      "file": "40086_卖给商人后，可以获得金币。_Crop_86_Seed.png"
+    },
+    "40087": {
+      "uuid": "bef2ec8d-2f45-44f6-a7f9-81b5e1f01e3e",
+      "hash": "604a9",
+      "file": "40087_卖给商人后，可以获得金币。_Crop_87_Seed.png"
+    },
+    "40088": {
+      "uuid": "c93ba578-23c3-4b11-a257-d79e4b8126cb",
+      "hash": "cfcf8",
+      "file": "40088_卖给商人后，可以获得金币。_Crop_88_Seed.png"
+    },
+    "40089": {
+      "uuid": "d6f2058b-d616-4fd9-ae3c-f7f2b5c06aa6",
+      "hash": "8326c",
+      "file": "40089_卖给商人后，可以获得金币。_Crop_89_Seed.png"
+    },
+    "40090": {
+      "uuid": "9448434f-33db-47f5-86da-0ce9b413c6a2",
+      "hash": "4469f",
+      "file": "40090_卖给商人后，可以获得金币。_Crop_90_Seed.png"
+    },
+    "40091": {
+      "uuid": "4501b8e9-144e-497a-b282-ca1df8e17ee2",
+      "hash": "c847e",
+      "file": "40091_卖给商人后，可以获得金币。_Crop_91_Seed.png"
+    },
+    "40092": {
+      "uuid": "1e8e8dd8-b362-4c02-96eb-332aa1405a7a",
+      "hash": "32ffb",
+      "file": "40092_卖给商人后，可以获得金币。_Crop_92_Seed.png"
+    },
+    "40095": {
+      "uuid": "d1531233-1602-4322-9d08-25445ccd123f",
+      "hash": "f0547",
+      "file": "40095_卖给商人后，可以获得金币。_Crop_95_Seed.png"
+    },
+    "40096": {
+      "uuid": "c7879560-b0d9-4f21-ab73-3fb4f083ddc5",
+      "hash": "29cc9",
+      "file": "40096_卖给商人后，可以获得金币。_Crop_96_Seed.png"
+    },
+    "40097": {
+      "uuid": "722e3547-d04e-4501-9aad-148af16cc8cb",
+      "hash": "97e9b",
+      "file": "40097_卖给商人后，可以获得金币。_Crop_97_Seed.png"
+    },
+    "40098": {
+      "uuid": "f44f642e-4cd9-4c3d-bb25-269ba52d424a",
+      "hash": "84fc4",
+      "file": "40098_卖给商人后，可以获得金币。_Crop_98_Seed.png"
+    },
+    "40099": {
+      "uuid": "35f65e28-3b35-4466-a040-e1b686085c23",
+      "hash": "89dad",
+      "file": "40099_卖给商人后，可以获得金币。_Crop_99_Seed.png"
+    },
+    "40100": {
+      "uuid": "c0fc1d8d-0c10-471a-83f4-14c400902a39",
+      "hash": "1abaf",
+      "file": "40100_卖给商人后，可以获得金币。_Crop_100_Seed.png"
+    },
+    "401001": {
+      "uuid": "c48738ce-559e-4a54-a599-5f363b822b6c",
+      "hash": "384f0",
+      "file": "401001_荷风游记系列活动获取，使用后可进行专属铭牌个性化设置。.png"
+    },
+    "401002": {
+      "uuid": "6e224619-7ade-4ce8-ace3-3511af8f82f0",
+      "hash": "dcb54",
+      "file": "401002_荷风游记系列活动获取，使用后可进行专属铭牌个性化设置。.png"
+    },
+    "401003": {
+      "uuid": "fcb96ba1-1344-467c-ab8f-fb68e96418e1",
+      "hash": "c0685",
+      "file": "401003_千星游记系列活动获取，使用后可进行专属铭牌个性化设置。.png"
+    },
+    "401004": {
+      "uuid": "bf878342-abc3-4c78-868e-f2a2fabed6a9",
+      "hash": "1186c",
+      "file": "401004_鹊桥寄情铭牌.png"
+    },
+    "40101": {
+      "uuid": "56e51e12-b320-41d1-9d46-4b976eabc271",
+      "hash": "71a8d",
+      "file": "40101_卖给商人后，可以获得金币。_Crop_101_Seed.png"
+    },
+    "40102": {
+      "uuid": "c6f51d4f-45e2-49c6-b5a6-c77e965cc25e",
+      "hash": "fdd21",
+      "file": "40102_卖给商人后，可以获得金币。_Crop_102_Seed.png"
+    },
+    "40103": {
+      "uuid": "e5f9d964-28ee-4491-b714-ba917a9cec87",
+      "hash": "3e3c3",
+      "file": "40103_卖给商人后，可以获得金币。_Crop_103_Seed.png"
+    },
+    "40104": {
+      "uuid": "5432d98e-84cb-4456-af35-ea2b8b194efe",
+      "hash": "c07ec",
+      "file": "40104_卖给商人后，可以获得金币。_Crop_104_Seed.png"
+    },
+    "40105": {
+      "uuid": "b4f19058-1031-420f-ab64-feb4432c60a6",
+      "hash": "8b211",
+      "file": "40105_卖给商人后，可以获得金币。_Crop_105_Seed.png"
+    },
+    "40106": {
+      "uuid": "fb360624-b556-49bc-a86a-88ba924c860c",
+      "hash": "503c2",
+      "file": "40106_卖给商人后，可以获得金币。_Crop_106_Seed.png"
+    },
+    "40107": {
+      "uuid": "3d78f5f3-1c54-4c7c-ad97-44c11f9a0d6d",
+      "hash": "4452f",
+      "file": "40107_卖给商人后，可以获得金币。_Crop_107_Seed.png"
+    },
+    "40108": {
+      "uuid": "c756ff7d-4345-4916-a90d-e5a73b126d36",
+      "hash": "9ba30",
+      "file": "40108_卖给商人后，可以获得金币。_Crop_108_Seed.png"
+    },
+    "40109": {
+      "uuid": "eb3fd597-28f9-46db-b7c9-235bc4203bb4",
+      "hash": "f9ebc",
+      "file": "40109_卖给商人后，可以获得金币。_Crop_109_Seed.png"
+    },
+    "40110": {
+      "uuid": "48593983-6831-4a94-8678-28a8c4304f54",
+      "hash": "f156b",
+      "file": "40110_卖给商人后，可以获得金币。_Crop_110_Seed.png"
+    },
+    "40111": {
+      "uuid": "0c57ee50-ef0e-41ba-8988-730390c0bc63",
+      "hash": "de78b",
+      "file": "40111_卖给商人后，可以获得金币。_Crop_111_Seed.png"
+    },
+    "40112": {
+      "uuid": "c65bbe0e-d9d0-4dd2-ae6c-e2d7599faf33",
+      "hash": "b53bf",
+      "file": "40112_卖给商人后，可以获得金币。_Crop_112_Seed.png"
+    },
+    "40113": {
+      "uuid": "b211704b-55f1-4bbd-82ae-a2325b916828",
+      "hash": "fcfe8",
+      "file": "40113_卖给商人后，可以获得金币。_Crop_113_Seed.png"
+    },
+    "40114": {
+      "uuid": "e0980e74-8510-4376-ba6d-fc5e354e564c",
+      "hash": "ce6d6",
+      "file": "40114_卖给商人后，可以获得金币。_Crop_114_Seed.png"
+    },
+    "40115": {
+      "uuid": "8a7b7f5b-1899-4472-aa7d-4b06f7db780b",
+      "hash": "b125d",
+      "file": "40115_卖给商人后，可以获得金币。_Crop_115_Seed.png"
+    },
+    "40116": {
+      "uuid": "6bb50aa4-3d41-426d-8b97-7b3829f045bf",
+      "hash": "a0786",
+      "file": "40116_卖给商人后，可以获得金币。_Crop_116_Seed.png"
+    },
+    "40118": {
+      "uuid": "153a45ac-c5c0-4cc4-bb56-1cfd4b60f240",
+      "hash": "79928",
+      "file": "40118_卖给商人后，可以获得金币。_Crop_118_Seed.png"
+    },
+    "40120": {
+      "uuid": "8de9453f-e6ef-40ff-a678-3da9bb861bb5",
+      "hash": "13fb0",
+      "file": "40120_卖给商人后，可以获得金币。_Crop_120_Seed.png"
+    },
+    "40121": {
+      "uuid": "104a17da-d00f-4b22-8923-3f586b59f526",
+      "hash": "bb578",
+      "file": "40121_卖给商人后，可以获得金币。_Crop_121_Seed.png"
+    },
+    "40122": {
+      "uuid": "ff3415a7-399e-4eec-99cc-11a2c28ae31b",
+      "hash": "99d94",
+      "file": "40122_卖给商人后，可以获得金币。_Crop_122_Seed.png"
+    },
+    "40123": {
+      "uuid": "d2cdfa78-82c9-42fa-9a38-e331c35cce5a",
+      "hash": "4831e",
+      "file": "40123_卖给商人后，可以获得金币。_Crop_123_Seed.png"
+    },
+    "40124": {
+      "uuid": "acf97dac-7237-4695-822a-fe488ee25f75",
+      "hash": "38640",
+      "file": "40124_卖给商人后，可以获得金币。_Crop_124_Seed.png"
+    },
+    "40126": {
+      "uuid": "a7780718-b070-4922-953e-42e3234d0a6b",
+      "hash": "e5f71",
+      "file": "40126_卖给商人后，可以获得金币。_Crop_126_Seed.png"
+    },
+    "40128": {
+      "uuid": "17d7dee5-e114-46f0-8017-506863370df9",
+      "hash": "41078",
+      "file": "40128_卖给商人后，可以获得金币。_Crop_128_Seed.png"
+    },
+    "40129": {
+      "uuid": "dcc3b96f-2754-497c-8c58-715579916177",
+      "hash": "6aeed",
+      "file": "40129_卖给商人后，可以获得金币。_Crop_129_Seed.png"
+    },
+    "40130": {
+      "uuid": "d5fadb2a-e464-4933-8bb7-f44238666ffa",
+      "hash": "f0f1d",
+      "file": "40130_卖给商人后，可以获得金币。_Crop_130_Seed.png"
+    },
+    "40131": {
+      "uuid": "339cdcae-204a-4bcc-b9ce-389aeab4510a",
+      "hash": "0b38f",
+      "file": "40131_卖给商人后，可以获得金币。_Crop_131_Seed.png"
+    },
+    "40132": {
+      "uuid": "2a664592-85ba-4cca-9fde-149a40577315",
+      "hash": "c5550",
+      "file": "40132_卖给商人后，可以获得金币。_Crop_132_Seed.png"
+    },
+    "40133": {
+      "uuid": "79b16618-20aa-47eb-bc86-716880516143",
+      "hash": "f70a4",
+      "file": "40133_卖给商人后，可以获得金币。_Crop_133_Seed.png"
+    },
+    "40134": {
+      "uuid": "cb5b6703-2abd-4af5-be6a-1cabd1c954dc",
+      "hash": "fe281",
+      "file": "40134_卖给商人后，可以获得金币。_Crop_134_Seed.png"
+    },
+    "40135": {
+      "uuid": "637a9c4e-fe92-4416-b913-f25ac46daab9",
+      "hash": "9ae6d",
+      "file": "40135_卖给商人后，可以获得金币。_Crop_135_Seed.png"
+    },
+    "40136": {
+      "uuid": "b56fd745-0dc1-4924-b278-4d03c656875b",
+      "hash": "8cf8a",
+      "file": "40136_卖给商人后，可以获得金币。_Crop_136_Seed.png"
+    },
+    "40139": {
+      "uuid": "885a22c6-f612-4c31-aed3-f61c90498008",
+      "hash": "b69dc",
+      "file": "40139_卖给商人后，可以获得金币。_Crop_139_Seed.png"
+    },
+    "40140": {
+      "uuid": "cd82671c-0f16-4f45-aaca-32adac3b8943",
+      "hash": "6286e",
+      "file": "40140_卖给商人后，可以获得金币。_Crop_140_Seed.png"
+    },
+    "40141": {
+      "uuid": "5687ef62-528d-4faf-8380-a3d9fc14dd6f",
+      "hash": "1f9c5",
+      "file": "40141_卖给商人后，可以获得金币。_Crop_141_Seed.png"
+    },
+    "40142": {
+      "uuid": "74b327cb-e6db-496b-b665-3b3ceeee04f0",
+      "hash": "9ddac",
+      "file": "40142_卖给商人后，可以获得金币。_Crop_142_Seed.png"
+    },
+    "40143": {
+      "uuid": "ee3d377e-30e5-4572-bd4d-6019cf1e6352",
+      "hash": "e8eaa",
+      "file": "40143_卖给商人后，可以获得金币。_Crop_143_Seed.png"
+    },
+    "40144": {
+      "uuid": "2bc2281e-c0ef-4757-9c42-3bfbe6eb7680",
+      "hash": "df91e",
+      "file": "40144_卖给商人后，可以获得金币。_Crop_144_Seed.png"
+    },
+    "40145": {
+      "uuid": "fe45b6b7-3081-4541-bd1f-54bfded448ee",
+      "hash": "1a236",
+      "file": "40145_卖给商人后，可以获得金币。_Crop_145_Seed.png"
+    },
+    "40147": {
+      "uuid": "54ce926b-ef79-4f1b-920b-756d8368408f",
+      "hash": "6b647",
+      "file": "40147_卖给商人后，可以获得金币。_Crop_147_Seed.png"
+    },
+    "40154": {
+      "uuid": "61477378-31df-47af-8ec1-08ced07a56d5",
+      "hash": "e7b62",
+      "file": "40154_卖给商人后，可以获得金币。_Crop_154_Seed.png"
+    },
+    "40161": {
+      "uuid": "b72a754f-4e24-451d-a12a-a318f3937a05",
+      "hash": "bfab8",
+      "file": "40161_卖给商人后，可以获得金币。_Crop_161_Seed.png"
+    },
+    "40162": {
+      "uuid": "f3a09490-43c0-4d04-8a3a-679f9e25efe8",
+      "hash": "3a394",
+      "file": "40162_卖给商人后，可以获得金币。_Crop_162_Seed.png"
+    },
+    "40165": {
+      "uuid": "aa6ec135-0d19-463b-ae70-3ebb9bf8156d",
+      "hash": "1623a",
+      "file": "40165_卖给商人后，可以获得金币。_Crop_165_Seed.png"
+    },
+    "40167": {
+      "uuid": "70ec31d4-957b-49f8-93fd-8c6976ef92c3",
+      "hash": "789dd",
+      "file": "40167_卖给商人后，可以获得金币。_Crop_167_Seed.png"
+    },
+    "40172": {
+      "uuid": "1002a2cc-fe2e-401f-b1e3-2ceb061fdb00",
+      "hash": "84f6c",
+      "file": "40172_卖给商人后，可以获得金币。_Crop_172_Seed.png"
+    },
+    "40174": {
+      "uuid": "927e4986-19cd-4b01-8d10-f2bd3983a5c2",
+      "hash": "72c0d",
+      "file": "40174_卖给商人后，可以获得金币。_Crop_174_Seed.png"
+    },
+    "40176": {
+      "uuid": "a7498620-9844-4c79-95c3-fa60a66580a0",
+      "hash": "eff80",
+      "file": "40176_卖给商人后，可以获得金币。_Crop_176_Seed.png"
+    },
+    "40182": {
+      "uuid": "ad69908e-d02c-4758-bd21-b5cd6a191270",
+      "hash": "257dc",
+      "file": "40182_卖给商人后，可以获得金币。_Crop_182_Seed.png"
+    },
+    "40184": {
+      "uuid": "888c0ab3-4173-4053-9089-c2ac2ba180f8",
+      "hash": "1edb8",
+      "file": "40184_卖给商人后，可以获得金币。_Crop_184_Seed.png"
+    },
+    "40185": {
+      "uuid": "d467ae0a-319b-4f26-8236-8d702d986bfa",
+      "hash": "821d3",
+      "file": "40185_卖给商人后，可以获得金币。_Crop_185_Seed.png"
+    },
+    "40186": {
+      "uuid": "fa88b0bf-b545-4ea5-96a8-a12fa978ca28",
+      "hash": "00752",
+      "file": "40186_卖给商人后，可以获得金币。_Crop_186_Seed.png"
+    },
+    "40187": {
+      "uuid": "669157f3-771d-409d-b353-949201f85a75",
+      "hash": "a936e",
+      "file": "40187_卖给商人后，可以获得金币。_Crop_187_Seed.png"
+    },
+    "40188": {
+      "uuid": "deae3536-15a2-43a8-82c9-22604f21a7f8",
+      "hash": "e60eb",
+      "file": "40188_卖给商人后，可以获得金币。_Crop_188_Seed.png"
+    },
+    "40193": {
+      "uuid": "3dce20af-8b44-4fc9-b94f-36e5d949c88e",
+      "hash": "a361c",
+      "file": "40193_卖给商人后，可以获得金币。_Crop_193_Seed.png"
+    },
+    "40199": {
+      "uuid": "31be696b-e661-48b7-8600-1b110504ab6c",
+      "hash": "f3b87",
+      "file": "40199_卖给商人后，可以获得金币。_Crop_199_Seed.png"
+    },
+    "40201": {
+      "uuid": "0d6b3ac8-cab6-4792-a288-52e30af58ab4",
+      "hash": "015e8",
+      "file": "40201_卖给商人后，可以获得金币。_Crop_201_Seed.png"
+    },
+    "40202": {
+      "uuid": "93c623a8-f066-4faa-9207-ca1c6ef4a26b",
+      "hash": "ae60b",
+      "file": "40202_卖给商人后，可以获得金币。_Crop_202_Seed.png"
+    },
+    "40204": {
+      "uuid": "713eb888-5860-4419-b552-0e416fc832d2",
+      "hash": "7fe71",
+      "file": "40204_卖给商人后，可以获得金币。_Crop_204_Seed.png"
+    },
+    "40218": {
+      "uuid": "189f164a-a8d8-40ec-918f-567249467619",
+      "hash": "8ed8a",
+      "file": "40218_卖给商人后，可以获得金币。_Crop_218_Seed.png"
+    },
+    "40219": {
+      "uuid": "e71fc085-ec03-4a80-9863-e6c51cf26166",
+      "hash": "80ccb",
+      "file": "40219_卖给商人后，可以获得金币。_Crop_219_Seed.png"
+    },
+    "40220": {
+      "uuid": "7d2e3b7f-57e1-4491-8d55-cc485b8a548e",
+      "hash": "afafe",
+      "file": "40220_卖给商人后，可以获得金币。_Crop_220_Seed.png"
+    },
+    "40221": {
+      "uuid": "bbeb2945-da57-4d63-bad8-78c046ffe46d",
+      "hash": "e858f",
+      "file": "40221_卖给商人后，可以获得金币。_Crop_221_Seed.png"
+    },
+    "40222": {
+      "uuid": "8df2f4e2-f8e1-44b3-a5cb-0e9f2617228d",
+      "hash": "8aded",
+      "file": "40222_卖给商人后，可以获得金币。_Crop_222_Seed.png"
+    },
+    "40223": {
+      "uuid": "50fdb429-1fb0-4f87-acf1-997423d51038",
+      "hash": "a272e",
+      "file": "40223_卖给商人后，可以获得金币。_Crop_223_Seed.png"
+    },
+    "40224": {
+      "uuid": "b8515942-e57f-46de-b902-7e97911582d3",
+      "hash": "518de",
+      "file": "40224_卖给商人后，可以获得金币。_Crop_224_Seed.png"
+    },
+    "40225": {
+      "uuid": "3ebf3c3f-c93a-465a-90d8-7ef92799d9fd",
+      "hash": "1eec9",
+      "file": "40225_卖给商人后，可以获得金币。_Crop_225_Seed.png"
+    },
+    "40226": {
+      "uuid": "3cc3f75e-f404-4a97-8166-2f81959df8a9",
+      "hash": "c5dd2",
+      "file": "40226_卖给商人后，可以获得金币。_Crop_226_Seed.png"
+    },
+    "40227": {
+      "uuid": "2f3db606-fa75-479d-b13e-2dff9ca3fe19",
+      "hash": "5b16f",
+      "file": "40227_卖给商人后，可以获得金币。_Crop_227_Seed.png"
+    },
+    "40228": {
+      "uuid": "f23c273c-8249-4179-853d-255aedb73eb1",
+      "hash": "55f5b",
+      "file": "40228_卖给商人后，可以获得金币。_Crop_228_Seed.png"
+    },
+    "40229": {
+      "uuid": "cfea7096-c7f1-4161-9260-6d2fe0996172",
+      "hash": "b0329",
+      "file": "40229_卖给商人后，可以获得金币。_Crop_229_Seed.png"
+    },
+    "40235": {
+      "uuid": "6a806076-b893-43f4-b4db-18deddc39050",
+      "hash": "62bc3",
+      "file": "40235_卖给商人后，可以获得金币。_Crop_235_Seed.png"
+    },
+    "40242": {
+      "uuid": "4835cfb3-5cb8-4b21-b83a-868b62aa2981",
+      "hash": "9767e",
+      "file": "40242_卖给商人后，可以获得金币。_Crop_242_Seed.png"
+    },
+    "40243": {
+      "uuid": "b2d9e2be-1f15-4d51-977f-f487a8d6b2be",
+      "hash": "994fa",
+      "file": "40243_卖给商人后，可以获得金币。_Crop_243_Seed.png"
+    },
+    "40249": {
+      "uuid": "ce07cc5f-67a8-43a6-90e0-587c0276a164",
+      "hash": "f7dc2",
+      "file": "40249_卖给商人后，可以获得金币。_Crop_249_Seed.png"
+    },
+    "40251": {
+      "uuid": "4fae6704-d1f8-48db-beba-7c9ef1d8484d",
+      "hash": "254cd",
+      "file": "40251_卖给商人后，可以获得金币。_Crop_251_Seed.png"
+    },
+    "40256": {
+      "uuid": "a5c235dc-ef95-4e2c-9e35-943d04908333",
+      "hash": "fe64e",
+      "file": "40256_卖给商人后，可以获得金币。_Crop_256_Seed.png"
+    },
+    "40257": {
+      "uuid": "20946d87-9439-47d3-96d5-3cc651d2cb4b",
+      "hash": "3fb87",
+      "file": "40257_卖给商人后，可以获得金币。_Crop_257_Seed.png"
+    },
+    "40258": {
+      "uuid": "bc29b8bf-bf37-49ad-975e-dc6d9964906c",
+      "hash": "a3261",
+      "file": "40258_卖给商人后，可以获得金币。_Crop_258_Seed.png"
+    },
+    "40259": {
+      "uuid": "8df7c28d-ba7c-477d-a68e-39fb027e3969",
+      "hash": "70831",
+      "file": "40259_卖给商人后，可以获得金币。_Crop_259_Seed.png"
+    },
+    "40261": {
+      "uuid": "8cd66579-e4fb-4dcd-8460-2c782c5170f9",
+      "hash": "ec67b",
+      "file": "40261_卖给商人后，可以获得金币。_Crop_261_Seed.png"
+    },
+    "40262": {
+      "uuid": "470a98e0-4d57-4370-8553-156b380df175",
+      "hash": "e0548",
+      "file": "40262_卖给商人后，可以获得金币。_Crop_262_Seed.png"
+    },
+    "40263": {
+      "uuid": "516edb0a-6e5a-41af-8d87-3aedbc4b339d",
+      "hash": "52045",
+      "file": "40263_卖给商人后，可以获得金币。_Crop_263_Seed.png"
+    },
+    "40264": {
+      "uuid": "18bc64ca-a495-42a2-91a0-70dc5c01072f",
+      "hash": "155f2",
+      "file": "40264_卖给商人后，可以获得金币。_Crop_264_Seed.png"
+    },
+    "40265": {
+      "uuid": "46fdccfd-8018-40b9-b807-186cd10e9e81",
+      "hash": "40e65",
+      "file": "40265_卖给商人后，可以获得金币。_Crop_265_Seed.png"
+    },
+    "40266": {
+      "uuid": "f1d491c4-2b88-43d6-813b-57ea40464179",
+      "hash": "f04f2",
+      "file": "40266_卖给商人后，可以获得金币。_Crop_266_Seed.png"
+    },
+    "40267": {
+      "uuid": "1a42cdff-1915-4aa0-aec1-139844b7101a",
+      "hash": "499a4",
+      "file": "40267_卖给商人后，可以获得金币。_Crop_267_Seed.png"
+    },
+    "40269": {
+      "uuid": "c675953e-cb3f-4cfa-9e25-8c802ed7fd37",
+      "hash": "3d5a0",
+      "file": "40269_卖给商人后，可以获得金币。_Crop_269_Seed.png"
+    },
+    "40304": {
+      "uuid": "73722bba-e9f1-4d75-aa23-65d57eff622c",
+      "hash": "0bd11",
+      "file": "40304_卖给商人后，可以获得金币。_Crop_304_Seed.png"
+    },
+    "40305": {
+      "uuid": "7599bc40-a5d7-4834-8ed8-3e6eab7216ff",
+      "hash": "d6836",
+      "file": "40305_卖给商人后，可以获得金币。_Crop_305_Seed.png"
+    },
+    "40306": {
+      "uuid": "6d172f29-286f-4f58-88f7-e6776a863ef7",
+      "hash": "ec59c",
+      "file": "40306_卖给商人后，可以获得金币。_Crop_306_Seed.png"
+    },
+    "40308": {
+      "uuid": "b3b7045f-2b34-41ac-9e94-aaaf6083e06a",
+      "hash": "e4bfb",
+      "file": "40308_卖给商人后，可以获得金币。_Crop_308_Seed.png"
+    },
+    "40329": {
+      "uuid": "c56dec42-9fae-4361-99c6-3d5ef6049569",
+      "hash": "dee1d",
+      "file": "40329_卖给商人后，可以获得金币。_Crop_329_Seed.png"
+    },
+    "40375": {
+      "uuid": "64cc614f-a891-4404-a334-823b4df87840",
+      "hash": "b66fe",
+      "file": "40375_卖给商人后，可以获得金币。_Crop_375_Seed.png"
+    },
+    "40396": {
+      "uuid": "32376957-bcd7-4dca-9bdc-7053da6fae7b",
+      "hash": "81192",
+      "file": "40396_卖给商人后，可以获得金币。_Crop_396_Seed.png"
+    },
+    "40413": {
+      "uuid": "ddd8134a-15e5-4fbd-a7f6-a26457e638e2",
+      "hash": "26aa3",
+      "file": "40413_卖给商人后，可以获得金币。_Crop_413_Seed.png"
+    },
+    "40416": {
+      "uuid": "2cd90760-8462-481c-8406-721693c00160",
+      "hash": "e01a7",
+      "file": "40416_卖给商人后，可以获得金币。_Crop_416_Seed.png"
+    },
+    "40442": {
+      "uuid": "00beea60-aa61-4283-a6f3-431605582581",
+      "hash": "93104",
+      "file": "40442_卖给商人后，可以获得金币。_Crop_442_Seed.png"
+    },
+    "40804": {
+      "uuid": "eb4a81a2-d541-48e3-9871-519f168c1d23",
+      "hash": "dc63c",
+      "file": "40804_卖给商人后，可以获得金豆豆。_Crop_804_Seed.png"
+    },
+    "40883": {
+      "uuid": "c61651d2-8b10-4210-9eb0-c2bebefe5cea",
+      "hash": "37919",
+      "file": "40883_小红花_Crop_883_Seed.png"
+    },
+    "41032": {
+      "uuid": "6f776d22-65d6-455d-be46-0c74681db4ab",
+      "hash": "70f83",
+      "file": "41032_卖给商人后，可以获得金币。_Crop_1032_Seed.png"
+    },
+    "41037": {
+      "uuid": "7047ab54-999d-4775-a1be-087c76cdd7b2",
+      "hash": "0e8ab",
+      "file": "41037_卖给商人后，可以获得金币。_Crop_1037_Seed.png"
+    },
+    "41038": {
+      "uuid": "7fb38cdd-3c70-4c7f-bef2-5ef2ee83d979",
+      "hash": "579f7",
+      "file": "41038_卖给商人后，可以获得金币。_Crop_1038_Seed.png"
+    },
+    "41044": {
+      "uuid": "e30411c4-b2e0-435b-848f-2743658ca72e",
+      "hash": "38aa9",
+      "file": "41044_卖给商人后，可以获得金币。_Crop_1044_Seed.png"
+    },
+    "41050": {
+      "uuid": "0c552948-5a97-4f97-b21b-455293f2c4fc",
+      "hash": "80a5b",
+      "file": "41050_卖给商人后，可以获得金币。_Crop_1050_Seed.png"
+    },
+    "41134": {
+      "uuid": "a9c7bc79-375d-4781-af29-2bc5fc9b0d82",
+      "hash": "480af",
+      "file": "41134_卖给商人后，可以获得金币。_Crop_1134_Seed.png"
+    },
+    "41135": {
+      "uuid": "821fe2c3-07b6-4098-9111-8c51de3566cb",
+      "hash": "19d74",
+      "file": "41135_卖给商人后，可以获得金币。_Crop_1135_Seed.png"
+    },
+    "41221": {
+      "uuid": "bd6c3582-1352-4d1e-a2ad-bf831f4fd753",
+      "hash": "0acd7",
+      "file": "41221_青梅酿万金活动材料。_Crop_1221_Seed.png"
+    },
+    "41251": {
+      "uuid": "80bf5adf-3d09-40d2-8017-f40b01d92747",
+      "hash": "c8371",
+      "file": "41251_卖给商人后，可以获得金币。_Crop_1251_Seed.png"
+    },
+    "41353": {
+      "uuid": "9496e218-f394-4afa-b27f-a948ab4c4459",
+      "hash": "112f7",
+      "file": "41353_卖给商人后，可以获得金币。_Crop_1353_Seed.png"
+    },
+    "41380": {
+      "uuid": "cb297dcc-cd41-4a15-9c6a-80007baa48b7",
+      "hash": "33ef7",
+      "file": "41380_卖给商人后，可以获得金币。_Crop_1380_Seed.png"
+    },
+    "41404": {
+      "uuid": "bccccb2c-ed35-4fe1-a71b-4601b910ea54",
+      "hash": "daea3",
+      "file": "41404_卖给商人后，可以获得金币。_Crop_1404_Seed.png"
+    },
+    "41474": {
+      "uuid": "6183e5c4-5463-49bb-a93e-cbc85737d3c3",
+      "hash": "69799",
+      "file": "41474_卖给商人后，可以获得金币。_Crop_1474_Seed.png"
+    },
+    "41542": {
+      "uuid": "819f356c-5539-4a71-9b61-af3eeb8336a6",
+      "hash": "186e7",
+      "file": "41542_卖给商人后，可以获得金币。_Crop_1542_Seed.png"
+    },
+    "46032": {
+      "uuid": "eb8af4c8-bd98-468d-bbe9-05715623e634",
+      "hash": "50650",
+      "file": "46032_卖给商人后，可以获得金币。_Crop_6032_Seed.png"
+    },
+    "46109": {
+      "uuid": "136fcac2-4368-418e-ae23-3071325bdeda",
+      "hash": "12685",
+      "file": "46109_卖给商人后，可以获得金币。_Crop_6109_Seed.png"
+    },
+    "46127": {
+      "uuid": "c3b38551-8a02-4668-9647-3ffd26289392",
+      "hash": "eee70",
+      "file": "46127_卖给商人后，可以获得金币。_Crop_6127_Seed.png"
+    },
+    "49001": {
+      "uuid": "64034731-2c96-46e2-a602-354491f1a3b0",
+      "hash": "1bec5",
+      "file": "49001_卖给商人后，可以获得金币。_Crop_9001_Seed.png"
+    },
+    "49002": {
+      "uuid": "2cd90760-8462-481c-8406-721693c00160",
+      "hash": "e01a7",
+      "file": "49002_卖给商人后，可以获得金币。_Crop_416_Seed.png"
+    },
+    "49003": {
+      "uuid": "a087f279-63c3-416a-8d06-fff941c1c333",
+      "hash": "98f26",
+      "file": "49003_卖给商人后，可以获得金币。_Crop_9003_Seed.png"
+    },
+    "5001": {
+      "uuid": "7f8b8525-75e0-443b-b946-45fbf6c9b34d",
+      "hash": "d98cd",
+      "file": "5001_天气采集瓶.png"
+    },
+    "5002": {
+      "uuid": "7d442901-0bcd-48f3-a747-3b28e5501cd9",
+      "hash": "9a6e2",
+      "file": "5002_雷雨召唤瓶.png"
+    },
+    "5003": {
+      "uuid": "3a6eae3a-cfed-4169-b88d-19cf9d91a7c1",
+      "hash": "a6dd7",
+      "file": "5003_闪电变异瓶.png"
+    },
+    "5004": {
+      "uuid": "adafb028-8779-42b3-ad23-f914f2f39ce3",
+      "hash": "ab49e",
+      "file": "5004_霹雳引雷瓶.png"
+    },
+    "5005": {
+      "uuid": "18e67d76-95cb-4481-b864-5d3cf37f3d76",
+      "hash": "d9e81",
+      "file": "5005_青蛙使坏瓶.png"
+    },
+    "5006": {
+      "uuid": "38c40ff1-1998-4214-a63a-7c344ff8a4c4",
+      "hash": "f1b19",
+      "file": "5006_乌云使坏瓶.png"
+    },
+    "5007": {
+      "uuid": "344b5232-af18-4dd6-a3c8-52dcd9b8dc3c",
+      "hash": "70342",
+      "file": "5007_百宝惊喜瓶.png"
+    },
+    "5008": {
+      "uuid": "4d811470-4ed7-4a8f-a85b-aa2323731863",
+      "hash": "b2ff7",
+      "file": "5008_雷纹礼盒.png"
+    },
+    "5009": {
+      "uuid": "f23a4a22-119b-46a3-9513-017ac9eeea5e",
+      "hash": "afb14",
+      "file": "5009_雷击木.png"
+    },
+    "5010": {
+      "uuid": "67bea4c6-d82b-4503-b72f-c9a41f473111",
+      "hash": "7ea11",
+      "file": "5010_黄金·雷击木.png"
+    },
+    "80001": {
+      "uuid": "cb2a91eb-044e-4289-ab1b-6696c7e171a3",
+      "hash": "c706e",
+      "file": "80001_化肥.png"
+    },
+    "80002": {
+      "uuid": "af16205d-f264-4112-baf4-cae71af3fb9a",
+      "hash": "3660d",
+      "file": "80002_化肥.png"
+    },
+    "80003": {
+      "uuid": "c3700ffc-c3f9-4ea5-a053-4d3b63de5a0f",
+      "hash": "e8ab9",
+      "file": "80003_化肥.png"
+    },
+    "80004": {
+      "uuid": "179fe100-a42f-45e9-a9c8-95cecc0b07c0",
+      "hash": "9946f",
+      "file": "80004_化肥.png"
+    },
+    "80011": {
+      "uuid": "8fe4411f-95ff-48c8-83d6-ad3f61442d5d",
+      "hash": "bfa4b",
+      "file": "80011_有机化肥.png"
+    },
+    "80012": {
+      "uuid": "03357e47-8844-495b-bfea-5d4753945b45",
+      "hash": "ed6f4",
+      "file": "80012_有机化肥.png"
+    },
+    "80013": {
+      "uuid": "242b3363-018c-46f7-81a7-7279f34f2d1a",
+      "hash": "713bd",
+      "file": "80013_有机化肥.png"
+    },
+    "80014": {
+      "uuid": "5b6e11c0-75d2-49a5-96d7-8433d6694c0e",
+      "hash": "9f1ec",
+      "file": "80014_有机化肥.png"
+    },
+    "90001": {
+      "uuid": "bee01c6e-011e-4fa4-bd7c-c4d423778c16",
+      "hash": "7febd",
+      "file": "90001_吃饱后可以看家。.png"
+    },
+    "90002": {
+      "uuid": "0a3a47cb-d84f-4aeb-986e-d1bc2ce3866f",
+      "hash": "2e0cd",
+      "file": "90002_吃饱后可以看家。.png"
+    },
+    "90003": {
+      "uuid": "ccf8c0ff-77b4-49d5-9583-2fcab7369b9b",
+      "hash": "78a3d",
+      "file": "90003_吃饱后可以看家。.png"
+    },
+    "90004": {
+      "uuid": "ec8e4ace-eade-4d8e-b40c-a9ffa9820a2f",
+      "hash": "05288",
+      "file": "90004_狗狗最爱的狗粮。.png"
+    },
+    "90005": {
+      "uuid": "835fa5b1-79cb-4cea-bf32-2f6d77b736c5",
+      "hash": "bbfc4",
+      "file": "90005_狗狗最爱的狗粮。.png"
+    },
+    "90006": {
+      "uuid": "a04b7acf-1a3e-4674-980c-03eb29c3d1dc",
+      "hash": "30d67",
+      "file": "90006_狗狗最爱的狗粮。.png"
+    },
+    "90011": {
+      "uuid": "3b6e3d49-46e3-4fed-910a-ecec0e2c17b8",
+      "hash": "9644b",
+      "file": "90011_吃饱后可以看家。.png"
+    },
+    "90021": {
+      "uuid": "f2c98306-e504-40e8-8009-b17c2a93bf8a",
+      "hash": "3ce08",
+      "file": "90021_吃饱后可以看家。.png"
+    }
+  }
+}

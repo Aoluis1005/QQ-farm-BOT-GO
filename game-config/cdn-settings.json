@@ -1,0 +1,13 @@
+{
+    "server":  "https://cdn-resource.nqf.qq.com/release/",
+    "bundles":  {
+                    "mainscene":  "9e333",
+                    "extraRes":  "32dfb",
+                    "aiHead":  "3e212",
+                    "audio":  "478ae",
+                    "delayRes":  "8dfa5",
+                    "petdog":  "ca8c4",
+                    "plant":  "f2f89",
+                    "weather":  "eb03a"
+                }
+}

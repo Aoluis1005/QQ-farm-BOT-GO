@@ -23,3 +23,7 @@ cmd/
 
 # 部署临时产物（构建注入 version.go 用）
 release/
+
+# 本地运行与构建产物（严禁入库：本地调试二进制、YYB 登录态数据库含票据）
+*.exe
+yyb-resource/

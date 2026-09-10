@@ -15,6 +15,7 @@ const routes = [
   { path: '/more', name: 'more', component: () => import('@/views/More.vue') },
   { path: '/settings', name: 'settings', component: () => import('@/views/Settings.vue') },
   { path: '/backend', name: 'backend', component: () => import('@/views/Backend.vue') },
+  { path: '/sync', name: 'sync', component: () => import('@/views/Sync.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

@@ -141,6 +141,7 @@ func main() {
 	registerShopAPI(api)
 	registerTaskAPI(api)
 	registerAdminAuthAPI(api)
+	registerAssetsSyncAPI(api)
 
 	mux.Handle("/api/", corsHandler(adminAuthMiddleware(api)))
 

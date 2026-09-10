@@ -61,4 +61,9 @@ api.interceptors.response.use(
   }
 )
 
+export const syncApi = {
+  status: () => api.get('/api/sync/status'),
+  checkAssets: () => api.post('/api/sync/assets/check'),
+}
+
 export default api
