@@ -510,6 +510,48 @@ func actErrMsg(err error) string {
 	return "活动数据获取失败，请稍后重试"
 }
 
+// resolveShopActivityID 把「活动组 id / 任意节点 id」解析为真正商店节点 id（type=3）。
+// 活动组根节点同样带 exchange_shop，直接用组 id 去 Operate 会被服务端判为「活动未开始」。
+// 解析失败则返回 0，调用方保持原 id。
+func resolveShopActivityID(ctx context.Context, accountID string, id int64) int64 {
+	b := proto.NewBuilder()
+	b.FieldInt64(1, id)
+	gb, err := rpcRequest(ctx, accountID, actSvc, "GetGroup", b.Bytes(), 12*time.Second)
+	if err != nil {
+		return 0
+	}
+	root := ParseActivityGroup(gb)
+	if root == nil {
+		return 0
+	}
+	var typed, nonRoot *ActivityNode
+	var walk func(x *ActivityNode, isRoot bool)
+	walk = func(x *ActivityNode, isRoot bool) {
+		if x == nil {
+			return
+		}
+		if len(x.ExchangeShop) > 0 && !isRoot {
+			if nonRoot == nil {
+				nonRoot = x
+			}
+			if x.Info != nil && x.Info.Type == 3 && typed == nil {
+				typed = x
+			}
+		}
+		for _, c := range x.Children {
+			walk(c, false)
+		}
+	}
+	walk(root, true)
+	if typed != nil && typed.Info != nil {
+		return typed.Info.ID
+	}
+	if nonRoot != nil && nonRoot.Info != nil {
+		return nonRoot.Info.ID
+	}
+	return 0
+}
+
 func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	accountID := resolveAccountID(q.Get("accountId"))
@@ -575,6 +617,13 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 	if c, _ := strconv.ParseInt(q.Get("count"), 10, 64); c > 0 {
 		count = c
 	}
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	// 兑换 Operate 的活动 id 必须是真正的商店节点；活动组根节点也带 exchange_shop，
+	// 若传的是组 id 会导致服务端报「活动未开始」，这里解析出商店子节点 id。
+	if real := resolveShopActivityID(ctx, accountID, id); real > 0 {
+		id = real
+	}
 	sub := proto.NewBuilder()
 	sub.FieldInt64(1, slotID)
 	sub.FieldInt64(2, count)
@@ -582,8 +631,6 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 	b.FieldInt64(1, id)
 	b.FieldInt64(2, actExchangeCmd)
 	b.FieldMessage(101, sub.Bytes())
-	ctx, cancel := context.WithTimeout(r.Context(), 18*time.Second)
-	defer cancel()
 	_, err := rpcRequest(ctx, accountID, actSvc, "Operate", b.Bytes(), 15*time.Second)
 	if err != nil {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))

@@ -601,7 +601,12 @@ function findNodes(node) {
     const inf = x.info || {}
     if (n(inf.type) === 13 && !out.giftNode) out.giftNode = x
     if (n(inf.type) === 18 && !out.petNode) out.petNode = x
-    if ((x.exchange_shop && x.exchange_shop.length) && !out.shopNode) out.shopNode = x
+    if (x.exchange_shop && x.exchange_shop.length) {
+      // 活动组根节点也会带 exchange_shop，优先取真正的商店子节点（type===3）
+      const cur = out.shopNode
+      const better = !cur || (n(inf.type) === 3 && n(cur.info && cur.info.type) !== 3)
+      if (better) out.shopNode = x
+    }
     ;(x.children || []).forEach(walk)
   })(node)
   return out
