@@ -18,11 +18,14 @@ const refreshing = ref(false)
 // 树中找出的节点引用（供子面板使用）
 let giftNode = null
 let shopNode = null
+let petNode = null   // S3 萌宠：type=18 宠物玩法节点
 
 // 面板数据
 const view = reactive({ season: null, solar: null })
 const shopState = reactive({ items: [], bal: 0, cur: '星砂', err: '' })
 const giftState = reactive({ nodes: [], summary: {}, day: 0, total: 0, err: '' })
+const petState = reactive({ data: null, err: '' })
+const petBusy = ref(false)
 const qmState = reactive({ activity: {}, reward: {}, material: {}, err: '' })
 
 /* ---------- 鹊桥寄情（QiXi） ---------- */
@@ -590,17 +593,39 @@ function fmtBig(n) {
   return v.toLocaleString()
 }
 
-/* ---------- 树遍历：找商店节点（有 exchange_shop）与观星节点（type===13） ---------- */
+/* ---------- 树遍历：找商店节点（有 exchange_shop）/赠礼节点（type===13）/宠物节点（type===18） ---------- */
 function findNodes(node) {
-  const out = { giftNode: null, shopNode: null }
+  const out = { giftNode: null, shopNode: null, petNode: null }
   ;(function walk(x) {
     if (!x) return
     const inf = x.info || {}
     if (n(inf.type) === 13 && !out.giftNode) out.giftNode = x
+    if (n(inf.type) === 18 && !out.petNode) out.petNode = x
     if ((x.exchange_shop && x.exchange_shop.length) && !out.shopNode) out.shopNode = x
     ;(x.children || []).forEach(walk)
   })(node)
   return out
+}
+
+/* ---------- 面板名解析 ----------
+   面板名不在任何服务端配置表里（CDN mainscene 的 103 张 config 已全量扫过，
+   只有 GotoJump 提供活动级名字「萌宠成长日记」）。因此取名的优先级是：
+     ① 服务端运行时数据（战令 passport.title → 当前「萌宠游记」）
+     ② 活动主题映射：按节点 payload 里的 uid 定位主题（不绑定活动 id，换期只改这里）
+     ③ 通用兜底名
+*/
+const THEME_BY_UID = {
+  SEASON_BEAR_CAMPAIGN: { name: '萌宠成长日记', pet: '比熊之家', stories: '爪印手记', shop: '拾物小铺', gift: '比熊赠礼' },
+}
+function payloadUid(tree) {
+  let uid = ''
+  ;(function walk(x) {
+    if (!x || uid) return
+    const m = String((x.info && x.info.payload) || '').match(/"uid"\s*:\s*"([^"]+)"/)
+    if (m) uid = m[1]
+    ;(x.children || []).forEach(walk)
+  })(tree)
+  return uid
 }
 
 /* ---------- 加载活动列表 + 选中组 ---------- */
@@ -700,16 +725,27 @@ async function loadGroup(group) {
     const found = findNodes(tree)
     giftNode = found.giftNode
     shopNode = found.shopNode
+    petNode = found.petNode
 
     const title = group.title || ''
     const isQingmei = title.indexOf('青酿') >= 0 || title.indexOf('青梅') >= 0
+    const theme = THEME_BY_UID[payloadUid(tree)] || null
     let pl = []
     if (isQingmei) {
       pl.push({ key: 'qingmei', title: '青梅酿', icon: '🍶' })
     } else {
-      if (season && season.passport) pl.push({ key: 'season', title: '千星游记', icon: '🗺️' })
-      if (shopNode) pl.push({ key: 'shop', title: '星砂商店', icon: '🛍️' })
-      if (giftNode) pl.push({ key: 'gift', title: '观星礼录', icon: '🌟' })
+      // 宠物玩法节点（type=18）：比熊之家 + 爪印手记
+      if (petNode) {
+        pl.push({ key: 'pet', title: (theme && theme.pet) || '萌宠玩法', icon: '🐻' })
+        pl.push({ key: 'stories', title: (theme && theme.stories) || '成长手记', icon: '🐾' })
+      }
+      // 战令：名字优先用服务端 passport.title（当前「萌宠游记」）
+      if (season && season.passport) pl.push({ key: 'season', title: season.passport.title || (theme && theme.name) || '游记战令', icon: '🗺️' })
+      // 每日赠礼（type=13）
+      if (giftNode) pl.push({ key: 'gift', title: (theme && theme.gift) || '每日赠礼', icon: '🌟' })
+      // 兑换商店（type=3）
+      if (shopNode) pl.push({ key: 'shop', title: (theme && theme.shop) || '兑换商店', icon: '🛍️' })
+      // 节令小礼（跨活动通用模块）
       if (solar && solar.terms && solar.terms.length) pl.push({ key: 'solar', title: '节令小礼', icon: '🌿' })
     }
     panels.value = pl
@@ -731,9 +767,37 @@ async function renderPanel(p) {
   if (!p) return
   if (p.key === 'shop') await loadShop()
   else if (p.key === 'gift') await loadGift()
+  else if (p.key === 'pet' || p.key === 'stories') await loadPet()
   else if (p.key === 'qingmei') await loadQingmei()
   else if (p.key === 'yulu') { await loadYulu() }
   else if (p.key === 'honghua') { await loadHonghua() }
+}
+
+/* ---------- 比熊之家 / 爪印手记（S3 萌宠成长日记，同一份数据） ---------- */
+async function loadPet() {
+  const a = acc(); if (!a) return
+  petState.err = ''
+  try {
+    const { data } = await api.get('/api/activity/pet', { params: { accountId: a.gid } })
+    if (data && data.ok) petState.data = data.data
+    else petState.err = (data && data.error) || '加载失败'
+  } catch (e) { petState.err = '加载失败' }
+}
+async function petOperate(action, payload) {
+  const a = acc(); if (!a || petBusy.value) return
+  petBusy.value = true
+  try {
+    const { data } = await api.post('/api/activity/pet/operate', Object.assign({ accountId: a.gid, action }, payload || {}))
+    if (data && data.ok) {
+      const msg = { feed: '投喂成功：成长 +700 · 幸运星 +100', draw: '寻宝完成', initialize: '领养成功', claimDog: '已获得永久比熊', story: '手记奖励已领取', seeds: '种子礼包已领取', exchange: '兑换成功' }[action] || '操作成功'
+      app.success(msg)
+      if (data.data) petState.data = data.data
+      else await loadPet()
+    } else {
+      app.error((data && data.error) || '操作失败')
+    }
+  } catch (e) { app.error('操作失败') }
+  petBusy.value = false
 }
 
 /* ---------- 刷新获取新活动 ---------- */
@@ -767,7 +831,7 @@ async function shopExchange(it) {
   const id = (shopNode && shopNode.info && shopNode.info.id) || 2026072702
   const cnt = n(it.__qty) || 1
   const price = n(it.price)
-  if (price * cnt > shopState.bal) { app.error('星砂不足：需 ' + (price * cnt) + '，当前 ' + shopState.bal + ''); return }
+  if (price * cnt > shopState.bal) { app.error(shopState.cur + '不足：需 ' + (price * cnt) + '，当前 ' + shopState.bal + ''); return }
   try {
     const { data } = await api.post('/api/activity/shop/exchange', null, { params: { id, slotId: it.id, count: cnt } })
     if (!(data && data.ok)) { app.error('兑换失败：' + ((data && data.error) || '未知错误')); return }
@@ -972,6 +1036,62 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
         </template>
       </div>
       <div v-else class="act-empty">该活动暂无可展示的面板</div>
+    </div>
+
+    <!-- ===== 比熊之家（S3 萌宠成长日记） ===== -->
+    <div v-else-if="curPanel && curPanel.key === 'pet'">
+      <template v-if="petState.data">
+        <div class="act-card">
+          <div class="act-card-hd">
+            <h4>🐻 {{ petState.data.title || '萌宠成长日记' }}</h4>
+            <span class="act-badge" :class="{ off: !petState.data.active }">{{ petState.data.active ? '进行中' : '未开放' }}</span>
+          </div>
+          <div class="act-stats">
+            <span>成长值 <b>{{ n(petState.data.nurture.growth) }}</b> / {{ n(petState.data.nurture.adultGrowth) }}</span>
+            <span>元气糕 <b>{{ fmtBig(petState.data.nurture.cakeHave) }}</b> / {{ n(petState.data.nurture.feedCost) }}</span>
+            <span>今日投喂 <b>{{ n(petState.data.nurture.feedCount) }}</b> / {{ n(petState.data.nurture.feedLimit) }}</span>
+            <span>幸运星 <b>{{ fmtBig(petState.data.star) }}</b></span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" :style="{ width: (n(petState.data.nurture.adultGrowth) > 0 ? Math.min(100, Math.round(n(petState.data.nurture.growth) / n(petState.data.nurture.adultGrowth) * 100)) : 0) + '%' }"></div></div>
+          <div class="act-hint">
+            {{ petState.data.nurture.adult ? '🎉 已长成成年比熊，可以寻宝了' : ('每次投喂 −' + n(petState.data.nurture.feedCost) + ' 元气糕 → 成长 +' + n(petState.data.nurture.feedCost) + ' · 幸运星 +100；成长满 ' + n(petState.data.nurture.adultGrowth) + ' 长成成年比熊') }}
+          </div>
+        </div>
+        <div class="act-actions">
+          <button v-if="!petState.data.nurture.initialized" class="act-btn" :disabled="petBusy" @click="petOperate('initialize')">🐾 领养比熊</button>
+          <template v-else-if="!petState.data.nurture.adult">
+            <button class="act-btn" :class="{ disabled: !petState.data.nurture.canFeed }" :disabled="!petState.data.nurture.canFeed || petBusy" :title="petState.data.nurture.canFeed ? '' : '元气糕不足 ' + n(petState.data.nurture.feedCost) + '，先种活动作物'" @click="petOperate('feed')">🍰 投喂元气糕</button>
+          </template>
+          <template v-else>
+            <button v-if="!petState.data.nurture.dogGranted" class="act-btn" :disabled="petBusy" @click="petOperate('claimDog')">🎁 领取永久比熊</button>
+            <button class="act-btn" :class="{ disabled: !petState.data.hunt.canDraw }" :disabled="!petState.data.hunt.canDraw || petBusy" @click="petOperate('draw')">⛏️ 去寻宝（今日 {{ n(petState.data.hunt.count) }}/{{ n(petState.data.hunt.limit) }}）</button>
+          </template>
+        </div>
+      </template>
+      <div v-else-if="petState.err" class="act-empty">{{ petState.err }}</div>
+      <div v-else class="act-empty">加载中...</div>
+    </div>
+
+    <!-- ===== 爪印手记（照片墙） ===== -->
+    <div v-else-if="curPanel && curPanel.key === 'stories'">
+      <template v-if="petState.data">
+        <div class="act-card">
+          <div class="act-card-hd"><h4>🐾 爪印手记</h4><span class="act-badge">已解锁 {{ n(petState.data.unlockedCount) }} / {{ (petState.data.stories || []).length }}</span></div>
+          <div class="act-hint">和比熊相处的每个瞬间都会记进这面照片墙，投喂提升成长值即可解锁</div>
+        </div>
+        <div class="act-grid">
+          <div v-for="st in (petState.data.stories || [])" :key="st.order" class="act-item" :class="'act-' + (st.claimed ? 'done' : (st.unlocked ? 'go' : 'lock'))">
+            <img v-if="st.photo" class="act-ic" :src="st.photo" alt="" loading="lazy" :style="{ filter: st.unlocked ? '' : 'grayscale(1)', opacity: st.unlocked ? 1 : 0.45 }" @error="$event.target.remove()">
+            <div v-else class="ic">📷</div>
+            <div class="nm">手记 · 第 {{ n(st.order) }} 篇</div>
+            <div class="ct">{{ st.claimed ? '✅ 已领取' : (st.unlocked ? '⭐ 可领取' : '🔒 未解锁') }}</div>
+            <img v-if="st.unlocked && st.say" :src="st.say" alt="" loading="lazy" style="width:100%;border-radius:6px" @error="$event.target.remove()">
+            <button v-if="st.unlocked && !st.claimed" class="act-btn act-sm" :disabled="petBusy" @click="petOperate('story', { order: st.order })">领取</button>
+          </div>
+        </div>
+      </template>
+      <div v-else-if="petState.err" class="act-empty">{{ petState.err }}</div>
+      <div v-else class="act-empty">加载中...</div>
     </div>
 
     <!-- ===== 星砂商店 ===== -->

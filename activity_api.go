@@ -62,6 +62,9 @@ func registerActivityAPI(api *http.ServeMux) {
 	api.HandleFunc("/api/activity/yulu/exchange", handleYuluExchange)  // 兑换收集天气瓶（金豆→5001，每日1个）
 	api.HandleFunc("/api/debug/item_use", handleDebugItemUse)
 
+	api.HandleFunc("/api/activity/pet/operate", handleActivityPetOperate) // S3 萌宠：投喂/寻宝/领手记/领狗/种子礼包/兑换
+	api.HandleFunc("/api/activity/pet", handleActivityPet)                // S3 萌宠：比熊之家 + 爪印手记状态
+
 	// 公益小红花（CharityRedFlower）：送出爱心值/送出公益金（cmd 已抓包确认）+ 领取奖励（cmd 推断，?cmd 覆盖）
 	api.HandleFunc("/api/activity/honghua", handleHonghuaStatus)
 	api.HandleFunc("/api/activity/honghua/love", handleHonghuaLove)   // 送出爱心值 cmd=36
@@ -529,10 +532,28 @@ func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []*ShopItem{}
 	}
-	bal := starSandBalance(ctx, accountID)
+	// 币种以商品真实 cost.itemId 为准（S3 商城的幸运星 1029，不是写死的星砂 1023）
+	curID := actStarSandID
+	curName := ""
+	for _, it := range items {
+		if it.CurrencyID > 0 {
+			curID = it.CurrencyID
+			curName = it.CurrencyName
+			break
+		}
+	}
+	if curName == "" {
+		curName = itemDisplayName(curID)
+	}
+	for _, it := range items {
+		if it.CurrencyID == curID && it.CurrencyName == "" {
+			it.CurrencyName = curName
+		}
+	}
+	bal := petReadItems(ctx, accountID, curID)[curID]
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID, "id": id, "items": items,
-		"balance": map[string]interface{}{"item_id": actStarSandID, "currency_name": itemDisplayName(actStarSandID), "count": bal},
+		"balance": map[string]interface{}{"item_id": curID, "currency_name": curName, "count": bal},
 	})
 }
 
