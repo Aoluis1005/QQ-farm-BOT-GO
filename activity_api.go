@@ -533,7 +533,7 @@ func handleActivityShop(w http.ResponseWriter, r *http.Request) {
 		items = []*ShopItem{}
 	}
 	// 币种以商品真实 cost.itemId 为准（S3 商城的幸运星 1029，不是写死的星砂 1023）
-	curID := actStarSandID
+	curID := int64(actStarSandID)
 	curName := ""
 	for _, it := range items {
 		if it.CurrencyID > 0 {

@@ -169,6 +169,11 @@ func petParseStories(petRaw []byte) []*PetStory {
 			st.Photo = petPhotoURL(desc.Photo)
 			st.Say = petPhotoURL(desc.Say)
 		}
+		// 未解锁时服务端不下发 selected_desc；按抓包实证的 order→编号映射兜底（order N → photo/say N-1）
+		if st.Photo == "" && st.Order >= 1 {
+			st.Photo = petPhotoBase + "s3photowall_photo" + strconv.FormatInt(st.Order-1, 10) + ".png"
+			st.Say = petPhotoBase + "s3photowall_say" + strconv.FormatInt(st.Order-1, 10) + ".png"
+		}
 		out = append(out, st)
 	}
 	return out
