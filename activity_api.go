@@ -562,6 +562,10 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	accountID := resolveAccountID(q.Get("accountId"))
 	id := int64(actExchangeActID)
+	// 前端传的商店节点 id 优先（S3 拾物小铺 2026090103 等，写死的只是旧期兜底）
+	if v, err := strconv.ParseInt(q.Get("id"), 10, 64); err == nil && v > 0 {
+		id = v
+	}
 	slotID, _ := strconv.ParseInt(q.Get("slotId"), 10, 64)
 	if slotID <= 0 {
 		writeJSONMap(w, "ok", false, "error", "slotId required")
@@ -585,8 +589,7 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 		writeJSONMap(w, "ok", false, "error", actErrMsg(err))
 		return
 	}
-	// 刷新余额 + 商店
-	bal := starSandBalance(ctx, accountID)
+	// 刷新商店回包
 	var items []*ShopItem
 	{
 		rgb := proto.NewBuilder()
@@ -596,12 +599,26 @@ func handleActivityShopExchange(w http.ResponseWriter, r *http.Request) {
 			items = actFindShopItems(ParseActivityGroup(gb))
 		}
 	}
+	// 刷新余额 + 商店（币种按商品真实 cost.itemId，与查询接口一致）
+	curID := int64(actStarSandID)
+	curName := ""
+	for _, it := range items {
+		if it.CurrencyID > 0 {
+			curID = it.CurrencyID
+			curName = it.CurrencyName
+			break
+		}
+	}
+	if curName == "" {
+		curName = itemDisplayName(curID)
+	}
+	bal := petReadItems(ctx, accountID, curID)[curID]
 	if items == nil {
 		items = []*ShopItem{}
 	}
 	writeJSON(w, map[string]interface{}{
 		"ok": true, "account": accountID, "slot_id": slotID, "count": count,
-		"balance": map[string]interface{}{"item_id": actStarSandID, "currency_name": itemDisplayName(actStarSandID), "count": bal},
+		"balance": map[string]interface{}{"item_id": curID, "currency_name": curName, "count": bal},
 		"items":   items,
 	})
 }
