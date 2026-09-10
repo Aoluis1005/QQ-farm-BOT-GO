@@ -1098,7 +1098,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
     <div v-else-if="curPanel && curPanel.key === 'shop'">
       <template v-if="shopState.items.length || shopState.err">
         <div class="act-card">
-          <div class="act-card-hd"><h4>🛍️ 星砂商店</h4><span class="act-badge">{{ shopState.items.length }} 件</span></div>
+          <div class="act-card-hd"><h4>🛍️ {{ (curPanel && curPanel.title) || '兑换商店' }}</h4><span class="act-badge">{{ shopState.items.length }} 件</span></div>
           <div class="act-stats"><span>💰 {{ shopState.cur }}余额 <b>{{ fmtBig(shopState.bal) }}</b></span></div>
         </div>
         <div v-if="shopState.err" class="act-empty">{{ shopState.err }}</div>
@@ -1135,7 +1135,7 @@ onUnmounted(() => { if (qixiCdTimer) { clearInterval(qixiCdTimer); qixiCdTimer =
     <div v-else-if="curPanel && curPanel.key === 'gift'">
       <template v-if="giftState.nodes.length">
         <div class="act-card">
-          <div class="act-card-hd"><h4>🌟 观星礼录</h4><span class="act-badge">第 {{ n(giftState.day) }}/{{ n(giftState.total) }} 宿</span></div>
+          <div class="act-card-hd"><h4>🌟 {{ (curPanel && curPanel.title) || '每日赠礼' }}</h4><span class="act-badge">第 {{ n(giftState.day) }}/{{ n(giftState.total) }} 宿</span></div>
           <div class="act-stats">
             <span>已解锁 <b>{{ n(giftState.summary.unlocked_count) }}</b></span>
             <span>已领取 <b>{{ n(giftState.summary.claimed_count) }}</b></span>
